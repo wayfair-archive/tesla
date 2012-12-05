@@ -27,10 +27,10 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="Server">Server to run on (i.e. Master, Slave, Relay)</param>
         /// <param name="Database">Database name to run on</param>
-        /// <param name="t_array">Array of tableconf objects to loop through and set field lists on</param>
-        public void SetFieldLists(TServer server, string database, TableConf[] t_array) {
+        /// <param name="tableConfArray">Array of tableconf objects to loop through and set field lists on</param>
+        public void SetFieldLists(TServer server, string database, TableConf[] tableConfArray) {
             Dictionary<string, bool> dict;
-            foreach (TableConf t in t_array) {
+            foreach (TableConf t in tableConfArray) {
                 try {
                     dict = DataUtils.GetFieldList(server, database, t.Name);
                     SetFieldList(t, dict);
@@ -48,8 +48,8 @@ namespace TeslaSQL {
         /// Set several field lists on a TableConf object using its config and an smo table object.
         /// </summary>
         /// <param name="t_smo">SMO table object</param>
-        /// <param name="t_conf">Configuration TableConf object for the same table as the smo object</param>   
-        public void SetFieldList(TableConf t_conf, Dictionary<string, bool> fields) {
+        /// <param name="tableConf">Configuration TableConf object for the same table as the smo object</param>   
+        public void SetFieldList(TableConf tableConf, Dictionary<string, bool> fields) {
             //TODO continue to measure the performance of this and consider changing back to a pure sql query 
             Stopwatch st = new Stopwatch();
             st.Start();
@@ -61,12 +61,12 @@ namespace TeslaSQL {
             string prefix = "";
 
             //get dictionary of column exceptions
-            Dictionary<string, string> columnModifiers = Config.ParseColumnModifiers(t_conf.columnModifiers);
+            Dictionary<string, string> columnModifiers = Config.ParseColumnModifiers(tableConf.columnModifiers);
 
             foreach (KeyValuePair<string, bool> c in fields) {
                 //split column list on comma and/or space, only include columns in the list if the list is specified               
                 //TODO for netezza slaves we use a separate type of list that isn't populated here, where to put that?                
-                if (t_conf.columnList == null || t_conf.columnList.columns.Contains(c.Key)) {
+                if (tableConf.columnList == null || tableConf.columnList.Contains(c.Key)) {
                     if (masterColumnList != "") {
                         masterColumnList += ",";
                     }
@@ -108,14 +108,14 @@ namespace TeslaSQL {
                 }
             }
 
-            t_conf.masterColumnList = masterColumnList;
-            t_conf.slaveColumnList = slaveColumnList;
-            t_conf.pkList = pkList;
-            t_conf.notNullPKList = notNullPKList;
-            t_conf.mergeUpdateList = mergeUpdateList;
+            tableConf.masterColumnList = masterColumnList;
+            tableConf.slaveColumnList = slaveColumnList;
+            tableConf.pkList = pkList;
+            tableConf.notNullPKList = notNullPKList;
+            tableConf.mergeUpdateList = mergeUpdateList;
 
             st.Stop();
-            Logger.Log("SetFieldList Elapsed time for table " + t_conf.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
+            Logger.Log("SetFieldList Elapsed time for table " + tableConf.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
         }      
     }
 }

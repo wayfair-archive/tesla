@@ -90,9 +90,9 @@ namespace TeslaSQL {
         /// <param name="server">Server to run on</param>
         /// <param name="dbName">Database name</param>
         /// <param name="cmd">Query</param>
-        /// <param name="Timeout">Timeout (higher than selects since some writes can be large)</param>
+        /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        public static int SqlNonQuery(TServer server, string dbName, SqlCommand cmd, int Timeout = 600) {
+        public static int SqlNonQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 600) {
             //build connection string based on server/db info passed in
             string connStr = buildConnString(server, dbName);
             int numrows;
@@ -102,7 +102,7 @@ namespace TeslaSQL {
                     //open database connection
                     conn.Open();
                     cmd.Connection = conn;                    
-                    cmd.CommandTimeout = Timeout;
+                    cmd.CommandTimeout = timeout;
                     numrows = cmd.ExecuteNonQuery();
                 } catch (Exception e) {
                     //TODO figure out what to catch/rethrow
@@ -116,15 +116,15 @@ namespace TeslaSQL {
         /// <summary>
         /// Builds a connection string for the passed in server identifier using global config values
         /// </summary>
-        /// <param name="Server">Server identifier</param>
-        /// <param name="Database">Database name</param>
+        /// <param name="server">Server identifier</param>
+        /// <param name="database">Database name</param>
         /// <returns>An ADO.NET connection string</returns>
-        private static string buildConnString(TServer Server, string Database) {
+        private static string buildConnString(TServer server, string database) {
             string sqlhost = "";
             string sqluser = "";
             string sqlpass = "";
 
-            switch (Server) {
+            switch (server) {
                 case TServer.MASTER:
                     sqlhost = Config.master;
                     sqluser = Config.masterUser;
@@ -142,7 +142,7 @@ namespace TeslaSQL {
                     break;
             }
 
-            return "Data Source=" + sqlhost + "; Initial Catalog=" + Database + ";User ID=" + sqluser + ";Password=" + sqlpass;
+            return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass;
         }
 
 
@@ -388,9 +388,9 @@ namespace TeslaSQL {
         /// <param name="sourceDB">Source database name</param>
         /// <param name="destServer">Destination server type</param>
         /// <param name="destDB">Destination database name</param>
-        /// <param name="AfterDate">Capture DDL changes that have occurred since the specified date</param>
+        /// <param name="afterDate">Capture DDL changes that have occurred since the specified date</param>
         /// <param name="ct_id">Which change tracking batch this is for</param>
-        public static void CopyDDLEvents(TServer sourceServer, string sourceDB, TServer destServer, string destDB, DateTime AfterDate, Int64 ct_id) {
+        public static void CopyDDLEvents(TServer sourceServer, string sourceDB, TServer destServer, string destDB, DateTime afterDate, Int64 ct_id) {
             //get DDL events from tblDDLEvent where the event date is after the start time of the previous CT batch
             //write them over to the dest event table
             //need columns DdeTime, DdeEvent, DdeTable, DDeEventData
@@ -403,7 +403,7 @@ namespace TeslaSQL {
             string query = "SELECT DdeID, DdeTime, DdeEvent, DdeTable, DdeEventData FROM dbo.tblDDLEvent WHERE DdeTime > @afterdate";
 
             SqlCommand cmd = new SqlCommand(query);
-            cmd.Parameters.Add("@afterdate", SqlDbType.DateTime).Value = AfterDate;
+            cmd.Parameters.Add("@afterdate", SqlDbType.DateTime).Value = afterDate;
 
 
             CopyDataFromQuery(sourceServer, sourceDB, destServer, destDB, cmd, "tblCTSchemaChange_" + Convert.ToString(ct_id));
