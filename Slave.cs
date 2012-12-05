@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Data;
+using System.Xml;
 
 namespace TeslaSQL {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
@@ -284,7 +285,23 @@ namespace TeslaSQL {
 
         private void ApplySchemaChanges(TableConf[] t_array, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 ct_id) {
             //get list of schema changes from tblCTSChemaChange_ctid on the relay server/db
+            DataTable result = DataUtils.GetSchemaChanges(TServer.RELAY, Config.relayDB, ct_id);
 
+            if (result == null) {
+                return;
+            }
+
+            TableConf t;
+            XmlDocument xml;
+            foreach (DataRow row in result.Rows) {
+                //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
+                t = t_array.SingleOrDefault(item => String.Compare(item.Name, (string)row["DdeTable"], true) == 0);
+                if (t == null) {
+                    //table isn't in our config so we don't care about this schema change
+                    continue;
+                }
+                xml = (XmlDocument)row["DdeEventData"];
+            }
         }
             
     }
