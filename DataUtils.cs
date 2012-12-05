@@ -788,5 +788,18 @@ namespace TeslaSQL {
             }
             int result = SqlNonQuery(server, dbName, cmd);
         }
+
+
+        /// <summary>
+        /// Pulls the list of schema changes for a CTID 
+        /// </summary>
+        /// <param name="server">Server identifier</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="CTID">change tracking batch ID</param>
+        /// <returns>DataTable object containing the query results</returns>
+        public static DataTable GetSchemaChanges(TServer server, string dbName, Int64 CTID) {
+            SqlCommand cmd = new SqlCommand("SELECT DdeID, DdeTime, DdeEvent, DdeTable, DdeEventData FROM dbo.tblCTSchemaChange_" + Convert.ToString(CTID));
+            return (DataTable)SqlQuery(server, dbName, cmd, 30, ResultType.DATATABLE);
+        }
     }
 }
