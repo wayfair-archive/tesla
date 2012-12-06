@@ -351,51 +351,24 @@ namespace TeslaSQL {
             //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
             string query = "CREATE TABLE [dbo].[tblCTSchemaChange_" + Convert.ToString(ct_id) + "] (";
             query += @"
-	        [DdeID] [int] NOT NULL,
-	        [DdeTime] [datetime] NOT NULL,
-	        [DdeEvent] [nvarchar](max) NOT NULL,
-	        [DdeTable] [varchar](255) NOT NULL,
-	        [DdeEventData] [xml] NOT NULL	            
-            PRIMARY KEY CLUSTERED (
-	            [DdeID] ASC
-                ) 
+            [CscID] [int] NOT NULL IDENTITY(1,1) PRIMARY KEY,
+	        [CscDdeID] [int] NOT NULL,
+	        [CscTableName] [varchar](500) NOT NULL,
+            [CscEventType] [varchar](50) NOT NULL,
+            [CscSchema] [varchar](100) NOT NULL,
+            [CscColumnName] [varchar](500) NOT NULL,
+            [CscPreviousColumnName] [varchar](500) NULL,
+            [CscBaseDataType] [varchar](100) NULL,
+            [CscCharacterMaximumLength] [int] NULL,
+            [CscNumericPrecision] [int] NULL,
+            [CscNumericScale] [int] NULL     
             )";
 
             SqlCommand cmd = new SqlCommand(query);
 
             int result = SqlNonQuery(server, dbName, cmd);
         }
-
-        
-        /// <summary>
-        /// Copies DDL event records from tblDDLEvent on the master to tblCTSchemaChange_(CTID) on the relay server
-        /// </summary>
-        /// <param name="sourceServer">Source server type</param>
-        /// <param name="sourceDB">Source database name</param>
-        /// <param name="destServer">Destination server type</param>
-        /// <param name="destDB">Destination database name</param>
-        /// <param name="afterDate">Capture DDL changes that have occurred since the specified date</param>
-        /// <param name="ct_id">Which change tracking batch this is for</param>
-        public static void CopyDDLEvents(TServer sourceServer, string sourceDB, TServer destServer, string destDB, DateTime afterDate, Int64 ct_id) {
-            //get DDL events from tblDDLEvent where the event date is after the start time of the previous CT batch
-            //write them over to the dest event table
-            //need columns DdeTime, DdeEvent, DdeTable, DDeEventData
-            //where DdeTime > 
-
-            if (!CheckTableExists(sourceServer, sourceDB, "tblDDLEvent")) {
-                throw new Exception("tblDDLEvent does not exist on the source database, unable to check for schema changes. Please create the table and the trigger that populates it!");
-            }
-
-            string query = "SELECT DdeID, DdeTime, DdeEvent, DdeTable, DdeEventData FROM dbo.tblDDLEvent WHERE DdeTime > @afterdate";
-
-            SqlCommand cmd = new SqlCommand(query);
-            cmd.Parameters.Add("@afterdate", SqlDbType.DateTime).Value = afterDate;
-
-
-            CopyDataFromQuery(sourceServer, sourceDB, destServer, destDB, cmd, "tblCTSchemaChange_" + Convert.ToString(ct_id));
-
-        }
-
+       
 
         /// <summary>
         /// Get DDL events from tblDDLEvent that occurred after the specified date
@@ -415,6 +388,46 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@afterdate", SqlDbType.DateTime).Value = afterDate;
 
             return (DataTable)SqlQuery(server, dbName, cmd, 30, ResultType.DATATABLE);
+        }
+
+
+        /// <summary>
+        /// Writes a schema change record to the appropriate schema change table
+        /// </summary>
+        /// <param name="server">Server identifier</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="CTID">Batch ID</param>
+        /// <param name="ddeID">DDL event identifier from source database</param>
+        /// <param name="eventType">Type of schema change ( i.e. add/drop/modify/rename)</param>
+        /// <param name="schemaName">Schema name this applies to (usually dbo)</param>
+        /// <param name="tableName">Table name this schema change applies to</param>
+        /// <param name="columnName">Column name</param>
+        /// <param name="previousColumnName">Previous column name (applicable only to renames)</param>
+        /// <param name="baseType">Basic data type of the column (applicable to add and modify)</param>
+        /// <param name="characterMaximumLength">Maximum length for string columns (i.e. varchar, nvarchar)</param>
+        /// <param name="numericPrecision">Numeric precision (for decimal/numeric columns)</param>
+        /// <param name="numericScale">Numeric scale (for decimal/numeric columns)</param>
+        public static void WriteSchemaChange(TServer server, string dbName, Int64 CTID, int ddeID, string eventType, string schemaName, string tableName,
+            string columnName, string previousColumnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+
+            string query = "INSERT INTO dbo.tblCTSchemaChange_" + Convert.ToString(CTID) + 
+                " (CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName, CscPreviousColumnName, " +
+                " CscBaseDataType, CscCharacterMaximumLength, CscNumericPrecision, CscNumericScale) " + 
+                " VALUES (@ddeid, @tablename, @eventtype, @schema, @columnname, @previouscolumnname, " + 
+                " @basedatatype, @charactermaximumlength, @numericprecision, @numericscale)";
+
+            var cmd = new SqlCommand(query);
+            cmd.Parameters.Add("@ddeid", SqlDbType.Int).Value = ddeID;
+            cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = tableName;
+            cmd.Parameters.Add("@eventtype", SqlDbType.VarChar, 50).Value = eventType;
+            cmd.Parameters.Add("@schema", SqlDbType.VarChar, 100).Value = schemaName;
+            cmd.Parameters.Add("@columnname", SqlDbType.VarChar, 500).Value = columnName;
+            cmd.Parameters.Add("@previouscolumnname", SqlDbType.VarChar, 500).Value = previousColumnName;
+            cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = baseType;
+            cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = characterMaximumLength;
+            cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = numericPrecision;
+            cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = numericScale;
+            int result = SqlNonQuery(server, dbName, cmd);
         }
 
 

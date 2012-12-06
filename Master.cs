@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Data;
+using System.Xml;
 using Xunit;
 using System.Diagnostics;
 #endregion
@@ -26,7 +27,7 @@ namespace TeslaSQL {
             int retval = 0;
 
             Logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
-            Int64 currentVersion = DataUtils.GetCurrentCTVersion(TServer.MASTER, Config.masterDB); 
+            Int64 currentVersion = DataUtils.GetCurrentCTVersion(TServer.MASTER, Config.masterDB);
 
             Logger.Log("Initializing CT batch", LogLevel.Trace);
 
@@ -40,25 +41,32 @@ namespace TeslaSQL {
                 //create tblCTSchemaChange_<CTID> on the relay server
                 DataUtils.CreateSchemaChangeTable(TServer.RELAY, Config.relayDB, ctb.CTID);
 
+                //get the start time of the last batch where we successfully uploaded changes
+                previousSyncStartTime = DataUtils.GetLastStartTime(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges));
+
+                //GetDDLEvents
                 //TODO call PublishSchemaChanges and other necessary methods
+                PublishSchemaChanges(Config.tables, TServer.MASTER, Config.masterDB, TServer.RELAY, Config.relayDB, ctb.CTID, previousSyncStartTime);
 
                 DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
             }
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
-                //get the start time of the last batch where we successfully uploaded changes
-                previousSyncStartTime = DataUtils.GetLastStartTime(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges));
-
                 //set the field list values on the table config objects
                 SetFieldLists(TServer.MASTER, Config.masterDB, Config.tables);
 
                 //resize batch based on batch threshold
-                ctb.syncStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, Config.maxBatchSize,
+                Int64 resizedStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, Config.maxBatchSize,
                     Config.thresholdIgnoreStartTime, Config.thresholdIgnoreEndTime, DateTime.Now);
-                //TODO we need to persist this change, do we care that this can override the "need to catch up" thingy?               
+
+                //if it changed, persist that change to the database
+                if (resizedStopVersion != ctb.syncStopVersion) {
+                    ctb.syncStopVersion = resizedStopVersion;
+                    DataUtils.UpdateSyncStopVersion(TServer.RELAY, Config.relayDB, resizedStopVersion, ctb.CTID);
+                }
 
                 //loop through all tables, create CT table for each one
-               changesCaptured = CreateChangeTables(Config.tables, TServer.MASTER, Config.masterDB, Config.masterCTDB, ctb.syncStartVersion, ctb.syncStopVersion, ctb.CTID);
+                changesCaptured = CreateChangeTables(Config.tables, TServer.MASTER, Config.masterDB, Config.masterCTDB, ctb.syncStartVersion, ctb.syncStopVersion, ctb.CTID);
 
                 //update bitwise on tblCTVersion, indicating that we have completed the change table creation step
                 DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
@@ -68,7 +76,7 @@ namespace TeslaSQL {
             }
 
             //copy change tables from master to relay server
-            PublishChangeTables(Config.tables, TServer.MASTER, Config.masterCTDB, TServer.RELAY, Config.relayDB, ctb.CTID);
+            PublishChangeTables(Config.tables, TServer.MASTER, Config.masterCTDB, TServer.RELAY, Config.relayDB, ctb.CTID, changesCaptured);
 
             //this signifies the end of the master's responsibility for this batch
             DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
@@ -83,14 +91,14 @@ namespace TeslaSQL {
         /// <param name="currentVersion">current change tracking version on the master</param>
         /// <returns>boolean, which lets the agent know whether or not it should continue creating changetables</returns>
         private ChangeTrackingBatch InitializeBatch(Int64 currentVersion) {
-              
+
             DataRow lastbatch = DataUtils.GetLastCTBatch(TServer.RELAY, Config.relayDB, AgentType.Master);
-            
+
             if (lastbatch == null) {
                 //TODO figure out a better way to handle this case, determine an appropriate syncStartVersion. Perhaps use 0 and specially handle that using
                 //CHANGE_TRACKING_MIN_VALID_VERSION?
                 throw new Exception("Unable to determine appropriate syncStartVersion - version table seems to be empty.");
-            } 
+            }
 
             if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
                 //last batch succeeded, so we'll start the new batch where that one left off
@@ -114,15 +122,38 @@ namespace TeslaSQL {
             }
         }
 
-        /*TODO implement these
-        public DDLEvent[] GetSchemaChanges() {
+        public void PublishSchemaChanges(TableConf[] t_array, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 CTID, DateTime afterDate) {
+            //get all DDL events since afterDate
+            DataTable ddlEvents = DataUtils.GetDDLEvents(sourceServer, sourceDB, afterDate);
+            var schemaChanges = new List<SchemaChange>();
+            DDLEvent dde;
+            foreach (DataRow row in ddlEvents.Rows) {
+                //create a DDL event object based on the row
+                dde = new DDLEvent(row.Field<int>("DdeID"), row.Field<XmlDocument>("DdeEventData"));
+
+                //a DDL event can yield 0 or more schema change events, hence the List<SchemaChange>
+                schemaChanges = dde.Parse(t_array);
+
+                //iterate through any schema changes for this event and write them to tblCTSchemaChange_CTID
+                foreach (SchemaChange schemaChange in schemaChanges) {
+                    DataUtils.WriteSchemaChange(destServer,
+                        destDB,
+                        CTID,
+                        schemaChange.ddeID,
+                        Convert.ToString(schemaChange.eventType),
+                        schemaChange.schemaName,
+                        schemaChange.tableName,
+                        schemaChange.columnName,
+                        schemaChange.previousColumnName,
+                        schemaChange.dataType.baseType,
+                        schemaChange.dataType.characterMaximumLength,
+                        schemaChange.dataType.numericPrecision,
+                        schemaChange.dataType.numericScale
+                    );
+                }
+            }
         }
 
-        public void PublishSchemaChanges() {
-
-        }
-
-         */
 
         /// <summary>
         /// Resize batch based on max batch size configuration variable       
@@ -186,7 +217,7 @@ namespace TeslaSQL {
         /// <param name="startVersion">Start version to compare to min_valid_version</param>
         /// <param name="reason">Outputs a reason for why the table isn't valid, if it isn't valid.</param>
         /// <returns>Bool indicating whether it's safe to pull changes for this table</returns>
-        private bool ValidateSourceTable (TServer server, string dbName, string table, Int64 startVersion, out string reason) {
+        private bool ValidateSourceTable(TServer server, string dbName, string table, Int64 startVersion, out string reason) {
             if (!DataUtils.CheckTableExists(server, dbName, table)) {
                 reason = "Table " + table + " does not exist in the source database";
                 return false;
@@ -255,10 +286,10 @@ namespace TeslaSQL {
         /// <param name="destServer">Dest server identifier</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="ct_id">CT batch ID this is for</param>
-        private void PublishChangeTables(TableConf[] t_array, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 ct_id) {
+        private void PublishChangeTables(TableConf[] t_array, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 ct_id, Dictionary<string, Int64> changesCaptured) {
             foreach (TableConf t in t_array) {
                 //don't copy tables that had no changes
-                if (ChangesCaptured[t.Name] > 0) {
+                if (changesCaptured[t.Name] > 0) {
                     //hard coding timeout at 1 hour for bulk copy
                     try {
                         DataUtils.CopyTable(sourceServer, sourceCTDB, "tblCT" + t.Name + "_" + Convert.ToString(ct_id), destServer, destCTDB, 36000);
@@ -286,7 +317,7 @@ namespace TeslaSQL {
 
             foreach (TableConf t in t_array) {
                 try {
-                    rowCounts.Add(t.Name, DataUtils.GetTableRowCount(sourceServer, sourceCTDB, "tblCT" + t.Name + "_" + Convert.ToString(ct_id)));                    
+                    rowCounts.Add(t.Name, DataUtils.GetTableRowCount(sourceServer, sourceCTDB, "tblCT" + t.Name + "_" + Convert.ToString(ct_id)));
                 } catch (DoesNotExistException) {
                     rowCounts.Add(t.Name, 0);
                 }

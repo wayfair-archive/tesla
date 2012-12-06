@@ -294,7 +294,6 @@ namespace TeslaSQL {
             TableConf t;
             XmlDocument xml;
             foreach (DataRow row in result.Rows) {
-                
                 //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
                 t = t_array.SingleOrDefault(item => String.Compare(item.Name, row.Field<string>("DdeTable"), ignoreCase: true) == 0);
                 if (t == null) {
