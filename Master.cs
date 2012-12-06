@@ -11,10 +11,6 @@ using System.Diagnostics;
 
 namespace TeslaSQL {
     public class Master : Agent {
-
-
-        private Dictionary<string, Int64> ChangesCaptured = new Dictionary<string, Int64>();
-
         public override void ValidateConfig() {
             Config.ValidateRequiredHost(Config.relayServer);
             Config.ValidateRequiredHost(Config.master);

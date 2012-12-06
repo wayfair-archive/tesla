@@ -10,13 +10,6 @@ namespace TeslaSQL {
     //TODO we need to set up field lists somewhere in here...
     class Slave : Agent
     {
-        private Int64 syncStartVersion;
-        private Int64 syncStopVersion;
-        private Int64 CTID;
-        private Int32 syncBitWise;
-        private DateTime syncStartTime;
-        private DataTable pendingVersions;
-
         public override void ValidateConfig()
         {
             Config.ValidateRequiredHost(Config.relayServer);
@@ -30,17 +23,16 @@ namespace TeslaSQL {
             int retval = 0;
             Logger.Log("Initializing CT batch", LogLevel.Trace);
             //set up the variables and CT version info for this run
-            bool doConsolidate;
-            bool workToDo = InitializeBatch(out doConsolidate);
+            List<ChangeTrackingBatch> batches = InitializeBatch();
 
-            //if this is false there's nothing to do so we'll end up just returning 
-            if (workToDo) {
-                if (doConsolidate) {
-                    RunMultiBatch(pendingVersions);
-                } else {
-                    RunSingleBatch(CTID);
-                }
-            }            
+            if (batches.Count == 0) {
+                return retval;
+            } else if (batches.Count == 1) {
+                RunSingleBatch(batches[0]);
+            } else {
+                RunMultiBatch(batches);
+            }
+          
             return retval;
         }
 
@@ -48,51 +40,75 @@ namespace TeslaSQL {
         /// <summary>
         /// Initializes version/batch info for a run 
         /// </summary>
-        /// <returns>boolean, which lets the agent know whether or not there is work to do</returns>
-        private bool InitializeBatch(out bool doConsolidate) {
-            doConsolidate = false;
+        /// <returns>List of change tracking batches to work on</returns>
+        private List<ChangeTrackingBatch> InitializeBatch() {
+            var batches = new List<ChangeTrackingBatch>();
+            Int64 CTID;
+            Int64 syncStartVersion;
+            Int64 syncStopVersion;
+            Int32 syncBitWise;
+            DateTime syncStartTime;
+            ChangeTrackingBatch ctb;
+
             //get the last CT version this slave worked on in tblCTSlaveVersion
-            Logger.Log("Retrieving information on last run for slave " + Config.slave, LogLevel.Debug);
-            DataUtils.GetLastCTVersion(TServer.RELAY, Config.relayDB, AgentType.Slave, out syncStartVersion, out syncStopVersion, out CTID, out syncBitWise, Config.slave);
+            Logger.Log("Retrieving information on last run for slave " + Config.slave, LogLevel.Debug);            
+            DataRow lastBatch = DataUtils.GetLastCTBatch(TServer.RELAY, Config.relayDB, AgentType.Slave, Config.slave);
 
             //compare bitwise to the bit for last step of slave agent
-            if ((syncBitWise & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) > 0) {
+            if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) > 0) {
 
                 Logger.Log("Last batch was successful, checking for new batches.", LogLevel.Debug);
                 //get all pending revisions that this slave hasn't done yet
-                pendingVersions = DataUtils.GetPendingCTVersions(TServer.RELAY, Config.relayDB, CTID, Convert.ToInt32(SyncBitWise.UploadChanges));
+                DataTable pendingVersions = DataUtils.GetPendingCTVersions(TServer.RELAY, Config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
                 Logger.Log("Retrieved " + Convert.ToString(pendingVersions.Rows.Count) + " pending CT version(s) to work on.", LogLevel.Debug);
 
                 if (pendingVersions.Rows.Count == 0) {
                     //master hasn't published a new batch so we are done for this run
                     Logger.Log("No work to do, exiting with success.", LogLevel.Debug);
-                    return false;
+                    return batches;
                 }
 
                 if (Config.batchConsolidationThreshold == 0 || pendingVersions.Rows.Count < Config.batchConsolidationThreshold) {
                     Logger.Log("Pending versions within threshold of " + Convert.ToString(Config.batchConsolidationThreshold) + ", doing next batch.", LogLevel.Debug);
-
+                    
                     //we are an acceptable number of versions behind, so work on the next version
-                    CTID = (Int64)pendingVersions.Rows[0]["CTID"];
-                    syncStartVersion = (Int64)pendingVersions.Rows[0]["syncStartVersion"];
-                    syncStopVersion = (Int64)pendingVersions.Rows[0]["syncStopVersion"];
-                    syncBitWise = (Int32)pendingVersions.Rows[0]["syncBitWise"];
-                    syncStartTime = (DateTime)pendingVersions.Rows[0]["syncStartTime"];
+                    CTID = pendingVersions.Rows[0].Field<Int64>("CTID");
+                    syncStartVersion = pendingVersions.Rows[0].Field<Int64>("syncStartVersion");
+                    syncStopVersion = pendingVersions.Rows[0].Field<Int64>("syncStopVersion");
+                    syncBitWise = pendingVersions.Rows[0].Field<Int32>("syncBitWise");
+                    syncStartTime = pendingVersions.Rows[0].Field<DateTime>("syncStartTime");
 
                     Logger.Log("Creating entry for CTID " + Convert.ToString(CTID) + " in tblCTSlaveVersion", LogLevel.Debug);
-                    DataUtils.CreateSlaveCTVersion(TServer.RELAY, Config.relayDB, CTID, Config.slave, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise);                        
-                    return true;
+                    DataUtils.CreateSlaveCTVersion(TServer.RELAY, Config.relayDB, CTID, Config.slave, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise);
+                    ctb = new ChangeTrackingBatch(CTID, syncStartVersion, syncStopVersion, syncBitWise);
+                    batches.Add(ctb);
+                    return batches;
                 } else {
                     //we are too far behind, need to consolidate batches to catch up
-                    Logger.Log("We are more than threshold of " + Convert.ToString(Config.batchConsolidationThreshold) + " batches behind, consolidating pending batches.", LogLevel.Debug);                              
-                    doConsolidate = true;
-                    return true;
+                    Logger.Log("We are more than threshold of " + Convert.ToString(Config.batchConsolidationThreshold) + " batches behind, consolidating pending batches.", LogLevel.Debug);
+                    foreach (DataRow row in pendingVersions.Rows) {
+                        CTID = row.Field<Int64>("CTID");
+                        syncStartVersion = row.Field<Int64>("syncStartVersion");
+                        syncStopVersion = row.Field<Int64>("syncStopVersion");
+                        syncBitWise = row.Field<Int32>("syncBitWise");
+                        syncStartTime = row.Field<DateTime>("syncStartTime");
+                        ctb = new ChangeTrackingBatch(CTID, syncStartVersion, syncStopVersion, syncBitWise);
+                        batches.Add(ctb);
+                    }
+                    return batches;
                 }
-            } 
-
-            //if we get here, last batch failed so we are now about to retry
+            }
+            //if we get here, last batch failed so we are now about to retry            
+            CTID = lastBatch.Field<Int64>("CTID");
+            syncStartVersion = lastBatch.Field<Int64>("syncStartVersion");
+            syncStopVersion = lastBatch.Field<Int64>("syncStopVersion");
+            syncBitWise = lastBatch.Field<Int32>("syncBitWise");
+            syncStartTime = lastBatch.Field<DateTime>("syncStartTime");
+            
             Logger.Log("Last batch failed, retrying CTID " + Convert.ToString(CTID), LogLevel.Warn);
-            return true;
+            ctb = new ChangeTrackingBatch(CTID, syncStartVersion, syncStopVersion, syncBitWise);
+            batches.Add(ctb);
+            return batches;
         }
 
 
@@ -100,72 +116,60 @@ namespace TeslaSQL {
         /// Consolidates multiple batches and runs them as a group
         /// </summary>
         /// <param name="ctidTable">DataTable object listing all the batches</param>
-        private void RunMultiBatch(DataTable ctidTable) {
-            //TODO add logger statements
-            //dictionary to maintain batch IDs and bitwise for each batch to work on
-            Int64 maxCTID = 0;
-            Dictionary<Int64, Int32> batches = new Dictionary<Int64, Int32>();
-            foreach (DataRow row in ctidTable.Rows) {
-                batches.Add((Int64)row["CTID"], (Int32)row["syncBitWise"]);
-                if ((Int64)row["CTID"] > maxCTID)
-                    maxCTID = (Int64)row["CTID"];
-            }
-            
+        private void RunMultiBatch(List<ChangeTrackingBatch> batches) {
+            //TODO add logger statements                        
+                        
             //this will hold a list of all the CT tables that exist
             List<string> tables = new List<string>();
             
-
             //loop through each batch and copy the ct tables and apply schema changes 
-            foreach (KeyValuePair<Int64, Int32> kvp in batches) {
-                if ((kvp.Value & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
+            foreach (ChangeTrackingBatch batch in batches) {
+                if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                     //copy the change tables for each batch if it hasn't been done yet
-                    CopyChangeTables(Config.tables, TServer.RELAY, Config.relayDB, TServer.SLAVE, Config.slaveCTDB, kvp.Key, ref tables);
-                    //persist bitwise progress to database and in-memory dictionary
-                    DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, kvp.Key, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
-                    batches[kvp.Key] = kvp.Value + Convert.ToInt32(SyncBitWise.DownloadChanges);
+                    tables.Concat(CopyChangeTables(Config.tables, TServer.RELAY, Config.relayDB, TServer.SLAVE, Config.slaveCTDB, batch.CTID));
+                    //persist bitwise progress to database
+                    DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 } else {
                     //we've already downloaded changes in a previous run so fill in the List of tables using the slave server
-                    PopulateTableList(Config.tables, TServer.SLAVE, Config.slaveCTDB, ref tables, null, batches);
+                    tables.Concat(PopulateTableList(Config.tables, TServer.SLAVE, Config.slaveCTDB, batch.CTID));
                 }
 
-                if ((kvp.Value & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
+                if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                     //copy the change tables for each batch if it hasn't been done yet
                     //TODO implement
-                    //ApplySchemaChanges(Config.tables, TServer.RELAY, Config.relayDB, TServer.SLAVE, Config.slaveCTDB, kvp.Key);
+                    //ApplySchemaChanges(Config.tables, TServer.RELAY, Config.relayDB, TServer.SLAVE, Config.slaveCTDB, batch.CTID);
 
-                    //persist bitwise progress to database and in-memory dictionary
-                    DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, kvp.Key, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
-                    batches[kvp.Key] = kvp.Value + Convert.ToInt32(SyncBitWise.ApplySchemaChanges);
+                    //persist bitwise progress to database
+                    DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 }                
             }
 
             //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
-           
+            ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
+
             //consolidate the change sets into one changetable per table
-            if ((batches[maxCTID] & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
+            if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
                 //TODO implement
                 //ConsolidateBatches(Config.tables, TServer.RELAY, Config.relayDB, TServer.SLAVE, Config.slaveCTDB, kvp.Key, tables);
 
-                //persist bitwise progress to database and in-memory dictionary
-                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, maxCTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
-                batches[maxCTID] += Convert.ToInt32(SyncBitWise.ConsolidateBatches);
+                //persist bitwise progress to database
+                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
 
             //apply the changes to the destination tables
-            if ((batches[maxCTID] & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
+            if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 //TODO implement
                 //ApplyBatchedChanges(Config.tables, TServer.SLAVE, Config.slaveCTDB, Config.slaveDB, tables);
-                //persist bitwise progress to database and in-memory dictionary
-                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, maxCTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
-                batches[maxCTID] += Convert.ToInt32(SyncBitWise.ApplyChanges);
+                //persist bitwise progress to database
+                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
            
             //final step, synchronize history tables  
             //TODO implement
             //SyncBatchedHistoryTables(Config.tables, TServer.SLAVE, Config.slaveCTDB, Config.slaveDB, tables);
             //success! go through and mark all the batches as complete in the db
-            foreach (KeyValuePair<Int64, Int32> kvp in batches) {
-                DataUtils.MarkBatchComplete(TServer.RELAY, Config.relayDB, kvp.Key, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, Config.slave);
+            foreach (ChangeTrackingBatch batch in batches) {
+                DataUtils.MarkBatchComplete(TServer.RELAY, Config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, Config.slave);
             }
         }
 
@@ -173,34 +177,34 @@ namespace TeslaSQL {
         /// <summary>
         /// Runs a single change tracking batch
         /// </summary>
-        /// <param name="ct_id">The CT batch ID to run</param>
-        private void RunSingleBatch(Int64 ct_id) {
+        /// <param name="ct_id">Change tracking batch object to work on</param>
+        private void RunSingleBatch(ChangeTrackingBatch ctb) {
             //TODO finish            
             //TODO add logger statements
             //this will hold a list of all the CT tables that exist
             List<string> tables = new List<string>();
 
             //copy change tables to slave if not already done
-            if ((syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {                
-                CopyChangeTables(Config.tables, TServer.RELAY, Config.relayDB, TServer.SLAVE, Config.slaveCTDB, ct_id, ref tables);
-                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ct_id, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
+                tables = CopyChangeTables(Config.tables, TServer.RELAY, Config.relayDB, TServer.SLAVE, Config.slaveCTDB, ctb.CTID);
+                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
             } else {
                 //since CopyChangeTables doesn't need to be called to fill in CT table list, get it from the slave instead
-                PopulateTableList(Config.tables, TServer.SLAVE, Config.slaveCTDB, ref tables, ct_id, null);
+                tables = PopulateTableList(Config.tables, TServer.SLAVE, Config.slaveCTDB, ctb.CTID);
             }
 
             //apply schema changes if not already done
-            if ((syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                 //TODO implement
                 //ApplySchemaChanges(Config.tables, TServer.RELAY, Config.relayDB, TServer.SLAVE, Config.slaveCTDB, kvp.Key);
-                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ct_id, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
+                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
             }
 
             //apply changes to destination tables if not already done
-            if ((syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 //TODO implement
                 //ApplyChanges(Config.tables, TServer.SLAVE, Config.slaveCTDB, Config.slaveDB, tables);
-                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ct_id, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
+                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
             //update the history tables
@@ -209,7 +213,7 @@ namespace TeslaSQL {
 
 
             //success! mark the batch as complete
-            DataUtils.MarkBatchComplete(TServer.RELAY, Config.relayDB, ct_id, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, Config.slave);
+            DataUtils.MarkBatchComplete(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, Config.slave);
         }
 
 
@@ -221,24 +225,17 @@ namespace TeslaSQL {
         /// <param name="dbName">Database name</param>
         /// <param name="batches">Dictionary of batches, where the key is a CTID</param>
         /// <param name="tables">List of table names to populate</param>
-        private void PopulateTableList(TableConf[] t_array, TServer server, string dbName, ref List<string> tables, Int64? ct_id = null, Dictionary<Int64, Int32> batches = null) {
+        private List<string> PopulateTableList(TableConf[] t_array, TServer server, string dbName, Int64 ct_id) {
             //TODO add logger statements
+            var tables = new List<string>();
             string ctTable;
-            if (batches != null) {
-                foreach (KeyValuePair<Int64, Int32> kvp in batches) {
-                    foreach (TableConf t in t_array) {
-                        ctTable = "tblCT" + t.Name + "_" + kvp.Key;
-                        if (DataUtils.CheckTableExists(server, dbName, ctTable))
-                            tables.Add(ctTable);
-                    }
-                }
-            } else {
-                foreach (TableConf t in t_array) {
-                    ctTable = "tblCT" + t.Name + "_" + ct_id;
-                    if (DataUtils.CheckTableExists(server, dbName, ctTable))
-                        tables.Add(ctTable);
+            foreach (TableConf t in t_array) {
+                ctTable = "tblCT" + t.Name + "_" + ct_id;
+                if (DataUtils.CheckTableExists(server, dbName, ctTable)) {
+                    tables.Add(ctTable);
                 }
             }
+            return tables;
         }
 
 
@@ -253,11 +250,12 @@ namespace TeslaSQL {
         /// <param name="ct_id">CT batch ID this is for</param>
         /// <param name="tables">Reference variable, list of tables that have >0 changes. Passed by ref instead of output 
         ///     because in multi batch mode it is built up over several calls to this method.</param>
-        private void CopyChangeTables(TableConf[] t_array, TServer sourceServer, string sourceCTDB, 
-            TServer destServer, string destCTDB, Int64 ct_id, ref List<string> tables) {
+        private List<string> CopyChangeTables(TableConf[] t_array, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 ct_id) {
             //TODO change from ref variable to returning a list
             //TODO add logger statements
             bool found = false;
+
+            List<string> tables = new List<string>();
             foreach (TableConf t in t_array) {
                 found = false;
                 string ctTable = "tblCT" + t.Name + "_" + Convert.ToString(ct_id);
@@ -280,6 +278,7 @@ namespace TeslaSQL {
                     tables.Add(ctTable);
                 }
             }
+            return tables;
         }
 
 
