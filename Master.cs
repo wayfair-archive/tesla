@@ -122,6 +122,17 @@ namespace TeslaSQL {
             }
         }
 
+
+        /// <summary>
+        /// Publish schema changes that hav eoccurred since the last batch started
+        /// </summary>
+        /// <param name="t_array">Array of table config objects</param>
+        /// <param name="sourceServer">Server identifier to pull from</param>
+        /// <param name="sourceDB">Source database name</param>
+        /// <param name="destServer">Server identifier to write to</param>
+        /// <param name="destDB">Destination database name</param>
+        /// <param name="CTID">Change tracking batch id</param>
+        /// <param name="afterDate">Date to pull schema changes after</param>
         public void PublishSchemaChanges(TableConf[] t_array, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 CTID, DateTime afterDate) {
             //get all DDL events since afterDate
             DataTable ddlEvents = DataUtils.GetDDLEvents(sourceServer, sourceDB, afterDate);
@@ -132,7 +143,7 @@ namespace TeslaSQL {
                 dde = new DDLEvent(row.Field<int>("DdeID"), row.Field<XmlDocument>("DdeEventData"));
 
                 //a DDL event can yield 0 or more schema change events, hence the List<SchemaChange>
-                schemaChanges = dde.Parse(t_array);
+                schemaChanges = dde.Parse(t_array, sourceServer, sourceDB);
 
                 //iterate through any schema changes for this event and write them to tblCTSchemaChange_CTID
                 foreach (SchemaChange schemaChange in schemaChanges) {
@@ -144,7 +155,7 @@ namespace TeslaSQL {
                         schemaChange.schemaName,
                         schemaChange.tableName,
                         schemaChange.columnName,
-                        schemaChange.previousColumnName,
+                        schemaChange.newColumnName,
                         schemaChange.dataType.baseType,
                         schemaChange.dataType.characterMaximumLength,
                         schemaChange.dataType.numericPrecision,

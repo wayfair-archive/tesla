@@ -357,7 +357,7 @@ namespace TeslaSQL {
             [CscEventType] [varchar](50) NOT NULL,
             [CscSchema] [varchar](100) NOT NULL,
             [CscColumnName] [varchar](500) NOT NULL,
-            [CscPreviousColumnName] [varchar](500) NULL,
+            [CscNewColumnName] [varchar](500) NULL,
             [CscBaseDataType] [varchar](100) NULL,
             [CscCharacterMaximumLength] [int] NULL,
             [CscNumericPrecision] [int] NULL,
@@ -408,12 +408,12 @@ namespace TeslaSQL {
         /// <param name="numericPrecision">Numeric precision (for decimal/numeric columns)</param>
         /// <param name="numericScale">Numeric scale (for decimal/numeric columns)</param>
         public static void WriteSchemaChange(TServer server, string dbName, Int64 CTID, int ddeID, string eventType, string schemaName, string tableName,
-            string columnName, string previousColumnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+            string columnName, string newColumnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
 
             string query = "INSERT INTO dbo.tblCTSchemaChange_" + Convert.ToString(CTID) + 
-                " (CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName, CscPreviousColumnName, " +
-                " CscBaseDataType, CscCharacterMaximumLength, CscNumericPrecision, CscNumericScale) " + 
-                " VALUES (@ddeid, @tablename, @eventtype, @schema, @columnname, @previouscolumnname, " + 
+                " (CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName, CscNewColumnName, " +
+                " CscBaseDataType, CscCharacterMaximumLength, CscNumericPrecision, CscNumericScale) " +
+                " VALUES (@ddeid, @tablename, @eventtype, @schema, @columnname, @newcolumnname, " + 
                 " @basedatatype, @charactermaximumlength, @numericprecision, @numericscale)";
 
             var cmd = new SqlCommand(query);
@@ -422,7 +422,7 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@eventtype", SqlDbType.VarChar, 50).Value = eventType;
             cmd.Parameters.Add("@schema", SqlDbType.VarChar, 100).Value = schemaName;
             cmd.Parameters.Add("@columnname", SqlDbType.VarChar, 500).Value = columnName;
-            cmd.Parameters.Add("@previouscolumnname", SqlDbType.VarChar, 500).Value = previousColumnName;
+            cmd.Parameters.Add("@newcolumnname", SqlDbType.VarChar, 500).Value = newColumnName;
             cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = baseType;
             cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = characterMaximumLength;
             cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = numericPrecision;
