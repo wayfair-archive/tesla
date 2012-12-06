@@ -147,15 +147,13 @@ namespace TeslaSQL {
 
 
         /// <summary>
-        /// Gets information on the last CT version as output params
+        /// Gets information on the last CT batch relevant to this agent
         /// </summary>
         /// <param name="server">Server identifier</param>
         /// <param name="dbName">Database name</param>
-        /// <param name="syncStartVersion">Outputs syncStartVersion from last run</param>
-        /// <param name="syncStopVersion">Outputs syncStopVersion from last run</param>
-        /// <param name="CTID">Outputs CTID from last run</param>
-        /// <param name="syncBitWise">Outputs syncBitWise from last run</param>
-        public static void GetLastCTVersion(TServer server, string dbName, AgentType agentType, out Int64 syncStartVersion, out Int64 syncStopVersion, out Int64 CTID, out int syncBitWise, string slaveIdentifier = "") {
+        /// <param name="agentType">We need to query a different table for master vs. slave</param>
+        /// <param name="slaveIdentifier">Hostname of the slave if applicable</param>
+        public static DataRow GetLastCTBatch(TServer server, string dbName, AgentType agentType, string slaveIdentifier = "") {
             SqlCommand cmd;
             //for slave we have to pass the slave identifier in and use tblCTSlaveVersion
             if (agentType.Equals(AgentType.Slave)) {
@@ -166,25 +164,13 @@ namespace TeslaSQL {
                 cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise FROM dbo.tblCTVersion ORDER BY CTID DESC");
             }
 
-            DataRow result = SqlQuery(
+            return SqlQuery(
                 server,
                 dbName,
                 cmd,
                 30,
-                ResultType.DATAROW
-                
+                ResultType.DATAROW                
                 ) as DataRow;
-            if (result == null) {
-                //TODO do we still throw this for slaves or just set all fields to 0?
-                //there should always be a previous row here - first row needs to be created during initialization of tables 
-                //otherwise we wouldn't know what to use for syncStartVersion. 
-                throw new Exception("Unable to determine appropriate syncStartVersion - version table seems to be empty.");
-            } else {
-                syncStartVersion = (Int64)result["syncStartVersion"];
-                syncStopVersion = (Int64)result["syncStopVersion"];
-                CTID = (Int64)result["CTID"];
-                syncBitWise = (Int32)result["syncBitWise"];
-            }
         }
 
 
@@ -412,6 +398,58 @@ namespace TeslaSQL {
 
 
         /// <summary>
+        /// Get DDL events from tblDDLEvent that occurred after the specified date
+        /// </summary>
+        /// <param name="server">Server identifier</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="afterDate">Date to start from</param>
+        /// <returns>DataTable object representing the events</returns>
+        public static DataTable GetDDLEvents(TServer server, string dbName, DateTime afterDate) {
+            if (!CheckTableExists(server, dbName, "tblDDLEvent")) {
+                throw new Exception("tblDDLEvent does not exist on the source database, unable to check for schema changes. Please create the table and the trigger that populates it!");
+            }
+
+            string query = "SELECT DdeID, DdeEventData FROM dbo.tblDDLEvent WHERE DdeTime > @afterdate";
+
+            SqlCommand cmd = new SqlCommand(query);
+            cmd.Parameters.Add("@afterdate", SqlDbType.DateTime).Value = afterDate;
+
+            return (DataTable)SqlQuery(server, dbName, cmd, 30, ResultType.DATATABLE);
+        }
+
+
+        /// <summary>
+        /// Gets a column's data type
+        /// </summary>
+        /// <param name="server"></param>
+        /// <param name="dbName"></param>
+        /// <param name="table"></param>
+        /// <param name="column"></param>
+        /// <returns>TeslaSQL.DataType object</returns>
+        public static TeslaSQL.DataType GetDataType(TServer server, string dbName, string table, string column) {
+            var cmd = new SqlCommand("SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE " +
+                "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_CATALOG = @db " +
+                "AND TABLE_NAME = @table AND COLUMN_NAME = @column");
+            cmd.Parameters.Add("@db", SqlDbType.VarChar, 500).Value = dbName;
+            cmd.Parameters.Add("@table", SqlDbType.VarChar, 500).Value = table;
+            cmd.Parameters.Add("@column", SqlDbType.VarChar, 500).Value = column;
+
+            var result = (DataRow)SqlQuery(server, dbName, cmd, 30, ResultType.DATAROW);
+            
+            if (result == null) {
+                throw new DoesNotExistException("Column " + column + " does not exist on table " + table + "!");
+            }
+
+            return new TeslaSQL.DataType(
+                result.Field<string>("DATA_TYPE"), 
+                result.Field<int>("CHARACTER_MAXIMUM_LENGTH"),
+                result.Field<int>("NUMERIC_PRECISION"),
+                result.Field<int>("NUMERIC_SCALE")
+                );
+        }
+
+
+        /// <summary>
         /// Updates the syncStopVersion in tblCTVersion to the specified value for the specified CTID
         /// </summary>
         /// <param name="server">Server identifier</param>
@@ -557,6 +595,8 @@ namespace TeslaSQL {
             }
             return false;
         }
+
+        
 
         
         /// <summary>
@@ -800,6 +840,31 @@ namespace TeslaSQL {
         public static DataTable GetSchemaChanges(TServer server, string dbName, Int64 CTID) {
             SqlCommand cmd = new SqlCommand("SELECT DdeID, DdeTime, DdeEvent, DdeTable, DdeEventData FROM dbo.tblCTSchemaChange_" + Convert.ToString(CTID));
             return (DataTable)SqlQuery(server, dbName, cmd, 30, ResultType.DATATABLE);
+        }
+
+
+        /// <summary>
+        /// Gets the rowcounts for a table
+        /// </summary>
+        /// <param name="server">Server identifier</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="table">Table name</param>
+        /// <returns>The number of rows in the table</returns>
+        public static Int64 GetTableRowCount(TServer server, string dbName, string table) {
+            Table t_smo = DataUtils.GetSmoTable(server, dbName, table);
+            return t_smo.RowCount;                  
+        }
+
+        /// <summary>
+        /// Checks whether change tracking is enabled on a table
+        /// </summary>
+        /// <param name="server">Server identifier</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="table">Table name</param>
+        /// <returns>True if it is enabled, false if it's not.</returns>
+        public static bool IsChangeTrackingEnabled(TServer server, string dbName, string table) {
+            Table t_smo = DataUtils.GetSmoTable(server, dbName, table);
+            return t_smo.ChangeTrackingEnabled;        
         }
     }
 }

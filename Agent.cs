@@ -4,10 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Text;
 using System.Linq;
-using System.Data.SqlClient;
 using System.Data;
-using Microsoft.SqlServer.Management.Smo;
-using Microsoft.SqlServer.Management.Common;
 using System.Diagnostics;
 using Xunit;
 #endregion
@@ -47,8 +44,8 @@ namespace TeslaSQL {
         /// <summary>
         /// Set several field lists on a TableConf object using its config and an smo table object.
         /// </summary>
-        /// <param name="t_smo">SMO table object</param>
-        /// <param name="tableConf">Configuration TableConf object for the same table as the smo object</param>   
+        /// <param name="tableConf">A table configuration object</param>
+        /// <param name="fields">Dictionary of field names with a bool for whether they are part of the primary key</param>   
         public void SetFieldList(TableConf tableConf, Dictionary<string, bool> fields) {
             //TODO continue to measure the performance of this and consider changing back to a pure sql query 
             Stopwatch st = new Stopwatch();
@@ -116,6 +113,7 @@ namespace TeslaSQL {
 
             st.Stop();
             Logger.Log("SetFieldList Elapsed time for table " + tableConf.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
-        }      
+        }
+
     }
 }

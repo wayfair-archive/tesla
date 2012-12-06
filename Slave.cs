@@ -294,13 +294,65 @@ namespace TeslaSQL {
             TableConf t;
             XmlDocument xml;
             foreach (DataRow row in result.Rows) {
+                
                 //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
-                t = t_array.SingleOrDefault(item => String.Compare(item.Name, (string)row["DdeTable"], true) == 0);
+                t = t_array.SingleOrDefault(item => String.Compare(item.Name, row.Field<string>("DdeTable"), ignoreCase: true) == 0);
                 if (t == null) {
                     //table isn't in our config so we don't care about this schema change
                     continue;
                 }
                 xml = (XmlDocument)row["DdeEventData"];
+                string eventType = xml.SelectSingleNode("EVENT_INSTANCE/EventType").InnerText;
+                string dbName = xml.SelectSingleNode("/EVENT_INSTANCE/DatabaseName").InnerText;
+                string schemaName = xml.SelectSingleNode("/EVENT_INSTANCE/SchemaName").InnerText;
+                string objectName = xml.SelectSingleNode("/EVENT_INSTANCE/TargetObjectName").InnerText;
+                string columnName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
+                string newObjectName = xml.SelectSingleNode("/EVENT_INSTANCE/NewObjectName").InnerText;
+                string commandText = xml.SelectSingleNode("/EVENT_INSTANCE/TSQLCommand/CommandText").InnerText;
+
+                //TODO decide how we want to handle rename table?               
+
+                XmlNode node = xml.SelectSingleNode("EVENT_INSTANCE/AlterTableActionList");
+                if (node == null) {
+                    node = xml.SelectSingleNode("EVENT_INSTANCE/Parameters");
+                } 
+                if (node == null) {
+                    //if neither of these nodes are found it's some type of schema change we don't care about
+                    continue;
+                }
+                switch (node.FirstChild.Name) {
+                    case "Param":
+                        //if there is a column list in config for this table on this slave
+                            //if it does not specify this column, just continue
+                            //if it does specify this column, do the rename 
+                            /*
+                             * SELECT @sql = 'EXEC ' + @DBName+'.' + @SchemaName+ '.'+ 'sp_rename ''''' + @ObjectName+ '.' + @ColumnName
+				               + '''''' + ',' + '''''' + @NewObjectName + ''''', ''''COLUMN'''''
+   						
+			               SELECT @AggSQL = 'IF EXISTS(SELECT 1 FROM ' +  db_name() +'.' + 'information_schema.tables where table_name like ''' +
+				              @CTprefix + @ObjectName + @AggSuffix + ''' ) ' + CHAR(10) + CHAR(13)+
+				              'EXEC ' + DB_NAME() +'.' + @SchemaName+ '.'+ 'sp_rename ''''' + @CTprefix + @ObjectName + @AggSuffix + '.' + @ColumnName
+				            + '''''' + ',' + '''''' + @NewObjectName + ''''', ''''COLUMN''''' + CHAR(10) + CHAR(13)
+                             */
+                        break;
+                    case "Alter":
+                        //foreach node in /EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name
+                            //if this column exists on this slave (don't bother checking column lists etc.)
+                                //run the alter command on this table and the history table 
+                                /*
+                                 * SELECT @sql = 'ALTER TABLE ' + @DBName+ '.'+@SchemaName+'.'+ @ObjectName+ ' ALTER COLUMN ' 
+						           + @ColumnName + ' ' + @column_type		
+                                 */
+                                //if history table exists, run it there too
+                        break;
+                    case "Create":
+                        //foreach node in /EVENT_INSTANCE/AlterTableActionList/Create/Columns/Name
+                            //if columnlist for this table is specified
+                        break;
+                    case "Drop":
+                        break;
+                }
+                //we should only support ALTER_TABLE and RENAME (rename can rename a column)
             }
         }
             

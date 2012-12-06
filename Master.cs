@@ -5,22 +5,13 @@ using System.Linq;
 using System.Text;
 using System.Data;
 using Xunit;
-using Microsoft.SqlServer.Management.Smo;
-using Microsoft.SqlServer.Management.Common;
-using System.Data.Sql;
-using System.Data.SqlClient;
 using System.Diagnostics;
 #endregion
 
 namespace TeslaSQL {
     public class Master : Agent {
 
-        private Int64 syncStartVersion;
-        private Int64 syncStopVersion;
-        private Int64 CTID;
-        private Int32 syncBitWise;
-        private Int64 currentVersion;
-        private DateTime previousSyncStartTime;
+
         private Dictionary<string, Int64> ChangesCaptured = new Dictionary<string, Int64>();
 
         public override void ValidateConfig() {
@@ -33,43 +24,54 @@ namespace TeslaSQL {
 
         public override int Run() {
             int retval = 0;
-            Logger.Log("Initializing CT batch", LogLevel.Trace);
-            //set up the variables and CT version info for this run
-            bool doCaptureChanges = InitializeBatch();
 
-            if (doCaptureChanges) {
+            Logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
+            Int64 currentVersion = DataUtils.GetCurrentCTVersion(TServer.MASTER, Config.masterDB); 
+
+            Logger.Log("Initializing CT batch", LogLevel.Trace);
+
+            //set up the variables and CT version info for this run
+            ChangeTrackingBatch ctb = InitializeBatch(currentVersion);
+
+            DateTime previousSyncStartTime;
+            Dictionary<string, Int64> changesCaptured;
+
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
+                //create tblCTSchemaChange_<CTID> on the relay server
+                DataUtils.CreateSchemaChangeTable(TServer.RELAY, Config.relayDB, ctb.CTID);
+
+                //TODO call PublishSchemaChanges and other necessary methods
+
+                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
+            }
+
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 //get the start time of the last batch where we successfully uploaded changes
-                previousSyncStartTime = DataUtils.GetLastStartTime(TServer.RELAY, Config.relayDB, CTID, Convert.ToInt32(SyncBitWise.UploadChanges));
+                previousSyncStartTime = DataUtils.GetLastStartTime(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges));
 
                 //set the field list values on the table config objects
                 SetFieldLists(TServer.MASTER, Config.masterDB, Config.tables);
 
                 //resize batch based on batch threshold
-                syncStopVersion = ResizeBatch(syncStartVersion, syncStopVersion, currentVersion, Config.maxBatchSize,
+                ctb.syncStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, Config.maxBatchSize,
                     Config.thresholdIgnoreStartTime, Config.thresholdIgnoreEndTime, DateTime.Now);
-
-                //create tblCTSchemaChange_<CTID> on the relay server
-                DataUtils.CreateSchemaChangeTable(TServer.RELAY, Config.relayDB, CTID);
-
-                //populate schema change table with any DDL events that have been captured since the previous successful batch started
-                DataUtils.CopyDDLEvents(TServer.MASTER, Config.masterDB, TServer.RELAY, Config.relayDB, previousSyncStartTime, CTID);
+                //TODO we need to persist this change, do we care that this can override the "need to catch up" thingy?               
 
                 //loop through all tables, create CT table for each one
-                CreateChangeTables(Config.tables, TServer.MASTER, Config.masterDB, Config.masterCTDB, syncStartVersion, syncStopVersion, CTID);
+               changesCaptured = CreateChangeTables(Config.tables, TServer.MASTER, Config.masterDB, Config.masterCTDB, ctb.syncStartVersion, ctb.syncStopVersion, ctb.CTID);
 
                 //update bitwise on tblCTVersion, indicating that we have completed the change table creation step
-                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
+                DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
             } else {
                 //since CreateChangeTables ran on the previous run we need to manually populate the ChangesCaptured object
-                SetRowCounts(Config.tables, TServer.MASTER, Config.masterCTDB, CTID);
+                changesCaptured = GetRowCounts(Config.tables, TServer.MASTER, Config.masterCTDB, ctb.CTID);
             }
 
             //copy change tables from master to relay server
-            PublishChangeTables(Config.tables, TServer.MASTER, Config.masterCTDB, TServer.RELAY, Config.relayDB, CTID);
+            PublishChangeTables(Config.tables, TServer.MASTER, Config.masterCTDB, TServer.RELAY, Config.relayDB, ctb.CTID);
 
             //this signifies the end of the master's responsibility for this batch
-            DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
-
+            DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
 
             return retval;
         }
@@ -78,39 +80,49 @@ namespace TeslaSQL {
         /// <summary>
         /// Initializes version/batch info for a run and creates CTID
         /// </summary>
+        /// <param name="currentVersion">current change tracking version on the master</param>
         /// <returns>boolean, which lets the agent know whether or not it should continue creating changetables</returns>
-        private bool InitializeBatch() {
-            currentVersion = DataUtils.GetCurrentCTVersion(TServer.MASTER, Config.masterDB);
+        private ChangeTrackingBatch InitializeBatch(Int64 currentVersion) {
+              
+            DataRow lastbatch = DataUtils.GetLastCTBatch(TServer.RELAY, Config.relayDB, AgentType.Master);
+            
+            if (lastbatch == null) {
+                //TODO figure out a better way to handle this case, determine an appropriate syncStartVersion. Perhaps use 0 and specially handle that using
+                //CHANGE_TRACKING_MIN_VALID_VERSION?
+                throw new Exception("Unable to determine appropriate syncStartVersion - version table seems to be empty.");
+            } 
 
-            DataUtils.GetLastCTVersion(TServer.RELAY, Config.relayDB, AgentType.Master, out syncStartVersion, out syncStopVersion, out CTID, out syncBitWise);
-
-            if ((syncBitWise & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
+            if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
                 //last batch succeeded, so we'll start the new batch where that one left off
-                syncStartVersion = syncStopVersion;
-                syncStopVersion = currentVersion;
-                syncBitWise = 0;
+                Int64 syncStartVersion = lastbatch.Field<Int64>("syncStopVersion");
 
-                CTID = DataUtils.CreateCTVersion(TServer.RELAY, Config.relayDB, syncStartVersion, syncStopVersion);
-                return true;
-            } else if ((syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) > 0) {
-                //the first step is already complete for this batch, so skip it
-                //log something here?
-                Logger.Log("Creating CT tables has already been done for this batch, skipping", LogLevel.Warn);
-                return false;
+                Int64 CTID = DataUtils.CreateCTVersion(TServer.RELAY, Config.relayDB, syncStartVersion, currentVersion);
+                return new ChangeTrackingBatch(CTID, syncStartVersion, currentVersion, 0);
+            } else if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
+                //last batch failed before creating CT tables. we need to update syncStopVersion to avoid falling behind too far
+                DataUtils.UpdateSyncStopVersion(TServer.RELAY, Config.relayDB, currentVersion, lastbatch.Field<Int64>("CTID"));
+                return new ChangeTrackingBatch(lastbatch.Field<Int64>("CTID"),
+                    lastbatch.Field<Int64>("syncStartVersion"),
+                    currentVersion,
+                    lastbatch.Field<Int32>("syncBitWise"));
+            } else {
+                //previous batch failed after creating changetables. just return it so it can be retried.
+                return new ChangeTrackingBatch(lastbatch.Field<Int64>("CTID"),
+                    lastbatch.Field<Int64>("syncStartVersion"),
+                    lastbatch.Field<Int64>("syncStopVersion"),
+                    lastbatch.Field<Int32>("syncBitWise"));
             }
-            //TODO decide what to do about this case?
-            //if (syncStartVersion == syncStopVersion)
-
-            //to avoid continuously falling further behind when failing we update syncStopVersion on the next run
-            syncStopVersion = currentVersion;
-
-            //persist the new syncStopVersion to the database
-            DataUtils.UpdateSyncStopVersion(TServer.RELAY, Config.relayDB, syncStopVersion, CTID);
-
-            //if we get here, last batch failed so we are now about to retry
-            return true;
         }
 
+        /*TODO implement these
+        public DDLEvent[] GetSchemaChanges() {
+        }
+
+        public void PublishSchemaChanges() {
+
+        }
+
+         */
 
         /// <summary>
         /// Resize batch based on max batch size configuration variable       
@@ -155,24 +167,41 @@ namespace TeslaSQL {
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
         /// <param name="ct_id">CT batch ID this is being run for</param>
-        private void CreateChangeTables(TableConf[] t_array, TServer sourceServer, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 ct_id) {
+        private Dictionary<string, Int64> CreateChangeTables(TableConf[] t_array, TServer sourceServer, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 ct_id) {
+            Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64>();
+            KeyValuePair<string, Int64> result;
             foreach (TableConf t in t_array) {
-                if (!DataUtils.CheckTableExists(sourceServer, sourceDB, t.Name)) {
-                    //table doesn't exist, throw error if it's a stopOnError table, log/e-mail if it isn't
-                    if (t.stopOnError) {
-                        throw new Exception("Generating changetables for " + t.Name + " failed because it does not exist");
-                    } else {
-                        //TODO log the exception somewhere and/or send an e-mail to DBA@?
-                        Logger.Log("Table " + t.Name + " does not exist, skipping", LogLevel.Error);
-                        continue;
-                    }
-                }
-                if (!DataUtils.HasPrimaryKey(sourceServer, sourceDB, t.Name)) {
-                    throw new Exception("Unable to capture changes for " + t.Name + " because it has no primary key!");
-                    //add stoponerror logic
-                }
-                CreateChangeTable(t, sourceServer, sourceDB, sourceCTDB, startVersion, stopVersion, ct_id);
+                result = CreateChangeTable(t, sourceServer, sourceDB, sourceCTDB, startVersion, stopVersion, ct_id);
+                changesCaptured.Add(result.Key, result.Value);
             }
+            return changesCaptured;
+        }
+
+        /// <summary>
+        /// Checks that a table is valid to pull changes from (exists, has a primary key, has change tracking enabled, and has a low enough min_valid_version
+        /// </summary>
+        /// <param name="server">Server identifier</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="table">Table name</param>
+        /// <param name="startVersion">Start version to compare to min_valid_version</param>
+        /// <param name="reason">Outputs a reason for why the table isn't valid, if it isn't valid.</param>
+        /// <returns>Bool indicating whether it's safe to pull changes for this table</returns>
+        private bool ValidateSourceTable (TServer server, string dbName, string table, Int64 startVersion, out string reason) {
+            if (!DataUtils.CheckTableExists(server, dbName, table)) {
+                reason = "Table " + table + " does not exist in the source database";
+                return false;
+            } else if (!DataUtils.HasPrimaryKey(server, dbName, table)) {
+                reason = "Table " + table + " has no primary key in the source database";
+                return false;
+            } else if (!DataUtils.IsChangeTrackingEnabled(server, dbName, table)) {
+                reason = "Change tracking is not enabled on " + table;
+                return false;
+            } else if (startVersion < DataUtils.GetMinValidVersion(server, dbName, table)) {
+                reason = "Start version of " + Convert.ToString(startVersion) + " is less than CHANGE_TRACKING_MIN_VALID_VERSION for table " + table;
+                return false;
+            }
+            reason = "";
+            return true;
         }
 
 
@@ -186,29 +215,34 @@ namespace TeslaSQL {
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
         /// <param name="ct_id">CT batch ID this is being run for</param>
-        private void CreateChangeTable(TableConf t, TServer sourceServer, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 ct_id) {
+        private KeyValuePair<string, Int64> CreateChangeTable(TableConf t, TServer sourceServer, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 ct_id) {
             //TODO check tblCTInitialize and change startVersion if necessary? need to decide if we are keeping tblCTInitialize at all
             //alternative to keeping it is to have it live only on a slave which then keeps track of which batches it has applied for that table separately from the CT runs
-            string ctTableName = "tblCT" + t.Name + "_" + Convert.ToString(ct_id);
 
-            //validate that startVersion >= CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID(@tablename)) for that table
-            Int64 minValid = DataUtils.GetMinValidVersion(sourceServer, sourceDB, t.Name);
-            if (startVersion < minValid) {
-                throw new Exception("Start version is less than CHANGE_TRACKING_MIN_VALID_VERSION() for " + t.Name + ", we aren't able to get accurate changes.");
+            //TODO handle case where startVersion is 0, change it to CHANGE_TRACKING_MIN_VALID_VERSION?
+            string ctTableName = "tblCT" + t.Name + "_" + Convert.ToString(ct_id);
+            string reason;
+
+            if (!ValidateSourceTable(sourceServer, sourceDB, t.Name, startVersion, out reason)) {
+                string message = "Change table creation impossible because : " + reason;
+                if (t.stopOnError) {
+                    throw new Exception(message);
+                } else {
+                    Logger.Log(message, LogLevel.Error);
+                    return new KeyValuePair<string, Int64>(t.Name, 0);
+                }
             }
 
             //drop the table if it exists
             bool tExisted = DataUtils.DropTableIfExists(sourceServer, sourceCTDB, ctTableName);
 
-            int rowsAffected = DataUtils.SelectIntoCTTable(sourceServer, sourceCTDB, t.masterColumnList,
+            //create the changetable
+            Int64 rowsAffected = DataUtils.SelectIntoCTTable(sourceServer, sourceCTDB, t.masterColumnList,
                 ctTableName, sourceDB, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, 1200);
 
             Logger.Log("Rows affected for table " + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
 
-            //TODO handle this case - either drop the CT table and then later copy all CT tables, OR set a config variable
-            //if (rowsAffected == 0)
-            //current solution:
-            ChangesCaptured.Add(t.Name, rowsAffected);
+            return new KeyValuePair<string, Int64>(t.Name, rowsAffected);
         }
 
 
@@ -241,22 +275,23 @@ namespace TeslaSQL {
 
 
         /// <summary>
-        /// Sets ChangesCaptured object based on row counts in CT tables
+        /// Gets ChangesCaptured object based on row counts in CT tables
         /// </summary>
         /// <param name="t_array">Array of table config objects</param>
         /// <param name="sourceServer">Server identifier for the source</param>
         /// <param name="sourceCTDB">CT database name</param>
         /// <param name="ct_id">CT batch id</param>
-        private void SetRowCounts(TableConf[] t_array, TServer sourceServer, string sourceCTDB, Int64 ct_id) {
-            Table t_smo;
+        private Dictionary<string, Int64> GetRowCounts(TableConf[] t_array, TServer sourceServer, string sourceCTDB, Int64 ct_id) {
+            Dictionary<string, Int64> rowCounts = new Dictionary<string, Int64>();
+
             foreach (TableConf t in t_array) {
                 try {
-                    t_smo = DataUtils.GetSmoTable(sourceServer, sourceCTDB, t.Name);
-                    ChangesCaptured.Add(t.Name, t_smo.RowCount);
+                    rowCounts.Add(t.Name, DataUtils.GetTableRowCount(sourceServer, sourceCTDB, "tblCT" + t.Name + "_" + Convert.ToString(ct_id)));                    
                 } catch (DoesNotExistException) {
-                    ChangesCaptured.Add(t.Name, 0);
+                    rowCounts.Add(t.Name, 0);
                 }
             }
+            return rowCounts;
         }
 
 

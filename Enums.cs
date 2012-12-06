@@ -3,14 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace TeslaSQL
-{
+namespace TeslaSQL {
 
     /// <summary>
     /// Defines which task this agent should run
     /// </summary>
-    public enum AgentType
-    {
+    public enum AgentType {
         Master,
         Slave,
         ShardCoordinator,
@@ -24,8 +22,7 @@ namespace TeslaSQL
     /// <summary>
     /// Log levels that define how much information to write to logs
     /// </summary>
-    public enum LogLevel
-    {
+    public enum LogLevel {
         //the most detailed, outputs to console only
         Trace = 1,
         //debugging info
@@ -42,22 +39,21 @@ namespace TeslaSQL
     /// <summary>
     /// Bitwise values for tracking the progress of a batch
     /// </summary>
-    public enum SyncBitWise
-    {
-        CaptureChanges = 1,
-        UploadChanges = 2,
-        DownloadChanges = 4,
-        ApplySchemaChanges = 8,
-        ConsolidateBatches = 16,
-        ApplyChanges = 32,
-        SyncHistoryTables = 64
+    public enum SyncBitWise {
+        PublishSchemaChanges = 1,
+        CaptureChanges = 2,
+        UploadChanges = 4,
+        DownloadChanges = 8,
+        ApplySchemaChanges = 16,
+        ConsolidateBatches = 32,
+        ApplyChanges = 64,
+        SyncHistoryTables = 128
     }
 
     /// <summary>
     /// Servers we can connect to
     /// </summary>
-    public enum TServer
-    {
+    public enum TServer {
         MASTER,
         SLAVE,
         RELAY
@@ -67,8 +63,7 @@ namespace TeslaSQL
     /// <summary>
     /// Different types of query results that the SqlQuery method supports
     /// </summary>
-    public enum ResultType
-    {
+    public enum ResultType {
         DATASET,
         DATATABLE,
         DATAROW,
@@ -76,6 +71,20 @@ namespace TeslaSQL
         INT64,
         STRING,
         DATETIME
+    }
+
+    /// <summary>
+    /// Types of table schema changes that can be published/applied by Tesla
+    /// </summary>
+    public enum SchemaChangeType {
+        //adding a column
+        Add,
+        //dropping a column
+        Drop,
+        //changing a column's data type/length
+        Modify,
+        //Renaming a column
+        Rename
     }
 
 }
