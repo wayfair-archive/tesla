@@ -96,8 +96,10 @@ namespace TeslaSQL {
                         columnName = xColumn.InnerText;
                         //if column list is specified, only publish schema changes if the column is already in the list. we don't want
                         //slaves adding a new column that we don't plan to publish changes for. 
-                        if (t.columnList != null && t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
-                            dataType = ParseDataType(dataUtils.GetDataType(server, dbName, tableName, columnName));
+                        //if column list is null, we want changes associated with all columns.
+                        if (t.columnList == null || t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
+                            var type = dataUtils.GetDataType(server, dbName, tableName, columnName);
+                            dataType = ParseDataType(type);
                             sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
                         }
@@ -123,11 +125,12 @@ namespace TeslaSQL {
         /// <param name="row">DataRow containing the appropriate columns from GetDataType</param>
         /// <returns>A TeslaSQL.DataType object</returns>
         public DataType ParseDataType(DataRow row) {
+            string dataType = row.Field<string>("DATA_TYPE");
+            var characterMaximumLength = row.Field<int?>("CHARACTER_MAXIMUM_LENGTH");
+            var numericPrecision = row.Field<byte>("NUMERIC_PRECISION");
+            var numericScale = row.Field<int>("NUMERIC_SCALE");
             return new DataType(
-                row.Field<string>("DATA_TYPE"),
-                row.Field<int>("CHARACTER_MAXIMUM_LENGTH"),
-                row.Field<int>("NUMERIC_PRECISION"),
-                row.Field<int>("NUMERIC_SCALE")
+                dataType, characterMaximumLength, numericPrecision, numericScale
                 );
         }
         #region unittests
