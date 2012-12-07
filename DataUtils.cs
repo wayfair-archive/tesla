@@ -393,6 +393,9 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = characterMaximumLength;
             cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = numericPrecision;
             cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = numericScale;
+            foreach (IDataParameter p in cmd.Parameters) {
+                if (p.Value == null) p.Value = DBNull.Value;
+            }
             int result = SqlNonQuery(server, dbName, cmd);
         }
 
