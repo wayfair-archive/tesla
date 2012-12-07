@@ -15,7 +15,7 @@ namespace TeslaSQL {
     public abstract class Agent {
 
         //every agent should have a Run method
-        public abstract int Run();
+        public abstract void Run();
 
         public abstract void ValidateConfig();
 
@@ -113,6 +113,17 @@ namespace TeslaSQL {
 
             st.Stop();
             Logger.Log("SetFieldList Elapsed time for table " + tableConf.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
+        }
+
+
+        /// <summary>
+        /// Given a table name and CTID, returns the CT table name
+        /// </summary>
+        /// <param name="table">Table name</param>
+        /// <param name="CTID">Change tracking batch iD</param>
+        /// <returns>CT table name</returns>
+        public string CTTableName(string table, Int64 CTID) {
+            return "tblCT" + table + "_" + Convert.ToString(CTID);
         }
 
     }

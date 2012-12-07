@@ -19,9 +19,7 @@ namespace TeslaSQL {
             }
         }
 
-        public override int Run() {
-            int retval = 0;
-
+        public override void Run() {
             Logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
             Int64 currentVersion = DataUtils.GetCurrentCTVersion(TServer.MASTER, Config.masterDB);
 
@@ -77,7 +75,7 @@ namespace TeslaSQL {
             //this signifies the end of the master's responsibility for this batch
             DataUtils.WriteBitWise(TServer.RELAY, Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
 
-            return retval;
+            return;
         }
 
 
@@ -258,7 +256,7 @@ namespace TeslaSQL {
             //alternative to keeping it is to have it live only on a slave which then keeps track of which batches it has applied for that table separately from the CT runs
 
             //TODO handle case where startVersion is 0, change it to CHANGE_TRACKING_MIN_VALID_VERSION?
-            string ctTableName = "tblCT" + t.Name + "_" + Convert.ToString(ct_id);
+            string ctTableName = CTTableName(t.Name, ct_id);
             string reason;
 
             if (!ValidateSourceTable(sourceServer, sourceDB, t.Name, startVersion, out reason)) {
@@ -299,7 +297,7 @@ namespace TeslaSQL {
                 if (changesCaptured[t.Name] > 0) {
                     //hard coding timeout at 1 hour for bulk copy
                     try {
-                        DataUtils.CopyTable(sourceServer, sourceCTDB, "tblCT" + t.Name + "_" + Convert.ToString(ct_id), destServer, destCTDB, 36000);
+                        DataUtils.CopyTable(sourceServer, sourceCTDB, CTTableName(t.Name, ct_id), destServer, destCTDB, 36000);
                     } catch (Exception e) {
                         if (t.stopOnError) {
                             throw e;
@@ -324,7 +322,7 @@ namespace TeslaSQL {
 
             foreach (TableConf t in t_array) {
                 try {
-                    rowCounts.Add(t.Name, DataUtils.GetTableRowCount(sourceServer, sourceCTDB, "tblCT" + t.Name + "_" + Convert.ToString(ct_id)));
+                    rowCounts.Add(t.Name, DataUtils.GetTableRowCount(sourceServer, sourceCTDB, CTTableName(t.Name, ct_id)));
                 } catch (DoesNotExistException) {
                     rowCounts.Add(t.Name, 0);
                 }

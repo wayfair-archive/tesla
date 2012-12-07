@@ -15,7 +15,7 @@ namespace TeslaSQL
             }
         }
 
-        public override int Run()
+        public override void Run()
         {
             throw new NotImplementedException();
         }

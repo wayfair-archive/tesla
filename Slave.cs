@@ -19,21 +19,20 @@ namespace TeslaSQL {
             }
         }
 
-        public override int Run() {
-            int retval = 0;
+        public override void Run() {
             Logger.Log("Initializing CT batch", LogLevel.Trace);
             //set up the variables and CT version info for this run
             List<ChangeTrackingBatch> batches = InitializeBatch();
 
             if (batches.Count == 0) {
-                return retval;
+                return;
             } else if (batches.Count == 1) {
                 RunSingleBatch(batches[0]);
             } else {
                 RunMultiBatch(batches);
             }
           
-            return retval;
+            return;
         }
 
 
@@ -228,11 +227,11 @@ namespace TeslaSQL {
         private List<string> PopulateTableList(TableConf[] t_array, TServer server, string dbName, Int64 ct_id) {
             //TODO add logger statements
             var tables = new List<string>();
-            string ctTable;
+            string ctTableName;
             foreach (TableConf t in t_array) {
-                ctTable = "tblCT" + t.Name + "_" + ct_id;
-                if (DataUtils.CheckTableExists(server, dbName, ctTable)) {
-                    tables.Add(ctTable);
+                ctTableName = CTTableName(t.Name, ct_id);
+                if (DataUtils.CheckTableExists(server, dbName, ctTableName)) {
+                    tables.Add(ctTableName);
                 }
             }
             return tables;
@@ -258,7 +257,7 @@ namespace TeslaSQL {
             List<string> tables = new List<string>();
             foreach (TableConf t in t_array) {
                 found = false;
-                string ctTable = "tblCT" + t.Name + "_" + Convert.ToString(ct_id);
+                string ctTable = CTTableName(t.Name, ct_id);
                 //attempt to copy the change table locally
                 try {
                     //hard coding timeout at 1 hour for bulk copy
