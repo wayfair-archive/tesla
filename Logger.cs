@@ -28,6 +28,7 @@ namespace TeslaSQL {
 
         public static void LogError(string message) {
             //errors are always written to the relay server
+            //should log to TServer.RELAY, Config.errorLogDB
 
             //TODO figure out schema and which values to pass
             //int res = SqlNonQuery("INSERT INTO tblCTErrors ...");

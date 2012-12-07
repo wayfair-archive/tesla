@@ -5,6 +5,7 @@ using System.Text;
 using System.IO;
 using NDesk.Options;
 using Xunit;
+using TeslaSQL.Agents;
 #endregion
 
 /*
@@ -12,6 +13,10 @@ using Xunit;
  * 
  * This application is used to replicate data in batches. It can be run as several different agents (see Config.AgentType enum)
  * which do things like publish changes, subscribe to changes, or clean up old data.
+ * 
+ * Tesla is designed to be as easy to troubleshoot as possible without opening up the code. As a result there are a nearly
+ * absurd number of Trace and Debug logging statements which explain what the application is doing when the LogLevel is set low enough. 
+ * As a programmer reading the source code, you'll notice these also effectively act as replacements for comments that would have contained the same text.
  * 
  * Testing changes to this program:
  * 
@@ -22,6 +27,7 @@ using Xunit;
  * 
  * Authors:
  * Scott Sandler - <ssandler@wayfair.com>
+ * Alexander Corwin - <acorwin@wayfair.com>
  * Copyright (C) 2012 Wayfair, LLC (http://www.wayfair.com)
  */
 
@@ -72,7 +78,6 @@ namespace TeslaSQL {
                     Environment.Exit(1);
                 }
             }
-
 
             Logger.Log("Config file loaded, running agent", LogLevel.Debug);
             //int res = Functions.Run();
@@ -159,8 +164,9 @@ namespace TeslaSQL {
             //Create a list of possible values of LogLevels to include in the help info
             string logLevels = "";
             foreach (var value in Enum.GetValues(typeof(LogLevel))) {
-                if (logLevels != "")
+                if (logLevels != "") {
                     logLevels += ", ";
+                }
                 logLevels += Convert.ToString((LogLevel)value);
             }
 

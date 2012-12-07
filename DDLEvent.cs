@@ -3,8 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Xml;
+using System.Data;
 
 namespace TeslaSQL {
+    /// <summary>
+    /// Class repsenting a DDL event captured by a t-sql DDL trigger
+    /// </summary>
     class DDLEvent {
         public int ddeID { get; set; }
 
@@ -20,6 +24,12 @@ namespace TeslaSQL {
             this.eventData = eventData;
         }
 
+        /// <summary>
+        /// Parse XML EVENTDATA and create zero or more SchemaChange objects from that
+        /// </summary>
+        /// <param name="t_array">Array of table configuration objects</param>
+        /// <param name="TServer">Server to connect to if we need to retrieve data type info</param>
+        /// <param name="dbName">Database for retrieving data type info</param>
         public List<SchemaChange> Parse(TableConf[] t_array, TServer server, string dbName) {
             var schemaChanges = new List<SchemaChange>();
             string columnName;
@@ -63,15 +73,15 @@ namespace TeslaSQL {
                     changeType = SchemaChangeType.Rename;                    
                     columnName = eventData.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
                     newColumnName = eventData.SelectSingleNode("/EVENT_INSTANCE/NewObjectName").InnerText;
-                    sc = new SchemaChange(changeType, schemaName, tableName, columnName, newColumnName);
+                    sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, newColumnName);
                     schemaChanges.Add(sc);
                     break;
                 case "Alter":                    
                     changeType = SchemaChangeType.Modify;                    
                     foreach (XmlNode xColumn in eventData.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {                        
                         columnName = xColumn.InnerText;
-                        dataType = DataUtils.GetDataType(server, dbName, tableName, columnName);
-                        sc = new SchemaChange(changeType, schemaName, tableName, columnName, null, dataType);
+                        dataType = ParseDataType(DataUtils.GetDataType(server, dbName, tableName, columnName));
+                        sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                         schemaChanges.Add(sc);
                     }
                     break;
@@ -82,9 +92,9 @@ namespace TeslaSQL {
                         columnName = xColumn.InnerText;
                         //if column list is specified, only publish schema changes if the column is already in the list. we don't want
                         //slaves adding a new column that we don't plan to publish changes for. 
-                        if (t.columnList != null && t.columnList.Contains(columnName)) {
-                            dataType = DataUtils.GetDataType(server, dbName, tableName, columnName);
-                            sc = new SchemaChange(changeType, schemaName, tableName, columnName, null, dataType);
+                        if (t.columnList != null && t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
+                            dataType = ParseDataType(DataUtils.GetDataType(server, dbName, tableName, columnName));
+                            sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
                         }
                     }                    
@@ -95,14 +105,26 @@ namespace TeslaSQL {
                     foreach (XmlNode xColumn in eventData.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Drop/Columns/Name")) {
                         //if columnlist for this table is specified
                         columnName = xColumn.InnerText;
-                        dataType = DataUtils.GetDataType(server, dbName, tableName, columnName);
-                        sc = new SchemaChange(changeType, schemaName, tableName, columnName, null, dataType);
+                        sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null);
                         schemaChanges.Add(sc);
                     }   
                     break;
             }
             return schemaChanges;
         }
-    }
 
+        /// <summary>
+        /// Given a datarow from GetDataType, turns it into a data type object
+        /// </summary>
+        /// <param name="row">DataRow containing the appropriate columns from GetDataType</param>
+        /// <returns>A TeslaSQL.DataType object</returns>
+        public DataType ParseDataType(DataRow row) {
+            return new DataType(
+                row.Field<string>("DATA_TYPE"),
+                row.Field<int>("CHARACTER_MAXIMUM_LENGTH"),
+                row.Field<int>("NUMERIC_PRECISION"),
+                row.Field<int>("NUMERIC_SCALE")
+                );
+        }
+    }
 }

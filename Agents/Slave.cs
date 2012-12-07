@@ -5,11 +5,17 @@ using System.Text;
 using System.Data;
 using System.Xml;
 
-namespace TeslaSQL {
+namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     //TODO we need to set up field lists somewhere in here...
+    //TODO figure out where to put check for MSSQL vs. netezza and where to branch the code paths   
     class Slave : Agent
     {
+        //base keyword invokes the base class's constructor
+        public Slave(Config config, IDataUtils dataUtils) : base(config, dataUtils) {
+
+        }
+        
         public override void ValidateConfig()
         {
             Config.ValidateRequiredHost(Config.relayServer);

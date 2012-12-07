@@ -59,18 +59,12 @@ namespace TeslaSQL {
         RELAY
     }
 
-
     /// <summary>
-    /// Different types of query results that the SqlQuery method supports
+    /// List of supported sql databases
     /// </summary>
-    public enum ResultType {
-        DATASET,
-        DATATABLE,
-        DATAROW,
-        INT32,
-        INT64,
-        STRING,
-        DATETIME
+    public enum SqlFlavor {
+        MSSQL,
+        Netezza
     }
 
     /// <summary>

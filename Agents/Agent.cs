@@ -10,9 +10,18 @@ using Xunit;
 #endregion
 
 
-namespace TeslaSQL {
+namespace TeslaSQL.Agents {
     //each agent (master, slave, etc.) should inherit this
     public abstract class Agent {
+
+        public Config config;
+
+        private IDataUtils dataUtils;
+
+        protected Agent(Config config, IDataUtils dataUtils) {
+            this.config = config;
+            this.dataUtils = dataUtils;
+        }
 
         //every agent should have a Run method
         public abstract void Run();
@@ -62,8 +71,8 @@ namespace TeslaSQL {
 
             foreach (KeyValuePair<string, bool> c in fields) {
                 //split column list on comma and/or space, only include columns in the list if the list is specified               
-                //TODO for netezza slaves we use a separate type of list that isn't populated here, where to put that?                
-                if (tableConf.columnList == null || tableConf.columnList.Contains(c.Key)) {
+                //TODO for netezza slaves we use a separate type of list that isn't populated here, where to put that?         
+                if (tableConf.columnList == null || tableConf.columnList.Contains(c.Key, StringComparer.OrdinalIgnoreCase)) {
                     if (masterColumnList != "") {
                         masterColumnList += ",";
                     }

@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 
 namespace TeslaSQL {
+    /// <summary>
+    /// Class repsenting a SQL data type including length/precision
+    /// </summary>
     class DataType {
         public string baseType { get; set; }
 

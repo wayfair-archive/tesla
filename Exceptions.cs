@@ -11,33 +11,14 @@ using System.IO;
 
 namespace TeslaSQL
 {
-    //TODO decide if we want to use this or scrap it
-    public class ReadOnlyConfigException : System.Exception
-    {
-        
-        //must define default constructor explicitly
-        public ReadOnlyConfigException()
-        {
-        }
-
-        //the constructor we'll actually use
-        public ReadOnlyConfigException(string message): base(message)
-        {
-        }
-
-        
-    }
-
     public class DoesNotExistException : System.Exception {
 
         //must define default constructor explicitly
         public DoesNotExistException() {
         }
 
-        //the constructor we'll actually use
+        //the constructor we'll actually use, invoke the base constructor
         public DoesNotExistException(string message): base(message) {
         }
-
-
     }    
 }

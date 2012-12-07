@@ -16,80 +16,50 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="server">Server to run the query on</param>
         /// <param name="dbName">Database name</param>
-        /// <param name="Query">Query to run</param>
-        /// <param name="Timeout">Query timeout</param>
-        /// <param name="ResultsAs">Which data type to retrieve the results as.</param>
-        /// <returns>Object that can be several different types depending on ResultsAs param</returns>
-        public static Object SqlQuery(TServer server, string dbName, SqlCommand cmd, int Timeout = 30, ResultType ResultsAs = ResultType.DATATABLE) {
+        /// <param name="cmd">SqlCommand to run</param>
+        /// <param name="timeout">Query timeout</param>
+        /// <returns>DataTable object representing the result</returns>
+        public static DataTable SqlQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
             //build connection string based on server/db info passed in
             string connStr = buildConnString(server, dbName);
 
-            //result is declared as object since it can be of several different types
-            Object result = new Object();
-
             //using block to avoid resource leaks
             using (SqlConnection conn = new SqlConnection(connStr)) {
-                try {
-                    //open database connection
-                    conn.Open();
-                    cmd.Connection = conn;                    
-                    cmd.CommandTimeout = Timeout;
+                //open database connection
+                conn.Open();
+                cmd.Connection = conn;                    
+                cmd.CommandTimeout = timeout;
 
-                    DataSet ds = new DataSet();
-                    SqlDataAdapter da = new SqlDataAdapter(cmd);
-                    //this is where the query is run
-                    da.Fill(ds);
+                DataSet ds = new DataSet();
+                SqlDataAdapter da = new SqlDataAdapter(cmd);
+                //this is where the query is run
+                da.Fill(ds);
 
-                    //return appropriate result object
-                    switch (ResultsAs) {
-                        //dataset object can contain multiple result sets
-                        case ResultType.DATASET:
-                            result = (DataSet)ds;
-                            break;
-                        //results as datatable takes the first result set
-                        case ResultType.DATATABLE:
-                            result = (DataTable)ds.Tables[0];
-                            break;
-                        //takes the first row out of the data table. used when expecting only one row (i.e. "SELECT TOP 1")
-                        case ResultType.DATAROW:
-                            result = (DataRow)ds.Tables[0].Rows[0];
-                            break;
-                        //all the rest are for queries that should return a single value (i.e. "SELECT MAX(col)"))
-                        case ResultType.INT32:
-                            result = Convert.ToInt32(ds.Tables[0].Rows[0][0]);
-                            break;
-                        case ResultType.INT64:
-                            result = Convert.ToInt64(ds.Tables[0].Rows[0][0]);
-                            break;
-                        case ResultType.STRING:
-                            result = Convert.ToString(ds.Tables[0].Rows[0][0]);
-                            break;
-                        case ResultType.DATETIME:
-                            result = ds.Tables[0].Rows[0][0] as DateTime?;
-                            break;
-                    }
-                } catch (IndexOutOfRangeException) {
-                    //this would be thrown if there are no results at all and you try to retrieve a datarow or int/string/etc.
-                    //however the caller should be aware of this possibility and check for the boolean false.
-                    result = (bool)false;
-                } catch (Exception e) {
-                    //TODO figure out what to catch/log/rethrow/etc. here
-                    throw e;
-                }
+                //return the result, which is the first DataTable in the DataSet
+                return ds.Tables[0];
             }
-
-            return result;
         }
 
- 
-
+        /// <summary>
+        /// Runs a sql query and returns first column and row from results as specified type
+        /// </summary>
+        /// <param name="server">Server to run the query on</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="cmd">SqlCommand to run</param>
+        /// <param name="timeout">Query timeout</param>
+        /// <returns>The value in the first column and row, as the specified type</returns>
+        public static T SqlQueryToScalar<T>(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
+            DataTable result = SqlQuery(server, dbName, cmd, timeout);
+            //return result in first column and first row as specified type
+            return (T)result.Rows[0][0];
+        }
 
         /// <summary>
         /// Runs a query that does not return results (i.e. a write operation)
         /// </summary>
         /// <param name="server">Server to run on</param>
         /// <param name="dbName">Database name</param>
-        /// <param name="cmd">Query</param>
+        /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
         public static int SqlNonQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 600) {
@@ -164,13 +134,8 @@ namespace TeslaSQL {
                 cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise FROM dbo.tblCTVersion ORDER BY CTID DESC");
             }
 
-            return SqlQuery(
-                server,
-                dbName,
-                cmd,
-                30,
-                ResultType.DATAROW                
-                ) as DataRow;
+            DataTable result = SqlQuery(server, dbName, cmd);
+            return result.Rows[0];
         }
 
 
@@ -190,14 +155,7 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
 
             //get query results as a datatable since there can be multiple rows
-            DataTable result = SqlQuery(
-                server,
-                dbName,
-                cmd,
-                30,
-                ResultType.DATATABLE
-                ) as DataTable;
-            return result;
+            return SqlQuery(server, dbName, cmd);
         }
 
 
@@ -210,14 +168,15 @@ namespace TeslaSQL {
         /// <param name="syncBitWise">syncBitWise value to compare against</param>
         /// <returns>Datetime representing last succesful run</returns>
         public static DateTime GetLastStartTime(TServer server, string dbName, Int64 CTID, int syncBitWise) {
-            SqlCommand cmd = new SqlCommand("select MAX(syncStartTime) as maxStart FROM dbo.tblCTVersion WITH(NOLOCK) WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID");
+            SqlCommand cmd = new SqlCommand("select MAX(syncStartTime) as maxStart FROM dbo.tblCTVersion WITH(NOLOCK)"
+                + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID");
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
             cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
-            DateTime? dt_result = (DateTime?)SqlQuery(server, dbName, cmd, 30, ResultType.DATETIME);
-            if (dt_result == null) {
+            DateTime? lastStartTime = SqlQueryToScalar<DateTime?>(server, dbName, cmd);
+            if (lastStartTime == null) {
                 return DateTime.Now.AddDays(-1);
             }
-            return (DateTime)dt_result;
+            return (DateTime)lastStartTime;
         }
 
         
@@ -229,7 +188,7 @@ namespace TeslaSQL {
         /// <returns>Current change tracking version</returns>
         public static Int64 GetCurrentCTVersion(TServer server, string dbName) {
             SqlCommand cmd = new SqlCommand("SELECT CHANGE_TRACKING_CURRENT_VERSION();");
-            return (Int64)SqlQuery(server, dbName, cmd, 30, ResultType.INT64);
+            return SqlQueryToScalar<Int64>(server, dbName, cmd);
         }
 
 
@@ -243,7 +202,7 @@ namespace TeslaSQL {
         public static Int64 GetMinValidVersion(TServer server, string dbName, string table) {
             SqlCommand cmd = new SqlCommand("SELECT CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID(@tablename))");
             cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = table;
-            return (Int64)SqlQuery(server, dbName, cmd, 30, ResultType.INT64);
+            return SqlQueryToScalar<Int64>(server, dbName, cmd);
         }
         
 
@@ -264,7 +223,6 @@ namespace TeslaSQL {
         /// <returns>Int representing the number of rows affected (number of changes captured)</returns>
         public static int SelectIntoCTTable(TServer server, string sourceCTDB, string masterColumnList, string ctTableName,
             string sourceDB, string tableName, Int64 startVersion, string pkList, Int64 stopVersion, string notNullPkList, int timeout) {
-
             /*
              * There is no way to have column lists or table names be parametrized/dynamic in sqlcommands other than building the string
              * manually like this. However, the table name and column list fields are trustworthy because they have already been compared to 
@@ -305,7 +263,7 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@startVersion", SqlDbType.BigInt).Value = syncStartVersion;
             cmd.Parameters.Add("@stopVersion", SqlDbType.BigInt).Value = syncStopVersion;
 
-            return (Int64)SqlQuery(server, dbName, cmd, 30, ResultType.INT64);
+            return SqlQueryToScalar<Int64>(server, dbName, cmd);
         }
 
 
@@ -387,7 +345,7 @@ namespace TeslaSQL {
             SqlCommand cmd = new SqlCommand(query);
             cmd.Parameters.Add("@afterdate", SqlDbType.DateTime).Value = afterDate;
 
-            return (DataTable)SqlQuery(server, dbName, cmd, 30, ResultType.DATATABLE);
+            return SqlQuery(server, dbName, cmd);
         }
 
 
@@ -438,27 +396,22 @@ namespace TeslaSQL {
         /// <param name="dbName"></param>
         /// <param name="table"></param>
         /// <param name="column"></param>
-        /// <returns>TeslaSQL.DataType object</returns>
-        public static TeslaSQL.DataType GetDataType(TServer server, string dbName, string table, string column) {
+        /// <returns>DataRow representing the data type</returns>
+        public static DataRow GetDataType(TServer server, string dbName, string table, string column) {
             var cmd = new SqlCommand("SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE " +
-                "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_CATALOG = @db " +
+                "FROM INFORMATION_SCHEMA.COLUMNS WITH(NOLOCK) WHERE TABLE_SCHEMA = 'dbo' AND TABLE_CATALOG = @db " +
                 "AND TABLE_NAME = @table AND COLUMN_NAME = @column");
             cmd.Parameters.Add("@db", SqlDbType.VarChar, 500).Value = dbName;
             cmd.Parameters.Add("@table", SqlDbType.VarChar, 500).Value = table;
             cmd.Parameters.Add("@column", SqlDbType.VarChar, 500).Value = column;
 
-            var result = (DataRow)SqlQuery(server, dbName, cmd, 30, ResultType.DATAROW);
-            
-            if (result == null) {
+            DataTable result = SqlQuery(server, dbName, cmd);
+
+            if (result == null || result.Rows.Count == 0) {
                 throw new DoesNotExistException("Column " + column + " does not exist on table " + table + "!");
             }
 
-            return new TeslaSQL.DataType(
-                result.Field<string>("DATA_TYPE"), 
-                result.Field<int>("CHARACTER_MAXIMUM_LENGTH"),
-                result.Field<int>("NUMERIC_PRECISION"),
-                result.Field<int>("NUMERIC_SCALE")
-                );
+            return result.Rows[0];
         }
 
 
@@ -531,15 +484,16 @@ namespace TeslaSQL {
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table Name</param>
         /// <returns>Smo.Table object representing the table</returns>
-        public static Table GetSmoTable(TServer server, string dbName, string table) {
+        private static Table GetSmoTable(TServer server, string dbName, string table) {
             using (SqlConnection sqlconn = new SqlConnection(buildConnString(server, dbName))) {
                 ServerConnection serverconn = new ServerConnection(sqlconn);
                 Server svr = new Server(serverconn);
                 Database db = new Database();
-                if (svr.Databases.Contains(dbName) && svr.Databases[dbName].IsAccessible)
+                if (svr.Databases.Contains(dbName) && svr.Databases[dbName].IsAccessible) {
                     db = svr.Databases[dbName];
-                else
+                } else {
                     throw new Exception("Database " + dbName + " does not exist or is inaccessible");
+                }
                 if (db.Tables.Contains(table)) {
                     return db.Tables[table];
                 } else {
@@ -560,8 +514,9 @@ namespace TeslaSQL {
             try {
                 Table t_smo = GetSmoTable(server, dbName, table);
                 
-                if (t_smo != null)
+                if (t_smo != null) {
                     return true;
+                }
                 return false;
             } catch (DoesNotExistException) {
                 return false;
@@ -582,11 +537,20 @@ namespace TeslaSQL {
             Table t_smo_2 = GetSmoTable(server, dbName, table2);
             string columnList = "";
 
+            //list to hold lowercased column names
+            var columns_2 = new List<string>();
+            
+            //create this so that casing changes to columns don't cause problems, just use the lowercase column name
+            foreach(Column c in t_smo_2.Columns) {
+                columns_2.Add(c.Name.ToLower());
+            }
+
             foreach (Column c in t_smo_1.Columns) {
-                //TODO test case sensitivity
-                if (t_smo_2.Columns.Contains(c.Name)) {
-                    if (columnList != "")
+                //case insensitive comparison using ToLower()
+                if (columns_2.Contains(c.Name.ToLower())) {
+                    if (columnList != "") {
                         columnList += ",";
+                    }
 
                     columnList += "[" + c.Name + "]";
                 }
@@ -603,8 +567,9 @@ namespace TeslaSQL {
         public static bool HasPrimaryKey(TServer server, string dbName, string table) {
             Table t_smo = GetSmoTable(server, dbName, table);            
             foreach (Index i in t_smo.Indexes) {
-                if (i.IndexKeyType == IndexKeyType.DriPrimaryKey)
+                if (i.IndexKeyType == IndexKeyType.DriPrimaryKey) {
                     return true;
+                }
             }
             return false;
         }
@@ -719,8 +684,9 @@ namespace TeslaSQL {
             //ADO.NET does not allow multiple batches in one query, but we don't really need the
             //SET ANSI_NULLS ON etc. statements, so just find the CREATE TABLE statement and return that
             foreach (string s in scriptResults) {
-                if (s.StartsWith("CREATE"))
+                if (s.StartsWith("CREATE")) {
                     return s;
+                }
             }
             return "";
         }
@@ -806,7 +772,7 @@ namespace TeslaSQL {
                 cmd = new SqlCommand(query);
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ct_id;
             }
-            return (Int32)SqlQuery(server, dbName, cmd, 30, ResultType.INT32);
+            return SqlQueryToScalar<Int32>(server, dbName, cmd);
         }
 
 
@@ -852,7 +818,7 @@ namespace TeslaSQL {
         /// <returns>DataTable object containing the query results</returns>
         public static DataTable GetSchemaChanges(TServer server, string dbName, Int64 CTID) {
             SqlCommand cmd = new SqlCommand("SELECT DdeID, DdeTime, DdeEvent, DdeTable, DdeEventData FROM dbo.tblCTSchemaChange_" + Convert.ToString(CTID));
-            return (DataTable)SqlQuery(server, dbName, cmd, 30, ResultType.DATATABLE);
+            return SqlQuery(server, dbName, cmd);
         }
 
 
