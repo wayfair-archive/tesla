@@ -40,7 +40,6 @@ namespace TeslaSQL {
         }
 
         static void Main(string[] args) {
-            //Logger.Log("Validating arguments", LogLevel.Debug);
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);
@@ -61,17 +60,18 @@ namespace TeslaSQL {
                 Environment.Exit(1);
             }
 
-            Logger.Log("Parsing configuration file", LogLevel.Debug);
-            Config.Load(parameters.configFile);
+            var config = new Config();
+            config.Load(parameters.configFile);
+            var logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB);
 
             if (parameters.validate) {
-                Config.DumpConfig(parameters.more);
+                config.DumpConfig(parameters.more);
                 return;
             }
 
             if (!String.IsNullOrEmpty(parameters.logLevelOverride)) {
                 try {
-                    Config.logLevelOverride = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
+                    config.logLevelOverride = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
                 } catch {
                     Console.WriteLine("Invalid log level!");
                     Console.WriteLine("Try `TeslaSQL --help' for more information.");
@@ -79,47 +79,48 @@ namespace TeslaSQL {
                 }
             }
 
-            Logger.Log("Config file loaded, running agent", LogLevel.Debug);
+            logger.Log("Config file loaded, running agent", LogLevel.Debug);
             //int res = Functions.Run();
             //Console.Write("Test returned: ");
             //Console.WriteLine(res);
 
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
+            var dataUtils = (IDataUtils)new DataUtils(config, logger);
             try {
-                Agent a = createAgent(Config.agentType);
+                Agent a = createAgent(config.agentType, config, dataUtils);
                 a.Run();
             } catch (Exception e) {
-                Logger.Log("ERROR: " + e.Message + " - Stack Trace: " + e.StackTrace, LogLevel.Critical);
+                logger.Log("ERROR: " + e.Message + " - Stack Trace: " + e.StackTrace, LogLevel.Critical);
                 responseCode = 1;
             }
             //TODO remove this
             Console.ReadLine();
             Environment.Exit(responseCode);
-        }
+        }        
 
-        private static Agent createAgent(AgentType agentType) {
+        private static Agent createAgent(AgentType agentType, Config config, IDataUtils dataUtils) {
             switch (agentType) {
                 case AgentType.Master:
-                    var master = new Master();
+                    var master = new Master(config, dataUtils);
                     return master;
                 case AgentType.Slave:
-                    var slave = new Slave();
+                    var slave = new Slave(config, dataUtils);
                     return slave;
                 case AgentType.ShardCoordinator:
-                    var shardCoordinator = new ShardCoordinator();
+                    var shardCoordinator = new ShardCoordinator(config, dataUtils);
                     return shardCoordinator;
                 case AgentType.Notifier:
-                    var notifier = new Notifier();
+                    var notifier = new Notifier(config, dataUtils);
                     return notifier;
                 case AgentType.MasterMaintenance:
-                    var masterMaintenance = new MasterMaintenance();
+                    var masterMaintenance = new MasterMaintenance(config, dataUtils);
                     return masterMaintenance;
                 case AgentType.RelayMaintenance:
-                    var relayMaintenance = new RelayMaintenance();
+                    var relayMaintenance = new RelayMaintenance(config, dataUtils);
                     return relayMaintenance;
                 case AgentType.SlaveMaintenance:
-                    var slaveMaintenance = new SlaveMaintenance();
+                    var slaveMaintenance = new SlaveMaintenance(config, dataUtils);
                     return slaveMaintenance;
             }
             throw new Exception("Invalid agent type: " + agentType);

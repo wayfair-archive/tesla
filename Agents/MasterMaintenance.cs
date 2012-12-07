@@ -18,8 +18,8 @@ namespace TeslaSQL.Agents
         
         public override void ValidateConfig()
         {
-            Config.ValidateRequiredHost(Config.master);
-            if (Config.masterType == null) {
+            config.ValidateRequiredHost(config.master);
+            if (config.masterType == null) {
                 throw new Exception("MasterMaintenance agent requires a valid SQL flavor for master");
             }
         }

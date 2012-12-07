@@ -30,7 +30,7 @@ namespace TeslaSQL {
         /// <param name="t_array">Array of table configuration objects</param>
         /// <param name="TServer">Server to connect to if we need to retrieve data type info</param>
         /// <param name="dbName">Database for retrieving data type info</param>
-        public List<SchemaChange> Parse(TableConf[] t_array, TServer server, string dbName) {
+        public List<SchemaChange> Parse(TableConf[] t_array, IDataUtils dataUtils, TServer server, string dbName) {
             var schemaChanges = new List<SchemaChange>();
             string columnName;
             string tableName;
@@ -80,7 +80,7 @@ namespace TeslaSQL {
                     changeType = SchemaChangeType.Modify;                    
                     foreach (XmlNode xColumn in eventData.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {                        
                         columnName = xColumn.InnerText;
-                        dataType = ParseDataType(DataUtils.GetDataType(server, dbName, tableName, columnName));
+                        dataType = ParseDataType(dataUtils.GetDataType(server, dbName, tableName, columnName));
                         sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                         schemaChanges.Add(sc);
                     }
@@ -93,7 +93,7 @@ namespace TeslaSQL {
                         //if column list is specified, only publish schema changes if the column is already in the list. we don't want
                         //slaves adding a new column that we don't plan to publish changes for. 
                         if (t.columnList != null && t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
-                            dataType = ParseDataType(DataUtils.GetDataType(server, dbName, tableName, columnName));
+                            dataType = ParseDataType(dataUtils.GetDataType(server, dbName, tableName, columnName));
                             sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
                         }

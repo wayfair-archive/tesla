@@ -9,14 +9,17 @@ using Microsoft.SqlServer.Management.Smo;
 using Microsoft.SqlServer.Management.Common;
 
 namespace TeslaSQL {
-    public class DataUtils {
+    /// <summary>
+    /// This class is used for unit tests only as a replacement for DataUtils, so that unit tests don't require an actual database
+    /// </summary>
+    public class TestDataUtils : IDataUtils {
+        //TODO create all of the required datatable objects for the unit tests
+        private DataTable tblCTVersion { get; set; }
 
-        public Logger logger;
-        public Config config;
+        private DataTable tblCTSlaveVersion { get; set; }
 
-        public DataUtils(Config config, Logger logger) {
-            this.config = config;
-            this.logger = logger;
+        public string buildConnString(TServer server, string dbName) {
+            return "not implemented";
         }
 
         /// <summary>
@@ -88,39 +91,6 @@ namespace TeslaSQL {
                 }
             }
             return numrows;
-        }
-
-
-        /// <summary>
-        /// Builds a connection string for the passed in server identifier using global config values
-        /// </summary>
-        /// <param name="server">Server identifier</param>
-        /// <param name="database">Database name</param>
-        /// <returns>An ADO.NET connection string</returns>
-        private string buildConnString(TServer server, string database) {
-            string sqlhost = "";
-            string sqluser = "";
-            string sqlpass = "";
-
-            switch (server) {
-                case TServer.MASTER:
-                    sqlhost = config.master;
-                    sqluser = config.masterUser;
-                    sqlpass = (new cTripleDes().Decrypt(config.masterPassword));
-                    break;
-                case TServer.SLAVE:
-                    sqlhost = config.slave;
-                    sqluser = config.slaveUser;
-                    sqlpass = (new cTripleDes().Decrypt(config.slavePassword));
-                    break;
-                case TServer.RELAY:
-                    sqlhost = config.relayServer;
-                    sqluser = config.relayUser;
-                    sqlpass = (new cTripleDes().Decrypt(config.relayPassword));
-                    break;
-            }
-
-            return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass;
         }
 
 
@@ -441,50 +411,6 @@ namespace TeslaSQL {
             int res = SqlNonQuery(server, dbName, cmd);
         }
 
-        //TODO turn this into a proper unit test, mocking the sql results?
-        /*
-        public int RunTests() {
-            int retval = 0;
-
-            //test query with results as datarow
-            DataRow dr = SqlQuery(TServer.RELAY, config.relayDB, "select @@servername as srvname, GETDATE() as thedate", 30, ResultType.DATAROW) as DataRow;
-            if (dr == null || string.IsNullOrEmpty(dr["srvname"].ToString()) || string.IsNullOrEmpty(dr["thedate"].ToString()))
-                retval = 1;
-
-            //test query with results as datatable
-            DataTable dt = SqlQuery(TServer.RELAY, config.relayDB, "select @@servername as srvname, GETDATE() as thedate", 30, ResultType.DATATABLE) as DataTable;
-            if (dt == null || string.IsNullOrEmpty(dt.Rows[0]["srvname"].ToString()) || string.IsNullOrEmpty(dt.Rows[0]["thedate"].ToString()))
-                retval = 1;
-
-            //test result as dataset
-            DataSet ds = SqlQuery(TServer.RELAY, config.relayDB, "select @@servername as srvname, GETDATE() as thedate", 30, ResultType.DATASET) as DataSet;
-            if (ds == null || string.IsNullOrEmpty(ds.Tables[0].Rows[0]["srvname"].ToString()) || string.IsNullOrEmpty(ds.Tables[0].Rows[0]["thedate"].ToString()))
-                retval = 1;
-
-            //test result as 32 bit int
-            Int32 int_32 = (Int32)SqlQuery(TServer.RELAY, config.relayDB, "select cast(10 as int) as myint", 30, ResultType.INT32);
-            if (int_32 != 10)
-                retval = 1;
-
-            //test result as 64 bit int
-            Int64 int_64 = (Int64)SqlQuery(TServer.RELAY, config.relayDB, "select cast(10000000000 as bigint) as mybigint", 30, ResultType.INT64);
-            if (int_64 != 10000000000)
-                retval = 1;
-
-            //test result as string
-            String s_result = (String)SqlQuery(TServer.RELAY, config.relayDB, "select 'test' as mystring", 30, ResultType.STRING);
-            if (s_result != "test")
-                retval = 1;
-
-            //test result as datetime
-            DateTime? dt_result = (DateTime?)SqlQuery(TServer.RELAY, config.relayDB, "select CAST('2000-01-01' AS DATETIME)", 30, ResultType.DATETIME);
-            if (!dt_result.Equals(new DateTime(2000, 1, 1)))
-                retval = 1;
-
-            return retval;
-        }
-        */
-
         /// <summary>
         /// Retrieves an SMO table object if the table exists, throws exception if not.
         /// </summary>
@@ -571,6 +497,7 @@ namespace TeslaSQL {
         /// Check whether an SMO table has a primary key by looping through its indexes
         /// </summary>
         /// <param name="t_smo">SMO table object</param>
+        /// DataUtils.HasPrimaryKey(sourceServer, sourceDB, t.Name)
         public bool HasPrimaryKey(TServer server, string dbName, string table) {
             Table t_smo = GetSmoTable(server, dbName, table);            
             foreach (Index i in t_smo.Indexes) {
@@ -714,8 +641,6 @@ namespace TeslaSQL {
             try {
                 t_smo = GetSmoTable(server, dbName, table);
             } catch (DoesNotExistException) {
-                //TODO figure out if we also want to throw here
-                logger.Log("Unable to get field list for table " + table + " because it does not exist", LogLevel.Error);
                 return dict;
             }
             
@@ -739,12 +664,13 @@ namespace TeslaSQL {
         public void WriteBitWise(TServer server, string dbName, Int64 ct_id, int value, AgentType agentType) {
             string query;
             SqlCommand cmd;
+            /*
             if (agentType.Equals(AgentType.Slave)) {
                 query = "UPDATE dbo.tblCTSlaveVersion SET SyncBitWise = SyncBitWise + @syncbitwise";
                 query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid AND SyncBitWise & @syncbitwise = 0";
                 cmd = new SqlCommand(query);
                 cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = value;
-                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = config.slave;
+                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = Config.slave;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ct_id;
             } else {
                 query = "UPDATE dbo.tblCTVersion SET SyncBitWise = SyncBitWise + @syncbitwise";
@@ -754,6 +680,7 @@ namespace TeslaSQL {
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ct_id;
             }
             int result = SqlNonQuery(server, dbName, cmd);
+             */
         }
         
 
@@ -767,11 +694,13 @@ namespace TeslaSQL {
         public int ReadBitWise(TServer server, string dbName, Int64 ct_id, AgentType agentType) {
             string query;
             SqlCommand cmd;
+            return 1;
+            /*
             if (agentType.Equals(AgentType.Slave)) {
                 query = "SELECT syncBitWise from dbo.tblCTSlaveVersion WITH(NOLOCK)";
                 query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
                 cmd = new SqlCommand(query);
-                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = config.slave;
+                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = Config.slave;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ct_id;
             } else {
                 query = "SELECT syncBitWise from dbo.tblCTVersion WITH(NOLOCK)";
@@ -780,6 +709,7 @@ namespace TeslaSQL {
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ct_id;
             }
             return SqlQueryToScalar<Int32>(server, dbName, cmd);
+             */
         }
 
 
@@ -791,7 +721,7 @@ namespace TeslaSQL {
         /// <param name="ct_id">CT batch ID</param>
         /// <param name="syncBitWise">Final bitwise value to write</param>
         /// <param name="syncStopTime">Stop time to write</param>
-        /// <param name="agentType">config.AgentType calling this</param>
+        /// <param name="agentType">Config.AgentType calling this</param>
         /// <param name="slaveIdentifier">For slave agents, the slave hostname or ip</param>
         public void MarkBatchComplete(TServer server, string dbName, Int64 ct_id, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "") {
             string query;

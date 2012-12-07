@@ -5,16 +5,30 @@ using System.Text;
 using System.Net.Sockets;
 
 namespace TeslaSQL {
-    class Logger {
+    public class Logger {
+
+        private LogLevel logLevel { get; set; }
+        private string statsdHost { get; set; }
+        private string statsdPort { get; set; }
+        private string errorLogDB { get; set; }
+
+        public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB) {
+            this.logLevel = logLevel;
+            this.statsdHost = statsdHost;
+            this.statsdPort = statsdPort;
+            this.errorLogDB = errorLogDB;
+        }
+
+        //TODO figure out where to put or pass in an IDataUtils object
 
         /// <summary>
         /// Logs information and writes it to the console
         /// </summary>
         /// <param name="message">The message to log</param>
-        /// <param name="logLevel">LogLevel value, gets compared to the static Config.logLevel variable</param>
-        public static void Log(string message, LogLevel logLevel) {  
-            //compareto method returns a number less than 0 if logLevel is less than Config.logLevel 
-            if (logLevel.CompareTo(Config.logLevel) >= 0) {
+        /// <param name="logLevel">LogLevel value, gets compared to the configured logLevel variable</param>        
+        public void Log(string message, LogLevel logLevel) {  
+            //compareto method returns a number less than 0 if logLevel is less than configured
+            if (logLevel.CompareTo(this.logLevel) >= 0) {
                 Console.WriteLine(message);
                 //TODO log to gelf or something else here
             }
@@ -26,7 +40,7 @@ namespace TeslaSQL {
             }
         }
 
-        public static void LogError(string message) {
+        public void LogError(string message) {
             //errors are always written to the relay server
             //should log to TServer.RELAY, Config.errorLogDB
 
@@ -177,11 +191,13 @@ namespace TeslaSQL {
         /// <example>
         /// StatsdSingleton.Instance.Increment("hitcount");
         /// </example>
+        /* TODO fix
         public sealed class StatsdSingleton {
-            
-            private static readonly Lazy<StatsdPipe> lazy = new Lazy<StatsdPipe>(() => new StatsdPipe(Config.statsdHost, Int16.Parse(Config.statsdPort)));
+
+            private static readonly Lazy<StatsdPipe> lazy = new Lazy<StatsdPipe>(() => new StatsdPipe(statsdHost, Int16.Parse(statsdPort)));
 
             public static StatsdPipe Instance { get { return lazy.Value; } }
         }
+         */
     }
 }

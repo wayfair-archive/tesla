@@ -16,11 +16,14 @@ namespace TeslaSQL.Agents {
 
         public Config config;
 
-        private IDataUtils dataUtils;
+        public IDataUtils dataUtils;
+
+        public Logger logger;
 
         protected Agent(Config config, IDataUtils dataUtils) {
             this.config = config;
             this.dataUtils = dataUtils;
+            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB);
         }
 
         //every agent should have a Run method
@@ -38,13 +41,13 @@ namespace TeslaSQL.Agents {
             Dictionary<string, bool> dict;
             foreach (TableConf t in tableConfArray) {
                 try {
-                    dict = DataUtils.GetFieldList(server, database, t.Name);
+                    dict = dataUtils.GetFieldList(server, database, t.Name);
                     SetFieldList(t, dict);
                 } catch (Exception e) {
                     if (t.stopOnError) {
                         throw e;
                     } else {
-                        Logger.Log("Error setting field lists for table " + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace, LogLevel.Error);
+                        logger.Log("Error setting field lists for table " + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace, LogLevel.Error);
                     }
                 }                
             }
@@ -67,7 +70,7 @@ namespace TeslaSQL.Agents {
             string prefix = "";
 
             //get dictionary of column exceptions
-            Dictionary<string, string> columnModifiers = Config.ParseColumnModifiers(tableConf.columnModifiers);
+            Dictionary<string, string> columnModifiers = config.ParseColumnModifiers(tableConf.columnModifiers);
 
             foreach (KeyValuePair<string, bool> c in fields) {
                 //split column list on comma and/or space, only include columns in the list if the list is specified               
@@ -121,7 +124,7 @@ namespace TeslaSQL.Agents {
             tableConf.mergeUpdateList = mergeUpdateList;
 
             st.Stop();
-            Logger.Log("SetFieldList Elapsed time for table " + tableConf.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
+            logger.Log("SetFieldList Elapsed time for table " + tableConf.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
         }
 
 
