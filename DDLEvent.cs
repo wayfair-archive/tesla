@@ -5,6 +5,7 @@ using System.Text;
 using System.Xml;
 using System.Data;
 using System.Data.SqlTypes;
+using Xunit;
 
 namespace TeslaSQL {
     /// <summary>
@@ -13,7 +14,7 @@ namespace TeslaSQL {
     class DDLEvent {
         public int ddeID { get; set; }
 
-        public string eventData { get; set; }       
+        public string eventData { get; set; }
 
         /// <summary>
         /// Constructor used when initializing this object based on data from a DDL trigger
@@ -40,10 +41,10 @@ namespace TeslaSQL {
             SchemaChange sc;
             string newColumnName;
             XmlNode node;
-            var xml = new XmlDocument();                        
+            var xml = new XmlDocument();
             xml.LoadXml(eventData);
             string eventType = xml.SelectSingleNode("EVENT_INSTANCE/EventType").InnerText;
-            
+
             if (eventType == "ALTER_TABLE") {
                 node = xml.SelectSingleNode("EVENT_INSTANCE/AlterTableActionList");
             } else if (eventType == "RENAME") {
@@ -60,28 +61,28 @@ namespace TeslaSQL {
             }
 
             string schemaName = xml.SelectSingleNode("/EVENT_INSTANCE/SchemaName").InnerText;
-            
+
             //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
             //Get table config object
             TableConf t = t_array.SingleOrDefault(item => String.Compare(item.Name, tableName, ignoreCase: true) == 0);
-            
+
             if (t == null) {
                 //the DDL event applies to a table not in our config, so we just ignore it
                 return schemaChanges;
-            }     
-            
+            }
+
 
             switch (node.FirstChild.Name) {
                 case "Param":
-                    changeType = SchemaChangeType.Rename;                    
+                    changeType = SchemaChangeType.Rename;
                     columnName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
                     newColumnName = xml.SelectSingleNode("/EVENT_INSTANCE/NewObjectName").InnerText;
                     sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, newColumnName);
                     schemaChanges.Add(sc);
                     break;
-                case "Alter":                    
-                    changeType = SchemaChangeType.Modify;                    
-                    foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {                        
+                case "Alter":
+                    changeType = SchemaChangeType.Modify;
+                    foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {
                         columnName = xColumn.InnerText;
                         dataType = ParseDataType(dataUtils.GetDataType(server, dbName, tableName, columnName));
                         sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
@@ -100,7 +101,7 @@ namespace TeslaSQL {
                             sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
                         }
-                    }                    
+                    }
                     break;
                 case "Drop":
                     changeType = SchemaChangeType.Drop;
@@ -110,7 +111,7 @@ namespace TeslaSQL {
                         columnName = xColumn.InnerText;
                         sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null);
                         schemaChanges.Add(sc);
-                    }   
+                    }
                     break;
             }
             return schemaChanges;
@@ -129,5 +130,35 @@ namespace TeslaSQL {
                 row.Field<int>("NUMERIC_SCALE")
                 );
         }
+        #region unittests
+        [Fact]
+        public void TestParse() {
+            String xml = @"<EVENT_INSTANCE>
+  <EventType>ALTER_TABLE</EventType>
+  <PostTime>2012-12-07T12:19:17.287</PostTime>
+  <SPID>121</SPID>
+  <ServerName>BRONCO</ServerName>
+  <LoginName>CSNZOO\ssandler</LoginName>
+  <UserName>dbo</UserName>
+  <DatabaseName>csn_cttest</DatabaseName>
+  <SchemaName>dbo</SchemaName>
+  <ObjectName>tblTest1</ObjectName>
+  <ObjectType>TABLE</ObjectType>
+  <AlterTableActionList>
+    <Create>
+      <Columns>
+        <Name>col4</Name>
+      </Columns>
+    </Create>
+  </AlterTableActionList>
+  <TSQLCommand>
+    <SetOptions ANSI_NULLS=""ON"" ANSI_NULL_DEFAULT=""ON"" ANSI_PADDING=""ON"" QUOTED_IDENTIFIER=""ON"" ENCRYPTED=""FALSE"" />
+    <CommandText>alter table tblTest1 add col4 int
+</CommandText>
+  </TSQLCommand>
+</EVENT_INSTANCE>";
+
+        }
+        #endregion
     }
 }

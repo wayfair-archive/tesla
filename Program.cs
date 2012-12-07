@@ -70,7 +70,7 @@ namespace TeslaSQL {
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
 
             if (parameters.validate) {
-                config.DumpConfig(parameters.more);
+                config.DumpConfig(parameters.more, config);
                 return;
             }
 
