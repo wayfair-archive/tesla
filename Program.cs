@@ -39,7 +39,10 @@ namespace TeslaSQL {
             Environment.Exit(1);
         }
 
-        static void Main(string[] args) {
+        //TODO figure out why --logLevel is unprocessed
+        //TODO figure out why latest batch didn't do anything
+
+        static void Main(string[] args) {            
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);
@@ -60,9 +63,11 @@ namespace TeslaSQL {
                 Environment.Exit(1);
             }
 
+            Console.WriteLine("TeslaSQL -- loading configuration file");
             var config = new Config();
             config.Load(parameters.configFile);
             var logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB);
+            logger.Log("Configuration file successfully loaded", LogLevel.Debug);
 
             if (parameters.validate) {
                 config.DumpConfig(parameters.more);
@@ -79,7 +84,6 @@ namespace TeslaSQL {
                 }
             }
 
-            logger.Log("Config file loaded, running agent", LogLevel.Debug);
             //int res = Functions.Run();
             //Console.Write("Test returned: ");
             //Console.WriteLine(res);
@@ -87,14 +91,16 @@ namespace TeslaSQL {
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
             var dataUtils = (IDataUtils)new DataUtils(config, logger);
-            try {
+            try {                
                 Agent a = createAgent(config.agentType, config, dataUtils);
+                logger.Log("Running agent of type " + Convert.ToString(config.agentType), LogLevel.Info);
                 a.Run();
             } catch (Exception e) {
                 logger.Log("ERROR: " + e.Message + " - Stack Trace: " + e.StackTrace, LogLevel.Critical);
                 responseCode = 1;
             }
             //TODO remove this
+            logger.Log("Agent completed successfully", LogLevel.Info);
             Console.ReadLine();
             Environment.Exit(responseCode);
         }        

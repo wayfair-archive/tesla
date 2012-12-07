@@ -27,12 +27,14 @@ namespace TeslaSQL {
         Trace = 1,
         //debugging info
         Debug = 2,
+        //information that is generally relevant even in a non-debugging scenario
+        Info = 3,
         //warnings 
-        Warn = 3,
+        Warn = 4,
         //errors that are not critical (i.e. tables that don't stopOnError)
-        Error = 4,
+        Error = 5,
         //critical errors that cause us to exit the program
-        Critical = 5
+        Critical = 6
     }
 
 

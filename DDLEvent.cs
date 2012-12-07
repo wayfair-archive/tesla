@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Xml;
 using System.Data;
+using System.Data.SqlTypes;
 
 namespace TeslaSQL {
     /// <summary>
@@ -12,14 +13,14 @@ namespace TeslaSQL {
     class DDLEvent {
         public int ddeID { get; set; }
 
-        public XmlDocument eventData { get; set; }       
+        public string eventData { get; set; }       
 
         /// <summary>
         /// Constructor used when initializing this object based on data from a DDL trigger
         /// </summary>
         /// <param name="ddeID">Unique id for this event</param>
         /// <param name="eventData">XmlDocument from the EVENTDATA() SQL function</param>
-        public DDLEvent(int ddeID, XmlDocument eventData) {
+        public DDLEvent(int ddeID, string eventData) {
             this.ddeID = ddeID;
             this.eventData = eventData;
         }
@@ -38,25 +39,27 @@ namespace TeslaSQL {
             DataType dataType;
             SchemaChange sc;
             string newColumnName;
-            string eventType = eventData.SelectSingleNode("EVENT_INSTANCE/EventType").InnerText;
-
             XmlNode node;
+            var xml = new XmlDocument();                        
+            xml.LoadXml(eventData);
+            string eventType = xml.SelectSingleNode("EVENT_INSTANCE/EventType").InnerText;
+            
             if (eventType == "ALTER_TABLE") {
-                node = eventData.SelectSingleNode("EVENT_INSTANCE/AlterTableActionList");
+                node = xml.SelectSingleNode("EVENT_INSTANCE/AlterTableActionList");
             } else if (eventType == "RENAME") {
-                node = eventData.SelectSingleNode("EVENT_INSTANCE/Parameters");
+                node = xml.SelectSingleNode("EVENT_INSTANCE/Parameters");
             } else {
                 //this is a DDL event type that we don't care about publishing, so ignore it
                 return schemaChanges;
             }
 
             if (node.FirstChild.Name == "Param") {
-                tableName = eventData.SelectSingleNode("/EVENT_INSTANCE/TargetObjectName").InnerText;
+                tableName = xml.SelectSingleNode("/EVENT_INSTANCE/TargetObjectName").InnerText;
             } else {
-                tableName = eventData.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
+                tableName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
             }
 
-            string schemaName = eventData.SelectSingleNode("/EVENT_INSTANCE/SchemaName").InnerText;
+            string schemaName = xml.SelectSingleNode("/EVENT_INSTANCE/SchemaName").InnerText;
             
             //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
             //Get table config object
@@ -71,14 +74,14 @@ namespace TeslaSQL {
             switch (node.FirstChild.Name) {
                 case "Param":
                     changeType = SchemaChangeType.Rename;                    
-                    columnName = eventData.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
-                    newColumnName = eventData.SelectSingleNode("/EVENT_INSTANCE/NewObjectName").InnerText;
+                    columnName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
+                    newColumnName = xml.SelectSingleNode("/EVENT_INSTANCE/NewObjectName").InnerText;
                     sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, newColumnName);
                     schemaChanges.Add(sc);
                     break;
                 case "Alter":                    
                     changeType = SchemaChangeType.Modify;                    
-                    foreach (XmlNode xColumn in eventData.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {                        
+                    foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {                        
                         columnName = xColumn.InnerText;
                         dataType = ParseDataType(dataUtils.GetDataType(server, dbName, tableName, columnName));
                         sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
@@ -87,8 +90,8 @@ namespace TeslaSQL {
                     break;
                 case "Create":
                     changeType = SchemaChangeType.Add;
-                    tableName = eventData.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
-                    foreach (XmlNode xColumn in eventData.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Create/Columns/Name")) {
+                    tableName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
+                    foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Create/Columns/Name")) {
                         columnName = xColumn.InnerText;
                         //if column list is specified, only publish schema changes if the column is already in the list. we don't want
                         //slaves adding a new column that we don't plan to publish changes for. 
@@ -101,8 +104,8 @@ namespace TeslaSQL {
                     break;
                 case "Drop":
                     changeType = SchemaChangeType.Drop;
-                    tableName = eventData.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
-                    foreach (XmlNode xColumn in eventData.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Drop/Columns/Name")) {
+                    tableName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
+                    foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Drop/Columns/Name")) {
                         //if columnlist for this table is specified
                         columnName = xColumn.InnerText;
                         sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null);

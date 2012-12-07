@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Data;
 using System.Xml;
+using System.Data.SqlTypes;
 using Xunit;
 using System.Diagnostics;
 #endregion
@@ -38,7 +39,7 @@ namespace TeslaSQL.Agents {
             Dictionary<string, Int64> changesCaptured;
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
-                logger.Log("Beginning publish schema changes phase", LogLevel.Debug);
+                logger.Log("Beginning publish schema changes phase", LogLevel.Info);
 
                 logger.Log("Creating tblCTSchemaChange_<CTID> on relay server", LogLevel.Trace);
                 dataUtils.CreateSchemaChangeTable(TServer.RELAY, config.relayDB, ctb.CTID);
@@ -58,7 +59,7 @@ namespace TeslaSQL.Agents {
             }
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
-                logger.Log("Beginning capture changes phase", LogLevel.Debug);
+                logger.Log("Beginning capture changes phase", LogLevel.Info);
 
                 //set the field list values on the table config objects
                 logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
@@ -92,7 +93,7 @@ namespace TeslaSQL.Agents {
             }
 
             //copy change tables from master to relay server
-            logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Debug);
+            logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Info);
             PublishChangeTables(config.tables, TServer.MASTER, config.masterCTDB, TServer.RELAY, config.relayDB, ctb.CTID, changesCaptured);
             logger.Log("Successfully published changetables, persisting bitwise now", LogLevel.Debug);
 
@@ -161,7 +162,7 @@ namespace TeslaSQL.Agents {
             DDLEvent dde;
             foreach (DataRow row in ddlEvents.Rows) {
                 logger.Log("Processing DDLevent...", LogLevel.Trace);
-                dde = new DDLEvent(row.Field<int>("DdeID"), row.Field<XmlDocument>("DdeEventData"));
+                dde = new DDLEvent(row.Field<int>("DdeID"), row.Field<string>("DdeEventData"));
                 logger.Log("Event initialized. DDEID is " + Convert.ToString(dde.ddeID), LogLevel.Trace);
 
                 //a DDL event can yield 0 or more schema change events, hence the List<SchemaChange>

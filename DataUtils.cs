@@ -9,7 +9,7 @@ using Microsoft.SqlServer.Management.Smo;
 using Microsoft.SqlServer.Management.Common;
 
 namespace TeslaSQL {
-    public class DataUtils {
+    public class DataUtils : IDataUtils {
 
         public Logger logger;
         public Config config;
