@@ -9,7 +9,7 @@ using Microsoft.SqlServer.Management.Smo;
 using Microsoft.SqlServer.Management.Common;
 
 namespace TeslaSQL {
-    public class DataUtils {
+    public class DataUtils : IDataUtils {
 
         public Logger logger;
         public Config config;
@@ -27,7 +27,7 @@ namespace TeslaSQL {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
-        public DataTable SqlQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
+        private DataTable SqlQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
             //build connection string based on server/db info passed in
             string connStr = buildConnString(server, dbName);
 
@@ -56,7 +56,7 @@ namespace TeslaSQL {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>The value in the first column and row, as the specified type</returns>
-        public T SqlQueryToScalar<T>(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
+        private T SqlQueryToScalar<T>(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
             DataTable result = SqlQuery(server, dbName, cmd, timeout);
             //return result in first column and first row as specified type
             return (T)result.Rows[0][0];
@@ -70,7 +70,7 @@ namespace TeslaSQL {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        public int SqlNonQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 600) {
+        private int SqlNonQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 600) {
             //build connection string based on server/db info passed in
             string connStr = buildConnString(server, dbName);
             int numrows;

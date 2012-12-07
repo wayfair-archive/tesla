@@ -9,12 +9,6 @@ using System.Data;
 namespace TeslaSQL {
     public interface IDataUtils {
 
-        DataTable SqlQuery(TServer server, string dbName, SqlCommand cmd, int Timeout = 30);
-
-        T SqlQueryToScalar<T>(TServer server, string dbName, SqlCommand cmd, int Timeout = 30);
-
-        int SqlNonQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 600);
-
         DataRow GetLastCTBatch(TServer server, string dbName, AgentType agentType, string slaveIdentifier = "");
 
         DataTable GetPendingCTVersions(TServer server, string dbName, Int64 CTID, int syncBitWise);
