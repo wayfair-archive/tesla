@@ -18,8 +18,8 @@ namespace TeslaSQL.Agents {
 
         public override void ValidateConfig()
         {
-            config.ValidateRequiredHost(config.relayServer);
-            config.ValidateRequiredHost(config.slave);
+            Config.ValidateRequiredHost(config.relayServer);
+            Config.ValidateRequiredHost(config.slave);
             if (config.relayType == null || config.slaveType == null) {
                 throw new Exception("Slave agent requires a valid SQL flavor for relay and slave");
             }

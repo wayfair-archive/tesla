@@ -18,7 +18,7 @@ namespace TeslaSQL.Agents {
         }
 
         public override void ValidateConfig() {
-            config.ValidateRequiredHost(config.relayServer);
+            Config.ValidateRequiredHost(config.relayServer);
             if (config.relayType == null) {
                 throw new Exception("Notifier agent requires a valid SQL flavor for relay");
             }
