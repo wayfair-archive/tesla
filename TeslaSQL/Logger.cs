@@ -11,6 +11,8 @@ namespace TeslaSQL {
         private string statsdHost { get; set; }
         private string statsdPort { get; set; }
         private string errorLogDB { get; set; }
+        public IDataUtils dataUtils { private get; set; }
+
 
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB) {
             this.logLevel = logLevel;
@@ -18,8 +20,13 @@ namespace TeslaSQL {
             this.statsdPort = statsdPort;
             this.errorLogDB = errorLogDB;
         }
-
-        //TODO figure out where to put or pass in an IDataUtils object
+        public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, IDataUtils dataUtils) {
+            this.logLevel = logLevel;
+            this.statsdHost = statsdHost;
+            this.statsdPort = statsdPort;
+            this.errorLogDB = errorLogDB;
+            this.dataUtils = dataUtils;
+        }
 
         /// <summary>
         /// Logs information and writes it to the console
@@ -35,19 +42,10 @@ namespace TeslaSQL {
 
             //errors are special - they are exceptions that don't stop the program but we want to write them to a database
             //table
-            if (logLevel.Equals(LogLevel.Error)) {
-                LogError(message);
+            if (logLevel.Equals(LogLevel.Error) && dataUtils != null) {
+                dataUtils.LogError(message);
             }
         }
-
-        public void LogError(string message) {
-            //errors are always written to the relay server
-            //should log to TServer.RELAY, Config.errorLogDB
-
-            //TODO figure out schema and which values to pass
-            //int res = SqlNonQuery("INSERT INTO tblCTErrors ...");
-        }
-
 
         /// <summary>
         /// Subclass for logging statistics to statsd

@@ -19,13 +19,16 @@ namespace TeslaSQL {
     public class Config {
 
         //method to initialize configuration by deserializing config file into objects
-        public void Load(string configFile) {
+        public static Config Load(string configFile) {
             ConfigLoader c = null;
             XmlSerializer serializer = new XmlSerializer(typeof(ConfigLoader));
 
             StreamReader reader = new StreamReader(configFile);
             c = (ConfigLoader)serializer.Deserialize(reader);
             reader.Close();
+            return new Config(c);
+        }
+        public Config(ConfigLoader c) {
 
             //set global configuration properties
             masterDB_m = ValidateNullableIdentifier(c.masterDB);
@@ -34,6 +37,7 @@ namespace TeslaSQL {
             slaveDB_m = ValidateNullableIdentifier(c.slaveDB);
             relayDB_m = ValidateNullableIdentifier(c.relayDB);
             errorLogDB_m = ValidateNullableIdentifier(c.errorLogDB);
+            errorTable_m = c.errorTable;
             masterUser_m = ValidateNullableIdentifier(c.masterUser);
             masterPassword_m = c.masterPassword;
             slaveUser_m = ValidateNullableIdentifier(c.slaveUser);
@@ -48,7 +52,11 @@ namespace TeslaSQL {
             relayServer_m = c.relayServer;
             slave_m = c.slave;
             master_m = c.master;
-
+            emailServerHost_m = c.emailServerHost;
+            emailServerPort_m = c.emailServerPort;
+            emailFromAddress_m = c.emailFromAddress;
+            emailErrorRecipient_m = c.emailErrorRecipient;
+            
             if (c.thresholdIgnoreStartTime != null) {
                 thresholdIgnoreStartTime_m = TimeSpan.Parse(c.thresholdIgnoreStartTime);
             }
@@ -338,32 +346,34 @@ namespace TeslaSQL {
         private string errorLogDB_m;
         public string errorLogDB { get { return errorLogDB_m; } }
 
+        private string errorTable_m;
+        public string errorTable { get { return errorTable_m; } }
         //how many hours to retain changes for in the relay server
         private int changeRetentionHours_m;
         public int changeRetentionHours { get { return changeRetentionHours_m; } }
 
         //username to use when connecting to the master
-        public string masterUser_m;
+        private string masterUser_m;
         public string masterUser { get { return masterUser_m; } }
 
         //password to use when connecting to the master
-        public string masterPassword_m;
+        private string masterPassword_m;
         public string masterPassword { get { return masterPassword_m; } }
 
         //username to use when connecting to the slave
-        public string slaveUser_m;
+        private string slaveUser_m;
         public string slaveUser { get { return slaveUser_m; } }
 
         //password to use when connecting to the slave
-        public string slavePassword_m;
+        private string slavePassword_m;
         public string slavePassword { get { return slavePassword_m; } }
 
         //username to use when connecting to the relay server
-        public string relayUser_m;
+        private string relayUser_m;
         public string relayUser { get { return relayUser_m; } }
 
         //password to use when connecting to the relay server
-        public string relayPassword_m;
+        private string relayPassword_m;
         public string relayPassword { get { return relayPassword_m; } }
 
         //how many CT versions to include in a batch on the master
@@ -389,6 +399,19 @@ namespace TeslaSQL {
         //port to write statsd calls to
         private string statsdPort_m;
         public string statsdPort { get { return statsdPort_m; } }
+
+        private readonly string emailServerHost_m;
+        public string emailServerHost { get { return emailServerHost_m; } }
+
+        private readonly int emailServerPort_m;
+        public int emailServerPort { get { return emailServerPort_m; } }
+
+        private readonly string emailFromAddress_m;
+        public string emailFromAddress { get { return emailFromAddress_m; } }
+
+        private readonly string emailErrorRecipient_m;
+        public string emailErrorRecipient { get { return emailErrorRecipient_m; } }
+
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
@@ -475,9 +498,15 @@ namespace TeslaSQL {
 
             [XmlElement("statsdPort")]
             public string statsdPort { get; set; }
-
+            
             [XmlArray("tables")]
             public TableConf[] t { get; set; }
+
+            public string emailServerHost { get; set; }
+            public int emailServerPort { get; set; }
+            public string emailFromAddress { get; set; }
+            public string emailErrorRecipient { get; set; }
+            public string errorTable { get; set; }
         }
 
 
@@ -574,6 +603,7 @@ namespace TeslaSQL {
         }
 
         #endregion
+
     }
 
     [XmlType("table")]

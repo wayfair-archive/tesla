@@ -289,5 +289,10 @@ namespace TeslaSQL {
         /// <param name="newColumnName">New column name</param>
         void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table, 
             string columnName, string newColumnName);
+
+        void LogError(string message);
+
+        DataTable GetUnsentErrors();
+        void MarkErrorsSent(IEnumerable<int> celIds);
     }
 }

@@ -430,5 +430,19 @@ namespace TeslaSQL {
             */
             
         }
+
+
+        public void LogError(string message) {
+            return;
+        }
+
+        public DataTable GetUnsentErrors() {
+            return new DataTable();
+        }
+
+
+        public void MarkErrorsSent(IEnumerable<int> celIds) {
+            return;
+        }
     }
 }

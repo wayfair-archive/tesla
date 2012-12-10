@@ -298,7 +298,8 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = numericPrecision;
             cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = numericScale;
             foreach (IDataParameter p in cmd.Parameters) {
-                if (p.Value == null) p.Value = DBNull.Value;
+                if (p.Value == null)
+                    p.Value = DBNull.Value;
             }
             int result = SqlNonQuery(server, dbName, cmd);
         }
@@ -359,7 +360,7 @@ namespace TeslaSQL {
             }
         }
 
-        
+
         public bool CheckTableExists(TServer server, string dbName, string table, string schema = "dbo") {
             try {
                 Table t_smo = GetSmoTable(server, dbName, table, schema);
@@ -383,7 +384,7 @@ namespace TeslaSQL {
             var columns_2 = new List<string>();
 
             //create this so that casing changes to columns don't cause problems, just use the lowercase column name
-            foreach(Column c in t_smo_2.Columns) {
+            foreach (Column c in t_smo_2.Columns) {
                 columns_2.Add(c.Name.ToLower());
             }
 
@@ -616,7 +617,7 @@ namespace TeslaSQL {
             return t_smo.ChangeTrackingEnabled;
         }
 
-        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table, 
+        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
             string columnName, string newColumnName) {
             var cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
             cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "." + columnName;
@@ -631,7 +632,23 @@ namespace TeslaSQL {
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
                 result = SqlNonQuery(server, dbName, cmd);
             }
-            
+
+        }
+
+        public void LogError(string message) {
+            SqlCommand cmd = new SqlCommand("INSERT INTO tblCtError (CelError) VALUES ( @error )");
+            cmd.Parameters.Add("@error", SqlDbType.VarChar, 1000).Value = message;
+            SqlNonQuery(TServer.RELAY, config.errorLogDB, cmd);
+        }
+
+        public DataTable GetUnsentErrors() {
+            SqlCommand cmd = new SqlCommand("SELECT CelError, CelId FROM tblCtError WHERE CelSent = 0");
+            return SqlQuery(TServer.RELAY, config.errorLogDB, cmd);
+        }
+
+        public void MarkErrorsSent(IEnumerable<int> celIds) {
+            SqlCommand cmd = new SqlCommand("UPDATE tblCtError SET CelSent = 1 WHERE CelId IN (" + string.Join(",", celIds) + ")");
+            SqlNonQuery(TServer.RELAY, config.errorLogDB, cmd);
         }
     }
 }
