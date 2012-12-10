@@ -20,19 +20,22 @@ namespace TeslaSQL.Agents {
 
         public Logger logger;
 
+        public Agent() {
+            //parameterless constructor used only for unit tests
+        }
+
         protected Agent(Config config, IDataUtils dataUtils) {
             this.config = config;
             this.dataUtils = dataUtils;
             this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB);
         }
 
-        //every agent should have a Run method
         public abstract void Run();
 
         public abstract void ValidateConfig();
 
         /// <summary>
-        /// Set field list values for each table in the config 
+        /// Set field list values for each table in the config
         /// </summary>
         /// <param name="Server">Server to run on (i.e. Master, Slave, Relay)</param>
         /// <param name="Database">Database name to run on</param>
@@ -41,25 +44,24 @@ namespace TeslaSQL.Agents {
             Dictionary<string, bool> dict;
             foreach (TableConf t in tableConfArray) {
                 try {
-                    dict = dataUtils.GetFieldList(server, database, t.Name);
+                    dict = dataUtils.GetFieldList(server, database, t.Name, t.schemaName);
                     SetFieldList(t, dict);
                 } catch (Exception e) {
                     if (t.stopOnError) {
                         throw e;
                     } else {
-                        logger.Log("Error setting field lists for table " + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace, LogLevel.Error);
+                        logger.Log("Error setting field lists for table " + t.schemaName + "." + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace, LogLevel.Error);
                     }
-                }                
+                }
             }
         }
 
         /// <summary>
         /// Set several field lists on a TableConf object using its config and an smo table object.
         /// </summary>
-        /// <param name="tableConf">A table configuration object</param>
-        /// <param name="fields">Dictionary of field names with a bool for whether they are part of the primary key</param>   
-        public void SetFieldList(TableConf tableConf, Dictionary<string, bool> fields) {
-            //TODO continue to measure the performance of this and consider changing back to a pure sql query 
+        /// <param name="t">A table configuration object</param>
+        /// <param name="fields">Dictionary of field names with a bool for whether they are part of the primary key</param>
+        public void SetFieldList(TableConf t, Dictionary<string, bool> fields) {
             Stopwatch st = new Stopwatch();
             st.Start();
             string masterColumnList = "";
@@ -70,12 +72,12 @@ namespace TeslaSQL.Agents {
             string prefix = "";
 
             //get dictionary of column exceptions
-            Dictionary<string, string> columnModifiers = config.ParseColumnModifiers(tableConf.columnModifiers);
+            Dictionary<string, string> columnModifiers = config.ParseColumnModifiers(t.columnModifiers);
 
             foreach (KeyValuePair<string, bool> c in fields) {
-                //split column list on comma and/or space, only include columns in the list if the list is specified               
-                //TODO for netezza slaves we use a separate type of list that isn't populated here, where to put that?         
-                if (tableConf.columnList == null || tableConf.columnList.Contains(c.Key, StringComparer.OrdinalIgnoreCase)) {
+                //split column list on comma and/or space, only include columns in the list if the list is specified
+                //TODO for netezza slaves we use a separate type of list that isn't populated here, where to put that?
+                if (t.columnList == null || t.columnList.Contains(c.Key, StringComparer.OrdinalIgnoreCase)) {
                     if (masterColumnList != "") {
                         masterColumnList += ",";
                     }
@@ -117,14 +119,14 @@ namespace TeslaSQL.Agents {
                 }
             }
 
-            tableConf.masterColumnList = masterColumnList;
-            tableConf.slaveColumnList = slaveColumnList;
-            tableConf.pkList = pkList;
-            tableConf.notNullPKList = notNullPKList;
-            tableConf.mergeUpdateList = mergeUpdateList;
+            t.masterColumnList = masterColumnList;
+            t.slaveColumnList = slaveColumnList;
+            t.pkList = pkList;
+            t.notNullPKList = notNullPKList;
+            t.mergeUpdateList = mergeUpdateList;
 
             st.Stop();
-            logger.Log("SetFieldList Elapsed time for table " + tableConf.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
+            logger.Log("SetFieldList Elapsed time for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
         }
 
 

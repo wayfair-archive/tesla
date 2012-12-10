@@ -29,7 +29,7 @@ namespace TeslaSQL {
         Debug = 2,
         //information that is generally relevant even in a non-debugging scenario
         Info = 3,
-        //warnings 
+        //warnings
         Warn = 4,
         //errors that are not critical (i.e. tables that don't stopOnError)
         Error = 5,

@@ -1,0 +1,27 @@
+<?xml version="1.0" standalone="yes"?>
+<xs:schema targetNamespace="RELAY.CT_TEST" xmlns:mstns="RELAY.CT_TEST" xmlns="RELAY.CT_TEST" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:app1="RELAY.CT_TEST">
+  <xs:element name="tblCTVersion">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="CTID" msdata:AutoIncrement="true" msdata:AutoIncrementSeed="100" type="xs:long" />
+        <xs:element name="syncStartVersion" type="xs:long" minOccurs="0" />
+        <xs:element name="syncStopVersion" type="xs:long" minOccurs="0" />
+        <xs:element name="syncStartTime" type="xs:dateTime" minOccurs="0" />
+        <xs:element name="syncBitWise" type="xs:int" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="tblCTSlaveVersion">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="CTID" type="xs:long" />
+        <xs:element name="slaveIdentifier" type="xs:string" />
+        <xs:element name="syncStartVersion" type="xs:long" minOccurs="0" />
+        <xs:element name="syncStopVersion" type="xs:long" minOccurs="0" />
+        <xs:element name="syncStartTime" type="xs:dateTime" minOccurs="0" />
+        <xs:element name="syncStopTime" type="xs:dateTime" minOccurs="0" />
+        <xs:element name="syncBitWise" type="xs:int" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

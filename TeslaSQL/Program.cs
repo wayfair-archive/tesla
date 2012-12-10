@@ -2,29 +2,31 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Linq;
 using System.IO;
 using NDesk.Options;
 using Xunit;
 using TeslaSQL.Agents;
+using System.Data;
 #endregion
 
 /*
  * TeslaSQL - the Tesla Replicator:
- * 
+ *
  * This application is used to replicate data in batches. It can be run as several different agents (see Config.AgentType enum)
  * which do things like publish changes, subscribe to changes, or clean up old data.
- * 
+ *
  * Tesla is designed to be as easy to troubleshoot as possible without opening up the code. As a result there are a nearly
- * absurd number of Trace and Debug logging statements which explain what the application is doing when the LogLevel is set low enough. 
+ * absurd number of Trace and Debug logging statements which explain what the application is doing when the LogLevel is set low enough.
  * As a programmer reading the source code, you'll notice these also effectively act as replacements for comments that would have contained the same text.
- * 
+ *
  * Testing changes to this program:
- * 
- * Unit tests can be run using the xunit.net test runner (use the x86 .NET 4.0 version). 
+ *
+ * Unit tests can be run using the xunit.net test runner (use the x86 .NET 4.0 version).
  * This will run all methods decorated with the [Fact] attribute (they must be public and return void, and have no arguments).
  * If any of the Assert statements in those methods fail, the tests are considered failed.
  * Note, xunit.net will only see [Fact] methods that are inside of a public class.
- * 
+ *
  * Authors:
  * Scott Sandler - <ssandler@wayfair.com>
  * Alexander Corwin - <acorwin@wayfair.com>
@@ -33,16 +35,36 @@ using TeslaSQL.Agents;
 
 namespace TeslaSQL {
     public class Program {
-        //various methods can call this to shut down
-        //TODO decide if we need this, where to put it, and what it should do besides exit.
-        public static void ShutdownHandler() {
-            Environment.Exit(1);
+        //TODO move this somewhere else
+        public static void TestData() {
+            //this will resolve to something like "C:\tesla\TeslaSQL\bin\Debug"
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            //relative path to the tests folder will be three directories up from that
+            string filePath = baseDir + @"..\..\..\Tests\test1\input_data.xml";
+            DataSet ds = new DataSet();
+            ds.ReadXml(filePath, XmlReadMode.ReadSchema);
+            //ds.AcceptChanges();
+            filePath = baseDir + @"..\..\..\Tests\test1\expected_data.xml";
+            DataSet expected = new DataSet();
+            expected.ReadXml(filePath, XmlReadMode.ReadSchema);
+
+            //expected.AcceptChanges();
+            Console.WriteLine(TestDataUtils.CompareDataSets(expected, ds));
+            Console.WriteLine("one hop this time");
+            DataRow row = ds.Tables["tblCTSlaveVersion"].NewRow();
+            row["CTID"] = 500;
+            row["slaveIdentifier"] = "TESTSLAVE";
+            row["syncStartVersion"] = 1000;
+            row["syncStopVersion"] = 2000;
+            row["syncStartTime"] = new DateTime(2012, 1, 1, 12, 0, 0);
+            row["syncBitWise"] = 0;
+            ds.Tables["tblCTSlaveVersion"].Rows.Add(row);
+
+            Console.WriteLine(TestDataUtils.CompareDataSets(expected, ds));
+            Console.ReadLine();
         }
 
-        //TODO figure out why --logLevel is unprocessed
-        //TODO figure out why latest batch didn't do anything
-
-        static void Main(string[] args) {            
+        static void Main(string[] args) {
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);
@@ -76,7 +98,7 @@ namespace TeslaSQL {
 
             if (!String.IsNullOrEmpty(parameters.logLevelOverride)) {
                 try {
-                    config.logLevelOverride = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
+                    config.logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
                 } catch {
                     Console.WriteLine("Invalid log level!");
                     Console.WriteLine("Try `TeslaSQL --help' for more information.");
@@ -84,14 +106,10 @@ namespace TeslaSQL {
                 }
             }
 
-            //int res = Functions.Run();
-            //Console.Write("Test returned: ");
-            //Console.WriteLine(res);
-
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
             var dataUtils = (IDataUtils)new DataUtils(config, logger);
-            try {                
+            try {
                 Agent a = createAgent(config.agentType, config, dataUtils);
                 logger.Log("Running agent of type " + Convert.ToString(config.agentType), LogLevel.Info);
                 a.Run();
@@ -103,7 +121,7 @@ namespace TeslaSQL {
             logger.Log("Agent completed successfully", LogLevel.Info);
             Console.ReadLine();
             Environment.Exit(responseCode);
-        }        
+        }
 
         private static Agent createAgent(AgentType agentType, Config config, IDataUtils dataUtils) {
             switch (agentType) {
@@ -178,7 +196,7 @@ namespace TeslaSQL {
             }
 
             /*
-             * Initialize NDesk.OptionSet object. 
+             * Initialize NDesk.OptionSet object.
              * For each block the first value represents the parameter name and whether it takes a value or is a switch.
              * Arguments that take values have an = sign at the end, the others are switches.
              * The second element is the help info to print.
@@ -207,7 +225,7 @@ namespace TeslaSQL {
             //extra will hold a list of unprocessed/unsupported args, which we will ignore.
             List<string> extra = p.Parse(args);
             foreach (string s in extra) {
-                //can't use Logger class because LogLevel wouldn't have been loaded into config yet. 
+                //can't use Logger class because LogLevel wouldn't have been loaded into config yet.
                 //just warn the user via cli about this
                 Console.WriteLine("Warning: unprocessed CLI arg: " + s);
             }

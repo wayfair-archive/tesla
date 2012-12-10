@@ -18,6 +18,11 @@ namespace TeslaSQL.Agents {
 
         }
 
+        public Master() {
+            //this constructor is only used by for running unit tests
+            this.logger = new Logger(LogLevel.Critical, null, null, null);
+        }
+
         public override void ValidateConfig() {
             logger.Log("Validating configuration for master", LogLevel.Trace);
             config.ValidateRequiredHost(config.relayServer);
@@ -32,7 +37,7 @@ namespace TeslaSQL.Agents {
             Int64 currentVersion = dataUtils.GetCurrentCTVersion(TServer.MASTER, config.masterDB);
 
             logger.Log("Initializing CT batch", LogLevel.Debug);
-            //set up the variables and CT version info for this run   
+            //set up the variables and CT version info for this run
             ChangeTrackingBatch ctb = InitializeBatch(currentVersion);
 
             DateTime previousSyncStartTime;
@@ -83,10 +88,10 @@ namespace TeslaSQL.Agents {
                 changesCaptured = CreateChangeTables(config.tables, TServer.MASTER, config.masterDB, config.masterCTDB, ctb.syncStartVersion, ctb.syncStopVersion, ctb.CTID);
                 logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
 
-                //update bitwise on tblCTVersion, indicating that we have completed the change table creation step                
+                //update bitwise on tblCTVersion, indicating that we have completed the change table creation step
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
                 logger.Log("Wrote bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.CaptureChanges)) + " to tblCTVersion", LogLevel.Trace);
-            } else {                
+            } else {
                 logger.Log("CreateChangeTables succeeded on the previous run, running GetRowCounts instead to populate changesCaptured object", LogLevel.Debug);
                 changesCaptured = GetRowCounts(config.tables, TServer.MASTER, config.masterCTDB, ctb.CTID);
                 logger.Log("Successfully populated changesCaptured with a list of rowcounts for each changetable", LogLevel.Trace);
@@ -100,6 +105,8 @@ namespace TeslaSQL.Agents {
             //this signifies the end of the master's responsibility for this batch
             dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
             logger.Log("Wrote bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.UploadChanges)) + " to tblCTVersion", LogLevel.Trace);
+
+            logger.Log("Master agent work complete", LogLevel.Info);
             return;
         }
 
@@ -135,7 +142,7 @@ namespace TeslaSQL.Agents {
                     lastbatch.Field<Int64>("syncStartVersion"),
                     currentVersion,
                     lastbatch.Field<Int32>("syncBitWise"));
-            } else {                
+            } else {
                 logger.Log("Previous batch failed overall but did create its changetables, so we'll try to publish them once again", LogLevel.Debug);
                 return new ChangeTrackingBatch(lastbatch.Field<Int64>("CTID"),
                     lastbatch.Field<Int64>("syncStartVersion"),
@@ -148,14 +155,14 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// Publish schema changes that hav eoccurred since the last batch started
         /// </summary>
-        /// <param name="t_array">Array of table config objects</param>
+        /// <param name="tables">Array of table config objects</param>
         /// <param name="sourceServer">Server identifier to pull from</param>
         /// <param name="sourceDB">Source database name</param>
         /// <param name="destServer">Server identifier to write to</param>
         /// <param name="destDB">Destination database name</param>
         /// <param name="CTID">Change tracking batch id</param>
         /// <param name="afterDate">Date to pull schema changes after</param>
-        public void PublishSchemaChanges(TableConf[] t_array, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 CTID, DateTime afterDate) {            
+        public void PublishSchemaChanges(TableConf[] tables, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 CTID, DateTime afterDate) {
             logger.Log("Pulling DDL events from master since " + Convert.ToString(afterDate), LogLevel.Debug);
             DataTable ddlEvents = dataUtils.GetDDLEvents(sourceServer, sourceDB, afterDate);
             var schemaChanges = new List<SchemaChange>();
@@ -167,7 +174,7 @@ namespace TeslaSQL.Agents {
 
                 //a DDL event can yield 0 or more schema change events, hence the List<SchemaChange>
                 logger.Log("Parsing DDL event XML", LogLevel.Trace);
-                schemaChanges = dde.Parse(t_array, dataUtils, sourceServer, sourceDB);
+                schemaChanges = dde.Parse(tables, dataUtils, sourceServer, sourceDB);
 
                 //iterate through any schema changes for this event and write them to tblCTSchemaChange_CTID
                 foreach (SchemaChange schemaChange in schemaChanges) {
@@ -194,7 +201,7 @@ namespace TeslaSQL.Agents {
 
 
         /// <summary>
-        /// Resize batch based on max batch size configuration variable       
+        /// Resize batch based on max batch size configuration variable
         /// </summary>
         /// <param name="startVersion">syncStartVersion for this CT run</param>
         /// <param name="stopVersion">syncStopVersion for this CT run</param>
@@ -210,7 +217,7 @@ namespace TeslaSQL.Agents {
                 //handle interval wrapping around midnight
                 if (thresholdIgnoreStartTime > thresholdIgnoreEndTime) {
                     logger.Log("The threshold for ignoring batch size limitations wraps around midnight", LogLevel.Trace);
-                    //if the time span for ignoring batch resizing wraps around midnight, we check whether the current time is 
+                    //if the time span for ignoring batch resizing wraps around midnight, we check whether the current time is
                     //after the start OR before the end (since it can't be both if the interval contains midnight)
                     if (CurrentDate.TimeOfDay > thresholdIgnoreStartTime || CurrentDate.TimeOfDay <= thresholdIgnoreEndTime) {
                         logger.Log("We are currently in the time window for ignoring batch size limitations, not changing the batch size", LogLevel.Trace);
@@ -238,21 +245,21 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// Loops through passed in array of table objects, creates changedata tables for each one on the CT DB
         /// </summary>
-        /// <param name="t_array">Array of table config objects to create CT tables for</param>
+        /// <param name="tables">Array of table config objects to create CT tables for</param>
         /// <param name="sourceServer">Server to connect to</param>
         /// <param name="sourceDB">Database the source data lives in</param>
         /// <param name="sourceCTDB">Database the changetables should go to</param>
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
-        /// <param name="ct_id">CT batch ID this is being run for</param>
-        private Dictionary<string, Int64> CreateChangeTables(TableConf[] t_array, TServer sourceServer, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 ct_id) {
+        /// <param name="CTID">CT batch ID this is being run for</param>
+        private Dictionary<string, Int64> CreateChangeTables(TableConf[] tables, TServer sourceServer, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
             Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64>();
             KeyValuePair<string, Int64> result;
-            foreach (TableConf t in t_array) {
-                logger.Log("Creating changetable for " + t.Name, LogLevel.Debug);
-                result = CreateChangeTable(t, sourceServer, sourceDB, sourceCTDB, startVersion, stopVersion, ct_id);                
+            foreach (TableConf t in tables) {
+                logger.Log("Creating changetable for " + t.schemaName + "." + t.Name, LogLevel.Debug);
+                result = CreateChangeTable(t, sourceServer, sourceDB, sourceCTDB, startVersion, stopVersion, CTID);
                 changesCaptured.Add(result.Key, result.Value);
-                logger.Log(Convert.ToString(result.Value) + " changes captured for table " + t.Name, LogLevel.Trace);
+                logger.Log(Convert.ToString(result.Value) + " changes captured for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
             }
             return changesCaptured;
         }
@@ -266,20 +273,20 @@ namespace TeslaSQL.Agents {
         /// <param name="startVersion">Start version to compare to min_valid_version</param>
         /// <param name="reason">Outputs a reason for why the table isn't valid, if it isn't valid.</param>
         /// <returns>Bool indicating whether it's safe to pull changes for this table</returns>
-        private bool ValidateSourceTable(TServer server, string dbName, string table, Int64 startVersion, out string reason) {
-            if (!dataUtils.CheckTableExists(server, dbName, table)) {
+        private bool ValidateSourceTable(TServer server, string dbName, string table, string schemaName, Int64 startVersion, out string reason) {
+            if (!dataUtils.CheckTableExists(server, dbName, table, schemaName)) {
                 reason = "Table " + table + " does not exist in the source database";
                 logger.Log(reason, LogLevel.Trace);
                 return false;
-            } else if (!dataUtils.HasPrimaryKey(server, dbName, table)) {
+            } else if (!dataUtils.HasPrimaryKey(server, dbName, table, schemaName)) {
                 reason = "Table " + table + " has no primary key in the source database";
                 logger.Log(reason, LogLevel.Trace);
                 return false;
-            } else if (!dataUtils.IsChangeTrackingEnabled(server, dbName, table)) {
+            } else if (!dataUtils.IsChangeTrackingEnabled(server, dbName, table, schemaName)) {
                 reason = "Change tracking is not enabled on " + table;
                 logger.Log(reason, LogLevel.Trace);
                 return false;
-            } else if (startVersion < dataUtils.GetMinValidVersion(server, dbName, table)) {
+            } else if (startVersion < dataUtils.GetMinValidVersion(server, dbName, table, schemaName)) {
                 reason = "Start version of " + Convert.ToString(startVersion) + " is less than CHANGE_TRACKING_MIN_VALID_VERSION for table " + table;
                 logger.Log(reason, LogLevel.Trace);
                 return false;
@@ -299,61 +306,61 @@ namespace TeslaSQL.Agents {
         /// <param name="sourceCTDB">Database the changetables should go to</param>
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
-        /// <param name="ct_id">CT batch ID this is being run for</param>
-        private KeyValuePair<string, Int64> CreateChangeTable(TableConf t, TServer sourceServer, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 ct_id) {
+        /// <param name="CTID">CT batch ID this is being run for</param>
+        private KeyValuePair<string, Int64> CreateChangeTable(TableConf t, TServer sourceServer, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
             //TODO check tblCTInitialize and change startVersion if necessary? need to decide if we are keeping tblCTInitialize at all
             //alternative to keeping it is to have it live only on a slave which then keeps track of which batches it has applied for that table separately from the CT runs
 
             //TODO handle case where startVersion is 0, change it to CHANGE_TRACKING_MIN_VALID_VERSION?
-            string ctTableName = CTTableName(t.Name, ct_id);
+            string ctTableName = CTTableName(t.Name, CTID);
             string reason;
 
-            if (!ValidateSourceTable(sourceServer, sourceDB, t.Name, startVersion, out reason)) {
+            if (!ValidateSourceTable(sourceServer, sourceDB, t.Name, t.schemaName, startVersion, out reason)) {
                 string message = "Change table creation impossible because : " + reason;
                 if (t.stopOnError) {
                     throw new Exception(message);
                 } else {
                     logger.Log(message, LogLevel.Error);
-                    return new KeyValuePair<string, Int64>(t.Name, 0);
+                    return new KeyValuePair<string, Int64>(t.schemaName + "." + t.Name, 0);
                 }
             }
 
             //drop the table if it exists
             logger.Log("Dropping table " + ctTableName + " if it exists", LogLevel.Trace);
-            bool tExisted = dataUtils.DropTableIfExists(sourceServer, sourceCTDB, ctTableName);
+            bool tExisted = dataUtils.DropTableIfExists(sourceServer, sourceCTDB, ctTableName, t.schemaName);
 
             logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
-            Int64 rowsAffected = dataUtils.SelectIntoCTTable(sourceServer, sourceCTDB, t.masterColumnList,
+            Int64 rowsAffected = dataUtils.SelectIntoCTTable(sourceServer, sourceCTDB, t.schemaName, t.masterColumnList,
                 ctTableName, sourceDB, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, 1200);
 
-            logger.Log("Rows affected for table " + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
-            return new KeyValuePair<string, Int64>(t.Name, rowsAffected);
+            logger.Log("Rows affected for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
+            return new KeyValuePair<string, Int64>(t.schemaName + "." + t.Name, rowsAffected);
         }
 
 
         /// <summary>
         /// Copies change tables from the master to the relay server
         /// </summary>
-        /// <param name="t_array">Array of table config objects</param>
+        /// <param name="tables">Array of table config objects</param>
         /// <param name="sourceServer">Source server identifer</param>
         /// <param name="sourceCTDB">Source CT database</param>
         /// <param name="destServer">Dest server identifier</param>
         /// <param name="destCTDB">Dest CT database</param>
-        /// <param name="ct_id">CT batch ID this is for</param>
-        private void PublishChangeTables(TableConf[] t_array, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 ct_id, Dictionary<string, Int64> changesCaptured) {
-            foreach (TableConf t in t_array) {
+        /// <param name="CTID">CT batch ID this is for</param>
+        private void PublishChangeTables(TableConf[] tables, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
+            foreach (TableConf t in tables) {
                 //don't copy tables that had no changes
-                if (changesCaptured[t.Name] > 0) {
-                    logger.Log("Publishing changes for table " + t.Name, LogLevel.Trace);
+                if (changesCaptured[t.schemaName + "." + t.Name] > 0) {
+                    logger.Log("Publishing changes for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     //hard coding timeout at 1 hour for bulk copy
                     try {
-                        dataUtils.CopyTable(sourceServer, sourceCTDB, CTTableName(t.Name, ct_id), destServer, destCTDB, 36000);
-                        logger.Log("Publishing changes succeeded for " + t.Name, LogLevel.Trace);
+                        dataUtils.CopyTable(sourceServer, sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destServer, destCTDB, 36000);
+                        logger.Log("Publishing changes succeeded for " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     } catch (Exception e) {
                         if (t.stopOnError) {
                             throw e;
                         } else {
-                            logger.Log("Copying change data for table " + t.Name + " failed with error: " + e.Message, LogLevel.Error);
+                            logger.Log("Copying change data for table " + t.schemaName + "." + t.Name + " failed with error: " + e.Message, LogLevel.Error);
                         }
                     }
                 }
@@ -364,21 +371,21 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// Gets ChangesCaptured object based on row counts in CT tables
         /// </summary>
-        /// <param name="t_array">Array of table config objects</param>
+        /// <param name="tables">Array of table config objects</param>
         /// <param name="sourceServer">Server identifier for the source</param>
         /// <param name="sourceCTDB">CT database name</param>
-        /// <param name="ct_id">CT batch id</param>
-        private Dictionary<string, Int64> GetRowCounts(TableConf[] t_array, TServer sourceServer, string sourceCTDB, Int64 ct_id) {
+        /// <param name="CTID">CT batch id</param>
+        private Dictionary<string, Int64> GetRowCounts(TableConf[] tables, TServer sourceServer, string sourceCTDB, Int64 CTID) {
             Dictionary<string, Int64> rowCounts = new Dictionary<string, Int64>();
 
-            foreach (TableConf t in t_array) {
-                logger.Log("Getting rowcount for table " + CTTableName(t.Name, ct_id), LogLevel.Trace);
+            foreach (TableConf t in tables) {
+                logger.Log("Getting rowcount for table " + t.schemaName + "." + CTTableName(t.Name, CTID), LogLevel.Trace);
                 try {
-                    rowCounts.Add(t.Name, dataUtils.GetTableRowCount(sourceServer, sourceCTDB, CTTableName(t.Name, ct_id)));
-                    logger.Log("Successfully retrieved rowcount of " + Convert.ToString(rowCounts[t.Name]), LogLevel.Trace);
+                    rowCounts.Add(t.schemaName + "." + t.Name, dataUtils.GetTableRowCount(sourceServer, sourceCTDB, CTTableName(t.Name, CTID), t.schemaName));
+                    logger.Log("Successfully retrieved rowcount of " + Convert.ToString(rowCounts[t.schemaName + "." + t.Name]), LogLevel.Trace);
                 } catch (DoesNotExistException) {
                     logger.Log("CT table does not exist, using rowcount of 0", LogLevel.Trace);
-                    rowCounts.Add(t.Name, 0);
+                    rowCounts.Add(t.schemaName + "." + t.Name, 0);
                 }
             }
             return rowCounts;
@@ -410,9 +417,6 @@ namespace TeslaSQL.Agents {
             //threshold time wraps around midnight and we are in the ignore window (after midnight)
             Assert.Equal(1500, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(23, 45, 0), new TimeSpan(1, 30, 0), new DateTime(2000, 1, 1, 0, 30, 0)));
         }
-
         #endregion
-
-
     }
 }

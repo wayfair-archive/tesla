@@ -8,14 +8,14 @@ using System.Xml;
 namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     //TODO we need to set up field lists somewhere in here...
-    //TODO figure out where to put check for MSSQL vs. netezza and where to branch the code paths   
+    //TODO figure out where to put check for MSSQL vs. netezza and where to branch the code paths
     class Slave : Agent
     {
         //base keyword invokes the base class's constructor
         public Slave(Config config, IDataUtils dataUtils) : base(config, dataUtils) {
 
         }
-        
+
         public override void ValidateConfig()
         {
             config.ValidateRequiredHost(config.relayServer);
@@ -31,19 +31,22 @@ namespace TeslaSQL.Agents {
             List<ChangeTrackingBatch> batches = InitializeBatch();
 
             if (batches.Count == 0) {
+                logger.Log("No pending batches to work on, exiting with success", LogLevel.Info);
                 return;
             } else if (batches.Count == 1) {
+                logger.Log("Beginning work - single batch", LogLevel.Info);
                 RunSingleBatch(batches[0]);
             } else {
+                logger.Log("Beginning work - applying multiple batches", LogLevel.Info);
                 RunMultiBatch(batches);
             }
-          
+            logger.Log("Slave agent work complete", LogLevel.Info);
             return;
         }
 
 
         /// <summary>
-        /// Initializes version/batch info for a run 
+        /// Initializes version/batch info for a run
         /// </summary>
         /// <returns>List of change tracking batches to work on</returns>
         private List<ChangeTrackingBatch> InitializeBatch() {
@@ -56,7 +59,7 @@ namespace TeslaSQL.Agents {
             ChangeTrackingBatch ctb;
 
             //get the last CT version this slave worked on in tblCTSlaveVersion
-            logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);            
+            logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
             DataRow lastBatch = dataUtils.GetLastCTBatch(TServer.RELAY, config.relayDB, AgentType.Slave, config.slave);
 
             //compare bitwise to the bit for last step of slave agent
@@ -75,7 +78,7 @@ namespace TeslaSQL.Agents {
 
                 if (config.batchConsolidationThreshold == 0 || pendingVersions.Rows.Count < config.batchConsolidationThreshold) {
                     logger.Log("Pending versions within threshold of " + Convert.ToString(config.batchConsolidationThreshold) + ", doing next batch.", LogLevel.Debug);
-                    
+
                     //we are an acceptable number of versions behind, so work on the next version
                     CTID = pendingVersions.Rows[0].Field<Int64>("CTID");
                     syncStartVersion = pendingVersions.Rows[0].Field<Int64>("syncStartVersion");
@@ -103,13 +106,13 @@ namespace TeslaSQL.Agents {
                     return batches;
                 }
             }
-            //if we get here, last batch failed so we are now about to retry            
+            //if we get here, last batch failed so we are now about to retry
             CTID = lastBatch.Field<Int64>("CTID");
             syncStartVersion = lastBatch.Field<Int64>("syncStartVersion");
             syncStopVersion = lastBatch.Field<Int64>("syncStopVersion");
             syncBitWise = lastBatch.Field<Int32>("syncBitWise");
             syncStartTime = lastBatch.Field<DateTime>("syncStartTime");
-            
+
             logger.Log("Last batch failed, retrying CTID " + Convert.ToString(CTID), LogLevel.Warn);
             ctb = new ChangeTrackingBatch(CTID, syncStartVersion, syncStopVersion, syncBitWise);
             batches.Add(ctb);
@@ -122,19 +125,23 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="ctidTable">DataTable object listing all the batches</param>
         private void RunMultiBatch(List<ChangeTrackingBatch> batches) {
-            //TODO add logger statements                        
-                        
+            //TODO add logger statements
+
             //this will hold a list of all the CT tables that exist
             List<string> tables = new List<string>();
-            
-            //loop through each batch and copy the ct tables and apply schema changes 
+
+            //loop through each batch and copy the ct tables and apply schema changes
             foreach (ChangeTrackingBatch batch in batches) {
+                logger.Log("Multi batch run - beginning work on CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
+                    logger.Log("Downloading change tables for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                     //copy the change tables for each batch if it hasn't been done yet
                     tables.Concat(CopyChangeTables(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, batch.CTID));
+                    logger.Log("Changes downloaded successfully for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                     //persist bitwise progress to database
                     dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 } else {
+                    logger.Log("Not downloading changes since it was already done, instead populating table list for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                     //we've already downloaded changes in a previous run so fill in the List of tables using the slave server
                     tables.Concat(PopulateTableList(config.tables, TServer.SLAVE, config.slaveCTDB, batch.CTID));
                 }
@@ -146,7 +153,7 @@ namespace TeslaSQL.Agents {
 
                     //persist bitwise progress to database
                     dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
-                }                
+                }
             }
 
             //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
@@ -168,8 +175,8 @@ namespace TeslaSQL.Agents {
                 //persist bitwise progress to database
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
-           
-            //final step, synchronize history tables  
+
+            //final step, synchronize history tables
             //TODO implement
             //SyncBatchedHistoryTables(config.tables, TServer.SLAVE, config.slaveCTDB, config.slaveDB, tables);
             //success! go through and mark all the batches as complete in the db
@@ -182,9 +189,9 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// Runs a single change tracking batch
         /// </summary>
-        /// <param name="ct_id">Change tracking batch object to work on</param>
+        /// <param name="CTID">Change tracking batch object to work on</param>
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
-            //TODO finish            
+            //TODO finish
             //TODO add logger statements
             //this will hold a list of all the CT tables that exist
             List<string> tables = new List<string>();
@@ -225,139 +232,118 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// For the specified list of batches and tables, populate a list of each CT tables exist
         /// </summary>
-        /// <param name="t_array">Array of table config objects</param>
+        /// <param name="tables">Array of table config objects</param>
         /// <param name="server">Server identifier</param>
         /// <param name="dbName">Database name</param>
         /// <param name="batches">Dictionary of batches, where the key is a CTID</param>
         /// <param name="tables">List of table names to populate</param>
-        private List<string> PopulateTableList(TableConf[] t_array, TServer server, string dbName, Int64 ct_id) {
+        private List<string> PopulateTableList(TableConf[] tables, TServer server, string dbName, Int64 CTID) {
             //TODO add logger statements
-            var tables = new List<string>();
+            var tableList = new List<string>();
             string ctTableName;
-            foreach (TableConf t in t_array) {
-                ctTableName = CTTableName(t.Name, ct_id);
-                if (dataUtils.CheckTableExists(server, dbName, ctTableName)) {
-                    tables.Add(ctTableName);
+            foreach (TableConf t in tables) {
+                ctTableName = CTTableName(t.Name, CTID);
+                if (dataUtils.CheckTableExists(server, dbName, ctTableName, t.schemaName)) {
+                    tableList.Add(t.schemaName + "." + ctTableName);
                 }
             }
-            return tables;
+            return tableList;
         }
 
 
         /// <summary>
         /// Copies change tables from the master to the relay server
         /// </summary>
-        /// <param name="t_array">Array of table config objects</param>
+        /// <param name="tables">Array of table config objects</param>
         /// <param name="sourceServer">Source server identifer</param>
         /// <param name="sourceCTDB">Source CT database</param>
         /// <param name="destServer">Dest server identifier</param>
         /// <param name="destCTDB">Dest CT database</param>
-        /// <param name="ct_id">CT batch ID this is for</param>
-        /// <param name="tables">Reference variable, list of tables that have >0 changes. Passed by ref instead of output 
+        /// <param name="CTID">CT batch ID this is for</param>
+        /// <param name="tables">Reference variable, list of tables that have >0 changes. Passed by ref instead of output
         ///     because in multi batch mode it is built up over several calls to this method.</param>
-        private List<string> CopyChangeTables(TableConf[] t_array, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 ct_id) {
+        private List<string> CopyChangeTables(TableConf[] tables, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 CTID) {
             //TODO change from ref variable to returning a list
             //TODO add logger statements
             bool found = false;
 
-            List<string> tables = new List<string>();
-            foreach (TableConf t in t_array) {
+            List<string> tableList = new List<string>();
+            foreach (TableConf t in tables) {
                 found = false;
-                string ctTable = CTTableName(t.Name, ct_id);
+                string ctTable = CTTableName(t.Name, CTID);
                 //attempt to copy the change table locally
                 try {
                     //hard coding timeout at 1 hour for bulk copy
-                    dataUtils.CopyTable(sourceServer, sourceCTDB, ctTable, destServer, destCTDB, 36000);
+                    dataUtils.CopyTable(sourceServer, sourceCTDB, ctTable, t.schemaName, destServer, destCTDB, 36000);
                     found = true;
                 } catch (DoesNotExistException) {
                     //this is a totally normal and expected case since we only publish changetables when data actually changed
-                    logger.Log("No changes to pull for table ctTable because it does not exist ", LogLevel.Debug);
+                    logger.Log("No changes to pull for table " + t.schemaName + "." + ctTable + " because it does not exist ", LogLevel.Debug);
                 } catch (Exception e) {
                     if (t.stopOnError) {
                         throw e;
                     } else {
-                        logger.Log("Copying change data for table " + ctTable + " failed with error: " + e.Message, LogLevel.Error);
+                        logger.Log("Copying change data for table " + t.schemaName + "." + ctTable + " failed with error: " + e.Message, LogLevel.Error);
                     }
                 }
                 if (found) {
-                    tables.Add(ctTable);
+                    tableList.Add(t.schemaName + "." + ctTable);
                 }
             }
-            return tables;
+            return tableList;
         }
 
 
-        private void ApplySchemaChanges(TableConf[] t_array, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 ct_id) {
+        private void ApplySchemaChanges(TableConf[] tables, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 CTID) {
             //get list of schema changes from tblCTSChemaChange_ctid on the relay server/db
-            DataTable result = dataUtils.GetSchemaChanges(TServer.RELAY, config.relayDB, ct_id);
+            DataTable result = dataUtils.GetSchemaChanges(TServer.RELAY, config.relayDB, CTID);
 
             if (result == null) {
                 return;
             }
 
             TableConf t;
-            XmlDocument xml;
             foreach (DataRow row in result.Rows) {
+                var schemaChange = new SchemaChange(row);
                 //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
-                t = t_array.SingleOrDefault(item => String.Compare(item.Name, row.Field<string>("DdeTable"), ignoreCase: true) == 0);
+                t = tables.SingleOrDefault(item => String.Compare(item.Name, schemaChange.tableName, ignoreCase: true) == 0);
+
                 if (t == null) {
                     //table isn't in our config so we don't care about this schema change
+                    logger.Log("Ignoring schema change for table " + row.Field<string>("CscTableName") + " because it isn't in config", LogLevel.Debug);
                     continue;
                 }
-                xml = (XmlDocument)row["DdeEventData"];
-                string eventType = xml.SelectSingleNode("EVENT_INSTANCE/EventType").InnerText;
-                string dbName = xml.SelectSingleNode("/EVENT_INSTANCE/DatabaseName").InnerText;
-                string schemaName = xml.SelectSingleNode("/EVENT_INSTANCE/SchemaName").InnerText;
-                string objectName = xml.SelectSingleNode("/EVENT_INSTANCE/TargetObjectName").InnerText;
-                string columnName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
-                string newObjectName = xml.SelectSingleNode("/EVENT_INSTANCE/NewObjectName").InnerText;
-                string commandText = xml.SelectSingleNode("/EVENT_INSTANCE/TSQLCommand/CommandText").InnerText;
+                logger.Log("Processing schema change (CscID: " + Convert.ToString(row.Field<int>("CscID")) + 
+                    " of type " + schemaChange.eventType + " for table " + t.Name, LogLevel.Info);
 
-                //TODO decide how we want to handle rename table?               
-
-                XmlNode node = xml.SelectSingleNode("EVENT_INSTANCE/AlterTableActionList");
-                if (node == null) {
-                    node = xml.SelectSingleNode("EVENT_INSTANCE/Parameters");
-                } 
-                if (node == null) {
-                    //if neither of these nodes are found it's some type of schema change we don't care about
-                    continue;
-                }
-                switch (node.FirstChild.Name) {
-                    case "Param":
-                        //if there is a column list in config for this table on this slave
-                            //if it does not specify this column, just continue
-                            //if it does specify this column, do the rename 
-                            /*
-                             * SELECT @sql = 'EXEC ' + @DBName+'.' + @SchemaName+ '.'+ 'sp_rename ''''' + @ObjectName+ '.' + @ColumnName
-				               + '''''' + ',' + '''''' + @NewObjectName + ''''', ''''COLUMN'''''
-   						
-			               SELECT @AggSQL = 'IF EXISTS(SELECT 1 FROM ' +  db_name() +'.' + 'information_schema.tables where table_name like ''' +
-				              @CTprefix + @ObjectName + @AggSuffix + ''' ) ' + CHAR(10) + CHAR(13)+
-				              'EXEC ' + DB_NAME() +'.' + @SchemaName+ '.'+ 'sp_rename ''''' + @CTprefix + @ObjectName + @AggSuffix + '.' + @ColumnName
-				            + '''''' + ',' + '''''' + @NewObjectName + ''''', ''''COLUMN''''' + CHAR(10) + CHAR(13)
-                             */
+                switch (schemaChange.eventType) {
+                    case SchemaChangeType.Rename:
+                        if (t.columnList == null || t.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
+                            logger.Log("Renaming column " + schemaChange.columnName + " to " + schemaChange.newColumnName, LogLevel.Info);
+                            dataUtils.RenameColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, 
+                                schemaChange.columnName, schemaChange.newColumnName);
+                        } else {
+                            logger.Log("Skipped rename of column " + schemaChange.columnName + " because it's not in the configured list", LogLevel.Info);
+                        }    
                         break;
-                    case "Alter":
+                    case SchemaChangeType.Modify:
                         //foreach node in /EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name
                             //if this column exists on this slave (don't bother checking column lists etc.)
-                                //run the alter command on this table and the history table 
+                                //run the alter command on this table and the history table
                                 /*
-                                 * SELECT @sql = 'ALTER TABLE ' + @DBName+ '.'+@SchemaName+'.'+ @ObjectName+ ' ALTER COLUMN ' 
+                                 * SELECT @sql = 'ALTER TABLE ' + @DBName+ '.'+@SchemaName+'.'+ @ObjectName+ ' ALTER COLUMN '
 						           + @ColumnName + ' ' + @column_type		
                                  */
                                 //if history table exists, run it there too
                         break;
-                    case "Create":
+                    case SchemaChangeType.Add:
                         //foreach node in /EVENT_INSTANCE/AlterTableActionList/Create/Columns/Name
                             //if columnlist for this table is specified
                         break;
-                    case "Drop":
+                    case SchemaChangeType.Drop:
                         break;
                 }
-                //we should only support ALTER_TABLE and RENAME (rename can rename a column)
             }
         }
-            
     }
 }

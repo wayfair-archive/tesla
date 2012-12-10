@@ -20,5 +20,5 @@ namespace TeslaSQL
         //the constructor we'll actually use, invoke the base constructor
         public DoesNotExistException(string message): base(message) {
         }
-    }    
+    }
 }

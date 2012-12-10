@@ -25,8 +25,8 @@ namespace TeslaSQL {
         /// Logs information and writes it to the console
         /// </summary>
         /// <param name="message">The message to log</param>
-        /// <param name="logLevel">LogLevel value, gets compared to the configured logLevel variable</param>        
-        public void Log(string message, LogLevel logLevel) {  
+        /// <param name="logLevel">LogLevel value, gets compared to the configured logLevel variable</param>
+        public void Log(string message, LogLevel logLevel) {
             //compareto method returns a number less than 0 if logLevel is less than configured
             if (logLevel.CompareTo(this.logLevel) >= 0) {
                 Console.WriteLine(message);
@@ -52,9 +52,9 @@ namespace TeslaSQL {
         /// <summary>
         /// Subclass for logging statistics to statsd
         /// Taken from https://github.com/etsy/statsd/blob/master/examples/csharp_example.cs
-        /// 
-        /// Class to send UDP packets to a statsd instance. 
-        /// It is advisable to use StatsdSingleton instead of this class directly, due to overhead of opening/closing connections.  
+        ///
+        /// Class to send UDP packets to a statsd instance.
+        /// It is advisable to use StatsdSingleton instead of this class directly, due to overhead of opening/closing connections.
         /// </summary>
         /// <example>
         /// //Non-singleton version

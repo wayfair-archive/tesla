@@ -14,7 +14,7 @@ namespace TeslaSQL.Agents
         public SlaveMaintenance(Config config, IDataUtils dataUtils) : base(config, dataUtils) {
 
         }
-        
+
         public override void ValidateConfig()
         {
             config.ValidateRequiredHost(config.slave);

@@ -1,0 +1,38 @@
+<?xml version="1.0" standalone="yes"?>
+<NewDataSet>
+  <xs:schema id="NewDataSet" xmlns="" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:app1="RELAY.CT_TEST">
+    <xs:import namespace="RELAY.CT_TEST" schemaLocation="input_data_app1.xsd" />
+    <xs:element name="NewDataSet" msdata:IsDataSet="true" msdata:UseCurrentLocale="true">
+      <xs:complexType>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element ref="app1:tblCTVersion" />
+          <xs:element ref="app1:tblCTSlaveVersion" />
+        </xs:choice>
+      </xs:complexType>
+      <xs:unique name="Constraint1" msdata:PrimaryKey="true">
+        <xs:selector xpath=".//app1:tblCTVersion" />
+        <xs:field xpath="app1:CTID" />
+      </xs:unique>
+      <xs:unique name="tblCTSlaveVersion_Constraint1" msdata:ConstraintName="Constraint1" msdata:PrimaryKey="true">
+        <xs:selector xpath=".//app1:tblCTSlaveVersion" />
+        <xs:field xpath="app1:CTID" />
+        <xs:field xpath="app1:slaveIdentifier" />
+      </xs:unique>
+    </xs:element>
+  </xs:schema>
+  <tblCTVersion xmlns="RELAY.CT_TEST">
+    <CTID>100</CTID>
+    <syncStartVersion>1000</syncStartVersion>
+    <syncStopVersion>2000</syncStopVersion>
+    <syncStartTime>2012-01-01T12:00:00-05:00</syncStartTime>
+    <syncBitWise>0</syncBitWise>
+  </tblCTVersion>
+  <tblCTSlaveVersion xmlns="RELAY.CT_TEST">
+    <CTID>100</CTID>
+    <slaveIdentifier>TESTSLAVE</slaveIdentifier>
+    <syncStartVersion>1000</syncStartVersion>
+    <syncStopVersion>2000</syncStopVersion>
+    <syncStartTime>2012-01-01T12:00:00-05:00</syncStartTime>
+    <syncBitWise>0</syncBitWise>
+  </tblCTSlaveVersion>
+</NewDataSet>
