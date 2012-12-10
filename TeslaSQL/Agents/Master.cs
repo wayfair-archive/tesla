@@ -39,7 +39,7 @@ namespace TeslaSQL.Agents {
             logger.Log("Initializing CT batch", LogLevel.Debug);
             //set up the variables and CT version info for this run
             ChangeTrackingBatch ctb = InitializeBatch(currentVersion);
-
+            logger.Log("Working on CTID " + Convert.ToString(ctb.CTID), LogLevel.Debug);
             DateTime previousSyncStartTime;
             Dictionary<string, Int64> changesCaptured;
 
@@ -330,8 +330,8 @@ namespace TeslaSQL.Agents {
             bool tExisted = dataUtils.DropTableIfExists(sourceServer, sourceCTDB, ctTableName, t.schemaName);
 
             logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
-            Int64 rowsAffected = dataUtils.SelectIntoCTTable(sourceServer, sourceCTDB, t.schemaName, t.masterColumnList,
-                ctTableName, sourceDB, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, 1200);
+            Int64 rowsAffected = dataUtils.SelectIntoCTTable(sourceServer, sourceCTDB, t.masterColumnList, ctTableName,
+                sourceDB, t.schemaName, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, 1200);
 
             logger.Log("Rows affected for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
             return new KeyValuePair<string, Int64>(t.schemaName + "." + t.Name, rowsAffected);

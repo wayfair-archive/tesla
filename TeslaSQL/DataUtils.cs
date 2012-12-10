@@ -173,7 +173,7 @@ namespace TeslaSQL {
 
 
         public Int64 GetMinValidVersion(TServer server, string dbName, string table, string schema) {
-            SqlCommand cmd = new SqlCommand("SELECT CHANGE_TRACKING_MIN_VALID_VERSION(OBJECTID(@tablename))");
+            SqlCommand cmd = new SqlCommand("SELECT CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID(@tablename))");
             cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = schema + "." + table;
             return SqlQueryToScalar<Int64>(server, dbName, cmd);
         }

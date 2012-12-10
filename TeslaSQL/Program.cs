@@ -69,10 +69,8 @@ namespace TeslaSQL {
             try {
                 parameters = ParseArgs(args);
             } catch (Exception e) {
-                Console.Write("TeslaSQL: ");
-                Console.WriteLine(e.Message);
                 Console.WriteLine("Try `TeslaSQL --help' for more information.");
-                Environment.Exit(1); //TODO throw; instead?
+                throw e;
             }
 
             if (parameters.showHelp) {
@@ -81,8 +79,7 @@ namespace TeslaSQL {
             }
 
             if (String.IsNullOrEmpty(parameters.configFile) || !ValidatePath(parameters.configFile)) {
-                Console.WriteLine("Please specify a valid config file path!");
-                Environment.Exit(1);
+                throw new Exception("Please specify a valid config file path!");
             }
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
@@ -100,9 +97,8 @@ namespace TeslaSQL {
                 try {
                     config.logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
                 } catch {
-                    Console.WriteLine("Invalid log level!");
                     Console.WriteLine("Try `TeslaSQL --help' for more information.");
-                    Environment.Exit(1);
+                    throw new Exception("Invalid log level!");
                 }
             }
 
@@ -113,12 +109,12 @@ namespace TeslaSQL {
                 Agent a = createAgent(config.agentType, config, dataUtils);
                 logger.Log("Running agent of type " + Convert.ToString(config.agentType), LogLevel.Info);
                 a.Run();
+                logger.Log("Agent completed successfully", LogLevel.Info);
             } catch (Exception e) {
                 logger.Log("ERROR: " + e.Message + " - Stack Trace: " + e.StackTrace, LogLevel.Critical);
                 responseCode = 1;
             }
-            //TODO remove this
-            logger.Log("Agent completed successfully", LogLevel.Info);
+            //TODO remove this            
             Console.ReadLine();
             Environment.Exit(responseCode);
         }
