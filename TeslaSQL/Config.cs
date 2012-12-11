@@ -19,13 +19,16 @@ namespace TeslaSQL {
     public class Config {
 
         //method to initialize configuration by deserializing config file into objects
-        public void Load(string configFile) {
+        public static Config Load(string configFile) {
             ConfigLoader c = null;
             XmlSerializer serializer = new XmlSerializer(typeof(ConfigLoader));
 
             StreamReader reader = new StreamReader(configFile);
             c = (ConfigLoader)serializer.Deserialize(reader);
             reader.Close();
+            return new Config(c);
+        }
+        public Config(ConfigLoader c) {
 
             //set global configuration properties
             masterDB_m = ValidateNullableIdentifier(c.masterDB);
@@ -34,6 +37,7 @@ namespace TeslaSQL {
             slaveDB_m = ValidateNullableIdentifier(c.slaveDB);
             relayDB_m = ValidateNullableIdentifier(c.relayDB);
             errorLogDB_m = ValidateNullableIdentifier(c.errorLogDB);
+            errorTable_m = c.errorTable;
             masterUser_m = ValidateNullableIdentifier(c.masterUser);
             masterPassword_m = c.masterPassword;
             slaveUser_m = ValidateNullableIdentifier(c.slaveUser);
@@ -48,7 +52,11 @@ namespace TeslaSQL {
             relayServer_m = c.relayServer;
             slave_m = c.slave;
             master_m = c.master;
-
+            emailServerHost_m = c.emailServerHost;
+            emailServerPort_m = c.emailServerPort;
+            emailFromAddress_m = c.emailFromAddress;
+            emailErrorRecipient_m = c.emailErrorRecipient;
+            
             if (c.thresholdIgnoreStartTime != null) {
                 thresholdIgnoreStartTime_m = TimeSpan.Parse(c.thresholdIgnoreStartTime);
             }
@@ -103,7 +111,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="host">Hostname or IP</param>
         /// <returns>The host string if it is valid. Throws an exception otherwise.</returns>
-        public string ValidateRequiredHost(string host) {
+        public static string ValidateRequiredHost(string host) {
             /*
              * We can't use real regexes for hostname or IP here because a SQL server identifier can also contain instance name and/or port in a few
              * formats, so validation is more basic.
@@ -123,7 +131,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="sqltype">String representing the sql flavor</param>
         /// <returns>SqlFlavor enum</returns>
-        public SqlFlavor ValidateSqlFlavor(string sqltype) {
+        public static SqlFlavor ValidateSqlFlavor(string sqltype) {
             SqlFlavor flavor = new SqlFlavor();
 
             if (String.IsNullOrEmpty(sqltype)) {
@@ -144,7 +152,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="identifier">Identifier string, which can also be null or empty</param>
         /// <returns>The identifier if it is valid. Throws an exception otherwise. </returns>
-        private string ValidateNullableIdentifier(string identifier) {
+        private static string ValidateNullableIdentifier(string identifier) {
             //the following regex represents a valid SQL identifier
             //it must start with a letter or underscore, followed by any combination
             //of word characters (letters, digits, underscores), the dollar sign, or spaces
@@ -338,32 +346,34 @@ namespace TeslaSQL {
         private string errorLogDB_m;
         public string errorLogDB { get { return errorLogDB_m; } }
 
+        private string errorTable_m;
+        public string errorTable { get { return errorTable_m; } }
         //how many hours to retain changes for in the relay server
         private int changeRetentionHours_m;
         public int changeRetentionHours { get { return changeRetentionHours_m; } }
 
         //username to use when connecting to the master
-        public string masterUser_m;
+        private string masterUser_m;
         public string masterUser { get { return masterUser_m; } }
 
         //password to use when connecting to the master
-        public string masterPassword_m;
+        private string masterPassword_m;
         public string masterPassword { get { return masterPassword_m; } }
 
         //username to use when connecting to the slave
-        public string slaveUser_m;
+        private string slaveUser_m;
         public string slaveUser { get { return slaveUser_m; } }
 
         //password to use when connecting to the slave
-        public string slavePassword_m;
+        private string slavePassword_m;
         public string slavePassword { get { return slavePassword_m; } }
 
         //username to use when connecting to the relay server
-        public string relayUser_m;
+        private string relayUser_m;
         public string relayUser { get { return relayUser_m; } }
 
         //password to use when connecting to the relay server
-        public string relayPassword_m;
+        private string relayPassword_m;
         public string relayPassword { get { return relayPassword_m; } }
 
         //how many CT versions to include in a batch on the master
@@ -389,6 +399,19 @@ namespace TeslaSQL {
         //port to write statsd calls to
         private string statsdPort_m;
         public string statsdPort { get { return statsdPort_m; } }
+
+        private readonly string emailServerHost_m;
+        public string emailServerHost { get { return emailServerHost_m; } }
+
+        private readonly int emailServerPort_m;
+        public int emailServerPort { get { return emailServerPort_m; } }
+
+        private readonly string emailFromAddress_m;
+        public string emailFromAddress { get { return emailFromAddress_m; } }
+
+        private readonly string emailErrorRecipient_m;
+        public string emailErrorRecipient { get { return emailErrorRecipient_m; } }
+
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
@@ -475,9 +498,15 @@ namespace TeslaSQL {
 
             [XmlElement("statsdPort")]
             public string statsdPort { get; set; }
-
+            
             [XmlArray("tables")]
             public TableConf[] t { get; set; }
+
+            public string emailServerHost { get; set; }
+            public int emailServerPort { get; set; }
+            public string emailFromAddress { get; set; }
+            public string emailErrorRecipient { get; set; }
+            public string errorTable { get; set; }
         }
 
 
@@ -511,69 +540,68 @@ namespace TeslaSQL {
         }
 
 
-        #region Unit Tests
-        //unit tests for TestValidateNullableIdentifier method
-        [Fact]
-        public void TestValidateNullableIdentifier() {
-            //valid database identifiers
-            Assert.Equal("test", ValidateNullableIdentifier("test"));
-            Assert.Equal("test_1", ValidateNullableIdentifier("test_1"));
-            Assert.Equal("_test", ValidateNullableIdentifier("_test"));
-            Assert.Equal("test1", ValidateNullableIdentifier("test1"));
-            Assert.Equal("te$t moar", ValidateNullableIdentifier("te$t moar"));
+        public class TestConfig {
+            #region Unit Tests
+            [Fact]
+            public void TestValidateNullableIdentifier() {
+                //valid database identifiers
+                Assert.Equal("test", ValidateNullableIdentifier("test"));
+                Assert.Equal("test_1", ValidateNullableIdentifier("test_1"));
+                Assert.Equal("_test", ValidateNullableIdentifier("_test"));
+                Assert.Equal("test1", ValidateNullableIdentifier("test1"));
+                Assert.Equal("te$t moar", ValidateNullableIdentifier("te$t moar"));
 
-            //null and empty are okay too
-            Assert.Equal("", ValidateNullableIdentifier(""));
-            Assert.Equal(null, ValidateNullableIdentifier(null));
+                //null and empty are okay too
+                Assert.Equal("", ValidateNullableIdentifier(""));
+                Assert.Equal(null, ValidateNullableIdentifier(null));
 
-            //invalid identifiers should all throw
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("$test"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("1test"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("#test"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier(" test"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("@test"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier(" "); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\t"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\r\n"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\r\ntest"); });
+                //invalid identifiers should all throw
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("$test"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("1test"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("#test"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier(" test"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("@test"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier(" "); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\t"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\r\n"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\r\ntest"); });
+            }
+
+            [Fact]
+            public void TestValidateRequiredHost() {
+                //valid hostnames or ips
+                Assert.Equal("testhost", ValidateRequiredHost("testhost"));
+                Assert.Equal("192.168.1.1", ValidateRequiredHost("192.168.1.1"));
+                Assert.Equal("10.25.30.40", ValidateRequiredHost("10.25.30.40"));
+                Assert.Equal("testhost01", ValidateRequiredHost("testhost01"));
+                Assert.Equal("test\\instance", ValidateRequiredHost("test\\instance"));
+
+                //null and empty are not okay
+                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(""); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(null); });
+
+                //invalid hostnames and ips
+                //TODO decide whether we care that bogus ips like 256.0.0.0 will get through because they are valid hostnames?
+                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(" startswithspace"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has a space"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has\twhitespace"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has\r\nnewline"); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(" "); });
+
+            }
+
+            [Fact]
+            public void TestValidateSqlFlavor() {
+                Assert.Equal(SqlFlavor.MSSQL, ValidateSqlFlavor("MSSQL"));
+                Assert.Equal(SqlFlavor.Netezza, ValidateSqlFlavor("Netezza"));
+
+                Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor(""); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor(null); });
+                Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor("SomethingElseInvalid"); });
+            }
         }
-
-        //unit tests for ValidateRequiredHost
-        [Fact]
-        public void TestValidateRequiredHost() {
-            //valid hostnames or ips
-            Assert.Equal("testhost", ValidateRequiredHost("testhost"));
-            Assert.Equal("192.168.1.1", ValidateRequiredHost("192.168.1.1"));
-            Assert.Equal("10.25.30.40", ValidateRequiredHost("10.25.30.40"));
-            Assert.Equal("testhost01", ValidateRequiredHost("testhost01"));
-            Assert.Equal("test\\instance", ValidateRequiredHost("test\\instance"));
-
-            //null and empty are not okay
-            Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(""); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(null); });
-
-            //invalid hostnames and ips
-            //TODO decide whether we care that bogus ips like 256.0.0.0 will get through because they are valid hostnames?
-            Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(" startswithspace"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has a space"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has\twhitespace"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has\r\nnewline"); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(" "); });
-
-        }
-
-        //unit tests for ValidateSqlFlavor
-        [Fact]
-        public void TestValidateSqlFlavor() {
-            Assert.Equal(SqlFlavor.MSSQL, ValidateSqlFlavor("MSSQL"));
-            Assert.Equal(SqlFlavor.Netezza, ValidateSqlFlavor("Netezza"));
-
-            Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor(""); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor(null); });
-            Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor("SomethingElseInvalid"); });
-        }
-
         #endregion
+
     }
 
     [XmlType("table")]

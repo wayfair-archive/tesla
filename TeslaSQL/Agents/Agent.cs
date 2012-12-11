@@ -27,7 +27,7 @@ namespace TeslaSQL.Agents {
         protected Agent(Config config, IDataUtils dataUtils) {
             this.config = config;
             this.dataUtils = dataUtils;
-            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB);
+            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, dataUtils);
         }
 
         public abstract void Run();

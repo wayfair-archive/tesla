@@ -332,5 +332,10 @@ namespace TeslaSQL {
         /// <param name="table">Table name</param>
         /// <param name="columnName">Column name to drop</param>
         void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName);
+
+        void LogError(string message);
+
+        DataTable GetUnsentErrors();
+        void MarkErrorsSent(IEnumerable<int> celIds);
     }
 }

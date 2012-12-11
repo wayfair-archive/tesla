@@ -83,8 +83,8 @@ namespace TeslaSQL {
             }
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
-            var config = new Config();
-            config.Load(parameters.configFile);
+            var config = Config.Load(parameters.configFile);
+
             var logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB);
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
 
@@ -102,9 +102,10 @@ namespace TeslaSQL {
                 }
             }
 
+            var dataUtils = (IDataUtils)new DataUtils(config, logger);
+            logger.dataUtils = dataUtils;
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
-            var dataUtils = (IDataUtils)new DataUtils(config, logger);
             try {
                 Agent a = createAgent(config.agentType, config, dataUtils);
                 logger.Log("Running agent of type " + Convert.ToString(config.agentType), LogLevel.Info);
@@ -131,7 +132,7 @@ namespace TeslaSQL {
                     var shardCoordinator = new ShardCoordinator(config, dataUtils);
                     return shardCoordinator;
                 case AgentType.Notifier:
-                    var notifier = new Notifier(config, dataUtils);
+                    var notifier = new Notifier(config, dataUtils, new SimpleEmailClient(config.emailServerHost, config.emailFromAddress, config.emailServerPort));
                     return notifier;
                 case AgentType.MasterMaintenance:
                     var masterMaintenance = new MasterMaintenance(config, dataUtils);
