@@ -116,7 +116,7 @@ namespace TeslaSQL.Agents {
                 dataUtils.PublishTableInfo(TServer.RELAY, config.relayDB, t, ctb.CTID, changesCaptured[t.fullName]);
             }
         }
-        
+
 
         /// <summary>
         /// Initializes version/batch info for a run and creates CTID

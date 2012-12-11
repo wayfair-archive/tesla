@@ -64,71 +64,40 @@ namespace TeslaSQL.Agents {
         public void SetFieldList(TableConf t, Dictionary<string, bool> fields) {
             Stopwatch st = new Stopwatch();
             st.Start();
-            string masterColumnList = "";
-            string slaveColumnList = "";
-            string mergeUpdateList = "";
-            string pkList = "";
-            string notNullPKList = "";
-            string prefix = "";
-
-            //get dictionary of column exceptions
-            Dictionary<string, string> columnModifiers = config.ParseColumnModifiers(t.columnModifiers);
-
             foreach (KeyValuePair<string, bool> c in fields) {
-                //split column list on comma and/or space, only include columns in the list if the list is specified
-                //TODO for netezza slaves we use a separate type of list that isn't populated here, where to put that?
                 if (t.columnList == null || t.columnList.Contains(c.Key, StringComparer.OrdinalIgnoreCase)) {
-                    if (masterColumnList != "") {
-                        masterColumnList += ",";
-                    }
-
-                    if (slaveColumnList != "") {
-                        slaveColumnList += ",";
-                    }
-
-                    if (c.Value) {
-                        //for columnList, primary keys are prefixed with "CT." and non-PKs are prefixed with "P."
-                        prefix = "CT.";
-
-                        //pkList has an AND between each PK column, os if this isn't the first we add AND here
-                        if (pkList != "")
-                            pkList += " AND ";
-                        pkList += "P." + c.Key + " = CT." + c.Key;
-
-                        //not null PK list also needs an AND
-                        if (notNullPKList != "")
-                            notNullPKList += " AND ";
-                        notNullPKList += "P." + c.Key + " IS NOT NULL";
-                    } else {
-                        prefix = "P.";
-
-                        //merge update list only includes non-PK columns
-                        if (mergeUpdateList != "")
-                            mergeUpdateList += ",";
-                        mergeUpdateList += "P." + c.Key + "=CT." + c.Key;
-                    }
-
-                    if (columnModifiers.ContainsKey(c.Key)) {
-                        //prefix is excluded if there is a column exception
-                        masterColumnList += columnModifiers[c.Key];
-                    } else {
-                        masterColumnList += prefix + c.Key;
-                    }
-                    slaveColumnList += c.Key;
-                    prefix = "";
+                    t.columns.Add(new TColumn(c.Key, c.Value));
                 }
             }
-
-            t.masterColumnList = masterColumnList;
-            t.slaveColumnList = slaveColumnList;
-            t.pkList = pkList;
-            t.notNullPKList = notNullPKList;
-            t.mergeUpdateList = mergeUpdateList;
 
             st.Stop();
             logger.Log("SetFieldList Elapsed time for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
         }
 
+        [Fact]
+        public void TestSetFieldList() {
+            TableConf t = new TableConf();
+            t.columnList = new string[] { "col1", "col2", "col3", "col4" };
+            var fields = new Dictionary<string, bool>{
+                {"col1", true},
+                {"col2", false},
+                {"col3", false},
+
+                {"col4", true}
+            };
+            var cm = new ColumnModifier();
+            cm.type = "ShortenField";
+            cm.length = 100;
+            cm.columnName = "col1";
+            t.columnModifiers = new ColumnModifier[] { cm };
+            SetFieldList(t, fields);
+            Assert.Equal("LEFT(CAST(P.col1 AS NVARCHAR(MAX)),100) as col1,P.col2,P.col3,CT.col4", t.masterColumnList);
+            Assert.Equal("col1,col2,col3,col4", t.slaveColumnList);
+            Assert.Equal("P.col1 = CT.col1 AND P.col4 = CT.col4", t.pkList);
+            Assert.Equal("P.col1 IS NOT NULL AND P.col4 IS NOT NULL", t.notNullPKList);
+            Assert.Equal("P.col2=CT.col2,P.col3=CT.col3", t.mergeUpdateList);
+
+        }
 
         /// <summary>
         /// Given a table name and CTID, returns the CT table name

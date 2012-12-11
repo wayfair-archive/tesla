@@ -56,7 +56,7 @@ namespace TeslaSQL {
             emailServerPort_m = c.emailServerPort;
             emailFromAddress_m = c.emailFromAddress;
             emailErrorRecipient_m = c.emailErrorRecipient;
-            
+
             if (c.thresholdIgnoreStartTime != null) {
                 thresholdIgnoreStartTime_m = TimeSpan.Parse(c.thresholdIgnoreStartTime);
             }
@@ -287,7 +287,7 @@ namespace TeslaSQL {
 
 
         #region properties
-         //log level from config file. public since it can also be set via override in the main program
+        //log level from config file. public since it can also be set via override in the main program
         public LogLevel logLevel { get; set; }
 
         //array of table objects for global configuration
@@ -498,7 +498,7 @@ namespace TeslaSQL {
 
             [XmlElement("statsdPort")]
             public string statsdPort { get; set; }
-            
+
             [XmlArray("tables")]
             public TableConf[] t { get; set; }
 
@@ -519,7 +519,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="columnModifiers">Array of column modifier objects</param>
         /// <returns>List with column name as a key and a modifier string as a value</returns>
-        public Dictionary<string, string> ParseColumnModifiers(ColumnModifier[] columnModifiers) {
+        public static Dictionary<string, string> ParseColumnModifiers(ColumnModifier[] columnModifiers) {
             Dictionary<string, string> dictionary = new Dictionary<string, string>();
             if (columnModifiers == null || columnModifiers.Length == 0)
                 return dictionary;
@@ -600,7 +600,7 @@ namespace TeslaSQL {
                 Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor("SomethingElseInvalid"); });
             }
         }
-        #endregion
+            #endregion
 
     }
 
@@ -621,26 +621,94 @@ namespace TeslaSQL {
         [XmlElement("columnModifier")]
         public ColumnModifier[] columnModifiers { get; set; }
 
+        private Dictionary<string, string> parsedColumnModifiers_m;
+        [XmlIgnore]
+        public Dictionary<string, string> parsedColumnModifiers {
+            get {
+                if (parsedColumnModifiers_m == null) {
+                    parsedColumnModifiers_m = Config.ParseColumnModifiers(this.columnModifiers);
+                }
+                return parsedColumnModifiers_m;
+            }
+        }
+
+
         //used only on slaves to keep a historical record of changes
         [XmlElement("recordHistoryTable")]
         public bool recordHistoryTable { get; set; }
 
-        //these properties get set later by the agents, not during deserialization
-        public string masterColumnList { get; set; }
+        [XmlIgnore]
+        public IList<TColumn> columns = new List<TColumn>();
 
-        public string slaveColumnList { get; set; }
 
-        public string mergeUpdateList { get; set; }
+        [XmlIgnore]
+        public string masterColumnList {
+            get {
+                return string.Join(",",
+                    columns.Select(col => {
+                        if (parsedColumnModifiers.ContainsKey(col.name)) {
+                            return parsedColumnModifiers[col.name];
+                        } else {
+                            return col.isPk ? "CT." + col.name : "P." + col.name;
+                        }
+                    }
+                ));
 
-        public string pkList { get; set; }
+            }
+        }
 
-        public string notNullPKList { get; set; }
+        [XmlIgnore]
+        public string slaveColumnList {
+            get {
+                return string.Join(",", columns.Select(col => col.name));
+            }
+        }
+
+        [XmlIgnore]
+        public string mergeUpdateList {
+            get {
+                return string.Join(
+                    ",",
+                    columns.Where(c => !c.isPk)
+                    .Select(c => String.Format("P.{0}=CT.{0}", c.name)));
+            }
+        }
+
+        [XmlIgnore]
+        public string pkList {
+            get {
+                return string.Join(
+                    " AND ",
+                    columns.Where(c => c.isPk)
+                    .Select(c => String.Format("P.{0} = CT.{0}", c.name)));
+            }
+        }
+
+
+        [XmlIgnore]
+        public string notNullPKList {
+            get {
+                return string.Join(
+                    " AND ",
+                    columns.Where(c => c.isPk)
+                    .Select(c => String.Format("P.{0} IS NOT NULL", c.name)));
+            }
+        }
 
         [XmlIgnore]
         public string fullName {
             get {
                 return schemaName + "." + Name;
             }
+        }
+    }
+
+    public class TColumn {
+        public readonly string name;
+        public readonly bool isPk;
+        public TColumn(string name, bool isPk) {
+            this.name = name;
+            this.isPk = isPk;
         }
     }
 
