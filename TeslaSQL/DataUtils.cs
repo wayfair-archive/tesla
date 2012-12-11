@@ -736,6 +736,7 @@ namespace TeslaSQL {
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(server, dbName, cmd);
             }
+        }
 
         public void CreateTableInfoTable(TServer server, string dbName, Int64 CTID) {
             //drop the table on the relay server if it exists
