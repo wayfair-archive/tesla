@@ -94,8 +94,7 @@ namespace TeslaSQL {
         /// <param name="syncStopVersion">Version number the batch ends at</param>
         /// <param name="syncBitWise">Current bitwise value for the batch</param>
         /// <param name="syncStartTime">Time the batch started on the master</param>
-        void CreateSlaveCTVersion(TServer server, string dbName, Int64 CTID, string slaveIdentifier,
-            Int64 syncStartVersion, Int64 syncStopVersion, DateTime syncStartTime, Int32 syncBitWise);
+        void CreateSlaveCTVersion(TServer server, string dbName, ChangeTrackingBatch ctb, string slaveIdentifier);
 
         /// <summary>
         /// Create the tblCTSchemaChange_(version) table on the relay server, dropping if it already exists
@@ -336,7 +335,7 @@ namespace TeslaSQL {
         /// <param name="schema">Schema the table is part of</param>
         /// <param name="table">Table name</param>
         /// <param name="columnName">Column name to drop</param>
-        void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName);        
+        void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName);
 
         void CreateTableInfoTable(TServer tServer, string p, long p_2);
 

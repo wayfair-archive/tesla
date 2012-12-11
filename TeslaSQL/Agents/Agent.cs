@@ -74,6 +74,16 @@ namespace TeslaSQL.Agents {
             logger.Log("SetFieldList Elapsed time for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
         }
 
+        /// <summary>
+        /// Given a table name and CTID, returns the CT table name
+        /// </summary>
+        /// <param name="table">Table name</param>
+        /// <param name="CTID">Change tracking batch iD</param>
+        /// <returns>CT table name</returns>
+        public string CTTableName(string table, Int64 CTID) {
+            return "tblCT" + table + "_" + Convert.ToString(CTID);
+        }
+
         [Fact]
         public void TestSetFieldList() {
             TableConf t = new TableConf();
@@ -99,15 +109,6 @@ namespace TeslaSQL.Agents {
 
         }
 
-        /// <summary>
-        /// Given a table name and CTID, returns the CT table name
-        /// </summary>
-        /// <param name="table">Table name</param>
-        /// <param name="CTID">Change tracking batch iD</param>
-        /// <returns>CT table name</returns>
-        public string CTTableName(string table, Int64 CTID) {
-            return "tblCT" + table + "_" + Convert.ToString(CTID);
-        }
 
     }
 }

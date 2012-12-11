@@ -218,20 +218,19 @@ namespace TeslaSQL {
         }
 
 
-        public void CreateSlaveCTVersion(TServer server, string dbName, Int64 CTID, string slaveIdentifier,
-            Int64 syncStartVersion, Int64 syncStopVersion, DateTime syncStartTime, Int32 syncBitWise) {
+        public void CreateSlaveCTVersion(TServer server, string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
 
             string query = "INSERT INTO dbo.tblCTSlaveVersion (CTID, slaveIdentifier, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
             query += " VALUES (@ctid, @slaveidentifier, @startversion, @stopversion, @starttime, @syncbitwise)";
 
             SqlCommand cmd = new SqlCommand(query);
 
-            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
+            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ctb.CTID;
             cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = slaveIdentifier;
-            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = syncStartVersion;
-            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = syncStopVersion;
-            cmd.Parameters.Add("@starttime", SqlDbType.DateTime).Value = syncStartTime;
-            cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
+            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = ctb.syncStartVersion;
+            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.syncStopVersion;
+            cmd.Parameters.Add("@starttime", SqlDbType.DateTime).Value = ctb.syncStartTime;
+            cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = ctb.syncBitWise;
 
             int result = SqlNonQuery(server, dbName, cmd, 30);
         }
@@ -641,7 +640,7 @@ namespace TeslaSQL {
         }
 
         public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
-            string columnName, string newColumnName) {           
+            string columnName, string newColumnName) {
             SqlCommand cmd;
             //rename the column if it exists
             if (CheckColumnExists(server, dbName, schema, table, columnName)) {
@@ -659,9 +658,9 @@ namespace TeslaSQL {
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(server, dbName, cmd);
             }
-        }      
+        }
 
-        public void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table, 
+        public void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table,
             string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
 
             var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
