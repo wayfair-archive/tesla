@@ -277,6 +277,12 @@ namespace TeslaSQL {
         /// <returns>True if it is enabled, false if it's not.</returns>
         bool IsChangeTrackingEnabled(TServer server, string dbName, string table, string schema);
 
+        void LogError(string message);
+
+        DataTable GetUnsentErrors();
+
+        void MarkErrorsSent(IEnumerable<int> celIds);
+
         /// <summary>
         /// Renames a column in a table, and the associated history table if recording history is configured
         /// <summary>
@@ -331,11 +337,6 @@ namespace TeslaSQL {
         /// <param name="schema">Schema the table is part of</param>
         /// <param name="table">Table name</param>
         /// <param name="columnName">Column name to drop</param>
-        void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName);
-
-        void LogError(string message);
-
-        DataTable GetUnsentErrors();
-        void MarkErrorsSent(IEnumerable<int> celIds);
+        void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName);        
     }
 }

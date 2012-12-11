@@ -56,8 +56,8 @@ namespace TeslaSQL {
             tableName = row.Field<string>("CscTableName");
             columnName = row.Field<string>("CscColumnName");
             newColumnName = row.Field<string>("CscNewColumnName");
-            dataType = new DataType(row.Field<string>("DATA_TYPE"), row.Field<int?>("CHARACTER_MAXIMUM_LENGTH"), 
-                row.Field<Nullable<byte>>("NUMERIC_PRECISION"), row.Field<int?>("NUMERIC_SCALE"));
+            dataType = new DataType(row.Field<string>("CscBaseDataType"), row.Field<int?>("CscCharacterMaximumLength"), 
+                row.Field<Nullable<byte>>("CscNumericPrecision"), row.Field<int?>("CscNumericScale"));
         }
 
         /// <summary>

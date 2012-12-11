@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Data;
 using System.Xml;
-
+using Xunit;
 namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     //TODO we need to set up field lists somewhere in here...
@@ -14,6 +14,10 @@ namespace TeslaSQL.Agents {
         //base keyword invokes the base class's constructor
         public Slave(Config config, IDataUtils dataUtils) : base(config, dataUtils) {
 
+        }
+
+        public Slave() {
+            //paramaterless constructor for unit tests
         }
 
         public override void ValidateConfig()
@@ -263,8 +267,6 @@ namespace TeslaSQL.Agents {
         /// <param name="tables">Reference variable, list of tables that have >0 changes. Passed by ref instead of output
         ///     because in multi batch mode it is built up over several calls to this method.</param>
         private List<string> CopyChangeTables(TableConf[] tables, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 CTID) {
-            //TODO change from ref variable to returning a list
-            //TODO add logger statements
             bool found = false;            
             List<string> tableList = new List<string>();
             foreach (TableConf t in tables) {
@@ -274,6 +276,7 @@ namespace TeslaSQL.Agents {
                 try {
                     //hard coding timeout at 1 hour for bulk copy
                     dataUtils.CopyTable(sourceServer, sourceCTDB, ctTable, t.schemaName, destServer, destCTDB, 36000);
+                    logger.Log("Copied table " + t.schemaName + "." + ctTable + " to slave", LogLevel.Trace);
                     found = true;
                 } catch (DoesNotExistException) {
                     //this is a totally normal and expected case since we only publish changetables when data actually changed
@@ -291,7 +294,6 @@ namespace TeslaSQL.Agents {
             }
             return tableList;
         }
-
 
         private void ApplySchemaChanges(TableConf[] tables, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 CTID) {
             //get list of schema changes from tblCTSChemaChange_ctid on the relay server/db
@@ -313,7 +315,7 @@ namespace TeslaSQL.Agents {
                     continue;
                 }
                 logger.Log("Processing schema change (CscID: " + Convert.ToString(row.Field<int>("CscID")) + 
-                    " of type " + schemaChange.eventType + " for table " + t.Name, LogLevel.Info);
+                    ") of type " + schemaChange.eventType + " for table " + t.Name, LogLevel.Info);
 
                 if (t.columnList == null || t.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
                     logger.Log("Schema change applies to a valid column, so we will apply it", LogLevel.Info);
@@ -347,5 +349,92 @@ namespace TeslaSQL.Agents {
 
             }
         }
+
+        #region Unit Tests
+        /// <summary>
+        /// Subclass so that we can implement the IUseFixture feature
+        /// </summary>
+        public class ApplySchemaChangeTest : IUseFixture<ApplySchemaChangeTestData> {
+            public TableConf[] tables;
+            public TestDataUtils dataUtils;
+
+            /// <summary>
+            /// xunit will automatically create an instance of DDLEventTestData and pass it to this method before running tests
+            /// </summary>
+            public void SetFixture(ApplySchemaChangeTestData data) {
+                this.tables = data.tables;
+                this.dataUtils = data.dataUtils;
+            }
+
+            [Fact]
+            public void TestApply_AddSingleColumn_WithoutColumnList() {
+                //add a column and make sure it is published
+                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                //gets rid of all the rows
+                dt.Clear();
+                //create a row                
+                DataRow row = dt.NewRow();
+                row["CscDdeID"] = 1;
+                row["CscTableName"] = "test1";
+                row["CscEventType"] = "Add";
+                row["CscSchema"] = "dbo";
+                row["CscColumnName"] = "testadd";
+                row["CscNewColumnName"] = DBNull.Value;
+                row["CscBaseDataType"] = "int";
+                row["CscCharacterMaximumLength"] = DBNull.Value;
+                row["CscNumericPrecision"] = DBNull.Value;
+                row["CscNumericScale"] = DBNull.Value;
+                dt.Rows.Add(row);
+                var config = new Config();
+                config.relayDB = "CT_testdb";
+                var slave = new Slave(config, (IDataUtils)dataUtils);
+                slave.dataUtils = dataUtils;
+                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
+
+                var expected = new DataColumn("testadd", typeof(Int32));
+                var actual = dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["testadd"];
+                //assert.equal doesn't work for objects but this does
+                Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
+            }
+
+        }
+
+        /// <summary>
+        /// This class is invoked by xunit.net and passed to SetFixture in the ApplySchemaChangeTest class
+        /// </summary>
+        public class ApplySchemaChangeTestData {
+            public DataSet testData;
+            public TableConf[] tables;
+            public TestDataUtils dataUtils;
+
+            public ApplySchemaChangeTestData() {
+                tables = new TableConf[2];
+                //first table has no column list
+                tables[0] = new TableConf();
+                tables[0].Name = "test1";
+
+                //second one has column list
+                tables[1] = new TableConf();
+                tables[1].Name = "test2";
+                tables[1].columnList = new string[2] { "column1", "column2" };
+                
+                dataUtils = new TestDataUtils();
+                testData = new DataSet();
+                dataUtils.testData = new DataSet();
+                //this method, conveniently, sets up the datatable schema we need
+                dataUtils.CreateSchemaChangeTable(TServer.RELAY, "CT_testdb", 1);
+                DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
+                test1.Columns.Add("column1", typeof(Int32));
+                test1.Columns.Add("column2", typeof(Int32));
+                dataUtils.testData.Tables.Add(test1);
+
+                DataTable test2 = new DataTable("dbo.test2", "SLAVE.testdb");
+                test2.Columns.Add("column1", typeof(Int32));
+                test2.Columns.Add("column3", typeof(string));
+                dataUtils.testData.Tables.Add(test2);
+            }
+        }
+
+        #endregion
     }
 }

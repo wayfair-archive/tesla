@@ -28,6 +28,11 @@ namespace TeslaSQL {
             reader.Close();
             return new Config(c);
         }
+
+        public Config() {
+            //parameterless constructor for unit tests
+        }
+
         public Config(ConfigLoader c) {
 
             //set global configuration properties
@@ -35,7 +40,7 @@ namespace TeslaSQL {
             masterCTDB_m = ValidateNullableIdentifier(c.masterCTDB);
             slaveCTDB_m = ValidateNullableIdentifier(c.slaveCTDB);
             slaveDB_m = ValidateNullableIdentifier(c.slaveDB);
-            relayDB_m = ValidateNullableIdentifier(c.relayDB);
+            relayDB = ValidateNullableIdentifier(c.relayDB);
             errorLogDB_m = ValidateNullableIdentifier(c.errorLogDB);
             errorTable_m = c.errorTable;
             masterUser_m = ValidateNullableIdentifier(c.masterUser);
@@ -338,9 +343,8 @@ namespace TeslaSQL {
         private string slaveCTDB_m;
         public string slaveCTDB { get { return slaveCTDB_m; } }
 
-        //relay database name
-        private string relayDB_m;
-        public string relayDB { get { return relayDB_m; } }
+        //relay database name. public for unit testing purposes        
+        public string relayDB { get; set; }
 
         //database to log errors to
         private string errorLogDB_m;

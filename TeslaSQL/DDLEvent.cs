@@ -429,8 +429,6 @@ namespace TeslaSQL {
                 dt.Columns.Add("NUMERIC_PRECISION", typeof(byte));
                 dt.Columns.Add("NUMERIC_SCALE", typeof(int));
 
-
-
                 DataRow row = dt.NewRow();
                 row["TABLE_SCHEMA"] = "dbo";
                 row["TABLE_CATALOG"] = "testdb";
