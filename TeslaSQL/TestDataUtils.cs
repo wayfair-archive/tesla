@@ -473,5 +473,10 @@ namespace TeslaSQL {
         public void PublishTableInfo(TServer server, string dbName, TableConf t, long CTID, long expectedRows) {
             throw new NotImplementedException();
         }
+
+
+        public void CreateSlaveCTVersion(TServer server, string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
+            throw new NotImplementedException();
+        }
     }
 }

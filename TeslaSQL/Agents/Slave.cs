@@ -9,10 +9,9 @@ namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     //TODO we need to set up field lists somewhere in here...
     //TODO figure out where to put check for MSSQL vs. netezza and where to branch the code paths
-    class Slave : Agent
-    {
-        //base keyword invokes the base class's constructor
-        public Slave(Config config, IDataUtils dataUtils) : base(config, dataUtils) {
+    class Slave : Agent {
+        public Slave(Config config, IDataUtils dataUtils)
+            : base(config, dataUtils) {
 
         }
 
@@ -20,8 +19,7 @@ namespace TeslaSQL.Agents {
             //paramaterless constructor for unit tests
         }
 
-        public override void ValidateConfig()
-        {
+        public override void ValidateConfig() {
             Config.ValidateRequiredHost(config.relayServer);
             Config.ValidateRequiredHost(config.slave);
             if (config.relayType == null || config.slaveType == null) {
@@ -34,16 +32,14 @@ namespace TeslaSQL.Agents {
             //set up the variables and CT version info for this run
             List<ChangeTrackingBatch> batches = InitializeBatch();
 
-            if (batches.Count == 0) {
-                logger.Log("No pending batches to work on, exiting with success", LogLevel.Info);
-                return;
-            } else if (batches.Count == 1) {
-                logger.Log("Beginning work - single batch", LogLevel.Info);
-                RunSingleBatch(batches[0]);
+            if (batches.Count < config.batchConsolidationThreshold) {
+                foreach (var batch in batches) {
+                    RunSingleBatch(batch);
+                }
             } else {
-                logger.Log("Beginning work - applying multiple batches", LogLevel.Info);
                 RunMultiBatch(batches);
             }
+
             logger.Log("Slave agent work complete", LogLevel.Info);
             return;
         }
@@ -55,10 +51,6 @@ namespace TeslaSQL.Agents {
         /// <returns>List of change tracking batches to work on</returns>
         private List<ChangeTrackingBatch> InitializeBatch() {
             var batches = new List<ChangeTrackingBatch>();
-            Int64 CTID;
-            Int64 syncStartVersion;
-            Int64 syncStopVersion;
-            Int32 syncBitWise;
             DateTime syncStartTime;
             ChangeTrackingBatch ctb;
 
@@ -74,51 +66,15 @@ namespace TeslaSQL.Agents {
                 DataTable pendingVersions = dataUtils.GetPendingCTVersions(TServer.RELAY, config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
                 logger.Log("Retrieved " + Convert.ToString(pendingVersions.Rows.Count) + " pending CT version(s) to work on.", LogLevel.Debug);
 
-                if (pendingVersions.Rows.Count == 0) {
-                    //master hasn't published a new batch so we are done for this run
-                    logger.Log("No work to do, exiting with success.", LogLevel.Debug);
-                    return batches;
-                }
-
-                if (config.batchConsolidationThreshold == 0 || pendingVersions.Rows.Count < config.batchConsolidationThreshold) {
-                    logger.Log("Pending versions within threshold of " + Convert.ToString(config.batchConsolidationThreshold) + ", doing next batch.", LogLevel.Debug);
-
-                    //we are an acceptable number of versions behind, so work on the next version
-                    CTID = pendingVersions.Rows[0].Field<Int64>("CTID");
-                    syncStartVersion = pendingVersions.Rows[0].Field<Int64>("syncStartVersion");
-                    syncStopVersion = pendingVersions.Rows[0].Field<Int64>("syncStopVersion");
-                    syncBitWise = pendingVersions.Rows[0].Field<Int32>("syncBitWise");
-                    syncStartTime = pendingVersions.Rows[0].Field<DateTime>("syncStartTime");
-
-                    logger.Log("Creating entry for CTID " + Convert.ToString(CTID) + " in tblCTSlaveVersion", LogLevel.Debug);
-                    dataUtils.CreateSlaveCTVersion(TServer.RELAY, config.relayDB, CTID, config.slave, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise);
-                    ctb = new ChangeTrackingBatch(CTID, syncStartVersion, syncStopVersion, syncBitWise);
+                foreach (DataRow row in pendingVersions.Rows) {
+                    ctb = new ChangeTrackingBatch(row);
                     batches.Add(ctb);
-                    return batches;
-                } else {
-                    //we are too far behind, need to consolidate batches to catch up
-                    logger.Log("We are more than threshold of " + Convert.ToString(config.batchConsolidationThreshold) + " batches behind, consolidating pending batches.", LogLevel.Debug);
-                    foreach (DataRow row in pendingVersions.Rows) {
-                        CTID = row.Field<Int64>("CTID");
-                        syncStartVersion = row.Field<Int64>("syncStartVersion");
-                        syncStopVersion = row.Field<Int64>("syncStopVersion");
-                        syncBitWise = row.Field<Int32>("syncBitWise");
-                        syncStartTime = row.Field<DateTime>("syncStartTime");
-                        ctb = new ChangeTrackingBatch(CTID, syncStartVersion, syncStopVersion, syncBitWise);
-                        batches.Add(ctb);
-                    }
-                    return batches;
                 }
+                return batches;
             }
             //if we get here, last batch failed so we are now about to retry
-            CTID = lastBatch.Field<Int64>("CTID");
-            syncStartVersion = lastBatch.Field<Int64>("syncStartVersion");
-            syncStopVersion = lastBatch.Field<Int64>("syncStopVersion");
-            syncBitWise = lastBatch.Field<Int32>("syncBitWise");
-            syncStartTime = lastBatch.Field<DateTime>("syncStartTime");
-
-            logger.Log("Last batch failed, retrying CTID " + Convert.ToString(CTID), LogLevel.Warn);
-            ctb = new ChangeTrackingBatch(CTID, syncStartVersion, syncStopVersion, syncBitWise);
+            ctb = new ChangeTrackingBatch(lastBatch);
+            logger.Log("Last batch failed, retrying CTID " + ctb.CTID, LogLevel.Warn);
             batches.Add(ctb);
             return batches;
         }
@@ -199,7 +155,7 @@ namespace TeslaSQL.Agents {
             //TODO add logger statements
             //this will hold a list of all the CT tables that exist
             List<string> tables = new List<string>();
-
+            dataUtils.CreateSlaveCTVersion(TServer.RELAY, config.relayDB, ctb, config.slave);
             //copy change tables to slave if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 tables = CopyChangeTables(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, ctb.CTID);
@@ -267,7 +223,7 @@ namespace TeslaSQL.Agents {
         /// <param name="tables">Reference variable, list of tables that have >0 changes. Passed by ref instead of output
         ///     because in multi batch mode it is built up over several calls to this method.</param>
         private List<string> CopyChangeTables(TableConf[] tables, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 CTID) {
-            bool found = false;            
+            bool found = false;
             List<string> tableList = new List<string>();
             foreach (TableConf t in tables) {
                 found = false;
@@ -314,7 +270,7 @@ namespace TeslaSQL.Agents {
                     logger.Log("Ignoring schema change for table " + row.Field<string>("CscTableName") + " because it isn't in config", LogLevel.Debug);
                     continue;
                 }
-                logger.Log("Processing schema change (CscID: " + Convert.ToString(row.Field<int>("CscID")) + 
+                logger.Log("Processing schema change (CscID: " + Convert.ToString(row.Field<int>("CscID")) +
                     ") of type " + schemaChange.eventType + " for table " + t.Name, LogLevel.Info);
 
                 if (t.columnList == null || t.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
@@ -328,18 +284,18 @@ namespace TeslaSQL.Agents {
                         case SchemaChangeType.Modify:
                             logger.Log("Changing data type on column " + schemaChange.columnName, LogLevel.Info);
                             dataUtils.ModifyColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
-                                 schemaChange.dataType.baseType,schemaChange.dataType.characterMaximumLength,
-                                 schemaChange.dataType.numericPrecision,schemaChange.dataType.numericScale);                                                 
+                                 schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
+                                 schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);
                             break;
                         case SchemaChangeType.Add:
                             logger.Log("Adding column " + schemaChange.columnName, LogLevel.Info);
                             dataUtils.AddColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
                                  schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
-                                 schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);   
+                                 schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);
                             break;
                         case SchemaChangeType.Drop:
                             logger.Log("Dropping column " + schemaChange.columnName, LogLevel.Info);
-                            dataUtils.DropColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);  
+                            dataUtils.DropColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);
                             break;
                     }
 
@@ -417,7 +373,7 @@ namespace TeslaSQL.Agents {
                 tables[1] = new TableConf();
                 tables[1].Name = "test2";
                 tables[1].columnList = new string[2] { "column1", "column2" };
-                
+
                 dataUtils = new TestDataUtils();
                 testData = new DataSet();
                 dataUtils.testData = new DataSet();
