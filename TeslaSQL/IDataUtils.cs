@@ -129,8 +129,7 @@ namespace TeslaSQL {
         /// <param name="characterMaximumLength">Maximum length for string columns (i.e. varchar, nvarchar)</param>
         /// <param name="numericPrecision">Numeric precision (for decimal/numeric columns)</param>
         /// <param name="numericScale">Numeric scale (for decimal/numeric columns)</param>
-        void WriteSchemaChange(TServer server, string dbName, Int64 CTID, int ddeID, string eventType, string schemaName, string tableName,
-            string columnName, string newColumnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale);
+        void WriteSchemaChange(TServer server, string dbName, Int64 CTID, SchemaChange schemaChange);
 
         /// <summary>
         /// Gets a column's data type
@@ -293,7 +292,7 @@ namespace TeslaSQL {
         /// <param name="table">Table name</param>
         /// <param name="columnName">Old column name</param>
         /// <param name="newColumnName">New column name</param>
-        void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table, 
+        void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
             string columnName, string newColumnName);
 
         /// <summary>
@@ -338,5 +337,12 @@ namespace TeslaSQL {
         /// <param name="table">Table name</param>
         /// <param name="columnName">Column name to drop</param>
         void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName);        
+
+        DataTable GetUnsentErrors();
+        void MarkErrorsSent(IEnumerable<int> celIds);
+
+        void CreateTableInfoTable(TServer tServer, string p, long p_2);
+
+        void PublishTableInfo(TServer server, string dbName, TableConf t, long CTID, long expectedRows);
     }
 }

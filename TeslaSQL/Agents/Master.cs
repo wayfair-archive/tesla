@@ -12,9 +12,10 @@ using System.Diagnostics;
 
 namespace TeslaSQL.Agents {
     public class Master : Agent {
-
+        ChangeTrackingBatch ctb;
         //base keyword invokes the base class's constructor
-        public Master(Config config, IDataUtils dataUtils) : base(config, dataUtils) {
+        public Master(Config config, IDataUtils dataUtils)
+            : base(config, dataUtils) {
 
         }
 
@@ -38,8 +39,8 @@ namespace TeslaSQL.Agents {
 
             logger.Log("Initializing CT batch", LogLevel.Debug);
             //set up the variables and CT version info for this run
-            ChangeTrackingBatch ctb = InitializeBatch(currentVersion);
-            logger.Log("Working on CTID " + Convert.ToString(ctb.CTID), LogLevel.Debug);
+            ctb = InitializeBatch(currentVersion);
+            logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
             DateTime previousSyncStartTime;
             Dictionary<string, Int64> changesCaptured;
 
@@ -58,19 +59,15 @@ namespace TeslaSQL.Agents {
                 PublishSchemaChanges(config.tables, TServer.MASTER, config.masterDB, TServer.RELAY, config.relayDB, ctb.CTID, previousSyncStartTime);
                 logger.Log("Successfully published schema changes, persisting bitwise value now", LogLevel.Debug);
 
-                //update bitwise on tblCTVersion, indicating that we have completed the schema change publishing step
-                logger.Log("Writing bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) + " to tblCTVersion", LogLevel.Trace);
+                logger.Log("Writing bitwise value of " + Convert.ToInt32(SyncBitWise.PublishSchemaChanges) + " to tblCTVersion", LogLevel.Trace);
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
             }
 
+            logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
+            SetFieldLists(TServer.MASTER, config.masterDB, config.tables);
+
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 logger.Log("Beginning capture changes phase", LogLevel.Info);
-
-                //set the field list values on the table config objects
-                logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
-                SetFieldLists(TServer.MASTER, config.masterDB, config.tables);
-
-                //resize batch based on batch threshold
                 logger.Log("Resizing batch based on batch threshold", LogLevel.Trace);
                 Int64 resizedStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, config.maxBatchSize,
                     config.thresholdIgnoreStartTime, config.thresholdIgnoreEndTime, DateTime.Now);
@@ -88,7 +85,6 @@ namespace TeslaSQL.Agents {
                 changesCaptured = CreateChangeTables(config.tables, TServer.MASTER, config.masterDB, config.masterCTDB, ctb.syncStartVersion, ctb.syncStopVersion, ctb.CTID);
                 logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
 
-                //update bitwise on tblCTVersion, indicating that we have completed the change table creation step
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
                 logger.Log("Wrote bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.CaptureChanges)) + " to tblCTVersion", LogLevel.Trace);
             } else {
@@ -99,7 +95,9 @@ namespace TeslaSQL.Agents {
 
             //copy change tables from master to relay server
             logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Info);
-            PublishChangeTables(config.tables, TServer.MASTER, config.masterCTDB, TServer.RELAY, config.relayDB, ctb.CTID, changesCaptured);
+            PublishChangeTables(config.tables, config.masterCTDB, TServer.RELAY, config.relayDB, ctb.CTID, changesCaptured);
+
+            PublishTableInfo(config.tables, changesCaptured);
             logger.Log("Successfully published changetables, persisting bitwise now", LogLevel.Debug);
 
             //this signifies the end of the master's responsibility for this batch
@@ -108,6 +106,15 @@ namespace TeslaSQL.Agents {
 
             logger.Log("Master agent work complete", LogLevel.Info);
             return;
+        }
+
+        private void PublishTableInfo(TableConf[] tableConf, Dictionary<string, long> changesCaptured) {
+            logger.Log("creating tableinfo table for ctid=" + ctb.CTID, LogLevel.Info);
+            dataUtils.CreateTableInfoTable(TServer.RELAY, config.relayDB, ctb.CTID);
+            foreach (var t in tableConf) {
+                logger.Log("Publishing info for " + t.Name, LogLevel.Trace);
+                dataUtils.PublishTableInfo(TServer.RELAY, config.relayDB, t, ctb.CTID, changesCaptured[t.fullName]);
+            }
         }
 
 
@@ -181,20 +188,7 @@ namespace TeslaSQL.Agents {
                     logger.Log("Publishing schema change for DdeID " + Convert.ToString(schemaChange.ddeID) + " of type " + Convert.ToString(schemaChange.eventType) +
                     " for table " + schemaChange.tableName + ", column " + schemaChange.columnName, LogLevel.Trace);
 
-                    dataUtils.WriteSchemaChange(destServer,
-                        destDB,
-                        CTID,
-                        schemaChange.ddeID,
-                        Convert.ToString(schemaChange.eventType),
-                        schemaChange.schemaName,
-                        schemaChange.tableName,
-                        schemaChange.columnName,
-                        schemaChange.newColumnName,
-                        schemaChange.dataType.baseType,
-                        schemaChange.dataType.characterMaximumLength,
-                        schemaChange.dataType.numericPrecision,
-                        schemaChange.dataType.numericScale
-                    );
+                    dataUtils.WriteSchemaChange(destServer, destDB, CTID, schemaChange);
                 }
             }
         }
@@ -347,14 +341,13 @@ namespace TeslaSQL.Agents {
         /// <param name="destServer">Dest server identifier</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
-        private void PublishChangeTables(TableConf[] tables, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
+        private void PublishChangeTables(TableConf[] tables, string sourceCTDB, TServer destServer, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
             foreach (TableConf t in tables) {
-                //don't copy tables that had no changes
                 if (changesCaptured[t.schemaName + "." + t.Name] > 0) {
                     logger.Log("Publishing changes for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
-                    //hard coding timeout at 1 hour for bulk copy
                     try {
-                        dataUtils.CopyTable(sourceServer, sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destServer, destCTDB, 36000);
+                        //hard coding timeout at 1 hour for bulk copy
+                        dataUtils.CopyTable(TServer.MASTER, sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destServer, destCTDB, 36000);
                         logger.Log("Publishing changes succeeded for " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     } catch (Exception e) {
                         if (t.stopOnError) {
@@ -381,11 +374,11 @@ namespace TeslaSQL.Agents {
             foreach (TableConf t in tables) {
                 logger.Log("Getting rowcount for table " + t.schemaName + "." + CTTableName(t.Name, CTID), LogLevel.Trace);
                 try {
-                    rowCounts.Add(t.schemaName + "." + t.Name, dataUtils.GetTableRowCount(sourceServer, sourceCTDB, CTTableName(t.Name, CTID), t.schemaName));
-                    logger.Log("Successfully retrieved rowcount of " + Convert.ToString(rowCounts[t.schemaName + "." + t.Name]), LogLevel.Trace);
+                    rowCounts.Add(t.fullName, dataUtils.GetTableRowCount(sourceServer, sourceCTDB, CTTableName(t.Name, CTID), t.schemaName));
+                    logger.Log("Successfully retrieved rowcount of " + Convert.ToString(rowCounts[t.fullName]), LogLevel.Trace);
                 } catch (DoesNotExistException) {
                     logger.Log("CT table does not exist, using rowcount of 0", LogLevel.Trace);
-                    rowCounts.Add(t.schemaName + "." + t.Name, 0);
+                    rowCounts.Add(t.fullName, 0);
                 }
             }
             return rowCounts;

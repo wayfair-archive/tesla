@@ -171,21 +171,20 @@ namespace TeslaSQL {
             return testData.Tables["dbo.tblDDLEvent", GetTableSpace(server, dbName)].Select("DdeTime > '" + Convert.ToString(afterDate) + "'").CopyToDataTable();
         }
 
-        public void WriteSchemaChange(TServer server, string dbName, Int64 CTID, int ddeID, string eventType, string schemaName, string tableName,
-            string columnName, string newColumnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+        public void WriteSchemaChange(TServer server, string dbName, Int64 CTID, SchemaChange schemaChange) {
             string schemaChangeTableName = "dbo.tblCTSchemaChange_" + Convert.ToString(CTID);
             DataRow row = testData.Tables[schemaChangeTableName, GetTableSpace(server, dbName)].NewRow();
             //set its values
-            row["CscDdeID"] = ddeID;
-            row["CscTableName"] = tableName;
-            row["CscEventType"] = eventType;
-            row["CscSchema"] = schemaName;
-            row["CscColumnName"] = columnName;
-            row["CscNewColumnName"] = newColumnName;
-            row["CscBaseDataType"] = baseType;
-            row["CscCharacterMaximumLength"] = characterMaximumLength;
-            row["CscNumericPrecision"] = numericPrecision;
-            row["CscNumericScale"] = numericScale;
+            row["CscDdeID"] = schemaChange.ddeID;
+            row["CscTableName"] = schemaChange.tableName;
+            row["CscEventType"] = schemaChange.eventType;
+            row["CscSchema"] = schemaChange.schemaName;
+            row["CscColumnName"] = schemaChange.columnName;
+            row["CscNewColumnName"] = schemaChange.newColumnName;
+            row["CscBaseDataType"] = schemaChange.dataType.baseType;
+            row["CscCharacterMaximumLength"] = schemaChange.dataType.characterMaximumLength;
+            row["CscNumericPrecision"] = schemaChange.dataType.numericPrecision;
+            row["CscNumericScale"] = schemaChange.dataType.numericScale;
             //add it to the datatable
             testData.Tables[schemaChangeTableName, GetTableSpace(server, dbName)].Rows.Add(row);
             //commit the change
@@ -465,6 +464,14 @@ namespace TeslaSQL {
         public void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName) {
             DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(server, dbName)];
             dt.Columns.Remove(columnName);
+        }
+
+        public void CreateTableInfoTable(TServer tServer, string p, long p_2) {
+            throw new NotImplementedException();
+        }
+
+        public void PublishTableInfo(TServer server, string dbName, TableConf t, long CTID, long expectedRows) {
+            throw new NotImplementedException();
         }
     }
 }

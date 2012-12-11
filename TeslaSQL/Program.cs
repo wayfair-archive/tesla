@@ -88,7 +88,6 @@ namespace TeslaSQL {
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
             var config = Config.Load(parameters.configFile);
-
             var logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB);
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
 

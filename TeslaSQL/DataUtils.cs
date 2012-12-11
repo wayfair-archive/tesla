@@ -242,7 +242,7 @@ namespace TeslaSQL {
             bool tExisted = DropTableIfExists(server, dbName, "tblCTSchemaChange_" + Convert.ToString(CTID), "dbo");
 
             //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
-            string query = "CREATE TABLE [dbo].[tblCTSchemaChange_" + Convert.ToString(CTID) + "] (";
+            string query = "CREATE TABLE [dbo].[tblCTSchemaChange_" + CTID + "] (";
             query += @"
             [CscID] [int] NOT NULL IDENTITY(1,1) PRIMARY KEY,
 	        [CscDdeID] [int] NOT NULL,
@@ -277,8 +277,7 @@ namespace TeslaSQL {
         }
 
 
-        public void WriteSchemaChange(TServer server, string dbName, Int64 CTID, int ddeID, string eventType, string schemaName, string tableName,
-            string columnName, string newColumnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+        public void WriteSchemaChange(TServer server, string dbName, Int64 CTID, SchemaChange schemaChange) {
 
             string query = "INSERT INTO dbo.tblCTSchemaChange_" + Convert.ToString(CTID) +
                 " (CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName, CscNewColumnName, " +
@@ -287,16 +286,16 @@ namespace TeslaSQL {
                 " @basedatatype, @charactermaximumlength, @numericprecision, @numericscale)";
 
             var cmd = new SqlCommand(query);
-            cmd.Parameters.Add("@ddeid", SqlDbType.Int).Value = ddeID;
-            cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = tableName;
-            cmd.Parameters.Add("@eventtype", SqlDbType.VarChar, 50).Value = eventType;
-            cmd.Parameters.Add("@schema", SqlDbType.VarChar, 100).Value = schemaName;
-            cmd.Parameters.Add("@columnname", SqlDbType.VarChar, 500).Value = columnName;
-            cmd.Parameters.Add("@newcolumnname", SqlDbType.VarChar, 500).Value = newColumnName;
-            cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = baseType;
-            cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = characterMaximumLength;
-            cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = numericPrecision;
-            cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = numericScale;
+            cmd.Parameters.Add("@ddeid", SqlDbType.Int).Value = schemaChange.ddeID;
+            cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = schemaChange.tableName;
+            cmd.Parameters.Add("@eventtype", SqlDbType.VarChar, 50).Value = schemaChange.eventType;
+            cmd.Parameters.Add("@schema", SqlDbType.VarChar, 100).Value = schemaChange.schemaName;
+            cmd.Parameters.Add("@columnname", SqlDbType.VarChar, 500).Value = schemaChange.columnName;
+            cmd.Parameters.Add("@newcolumnname", SqlDbType.VarChar, 500).Value = schemaChange.newColumnName;
+            cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = schemaChange.dataType.baseType;
+            cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = schemaChange.dataType.characterMaximumLength;
+            cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = schemaChange.dataType.numericPrecision;
+            cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = schemaChange.dataType.numericScale;
             foreach (IDataParameter p in cmd.Parameters) {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
@@ -402,9 +401,9 @@ namespace TeslaSQL {
         }
 
 
-        public bool HasPrimaryKey(TServer server, string dbName, string table, string schema) {
-            Table t_smo = GetSmoTable(server, dbName, table, schema);
-            foreach (Index i in t_smo.Indexes) {
+        public bool HasPrimaryKey(TServer server, string dbName, string tableName, string schema) {
+            Table table = GetSmoTable(server, dbName, tableName, schema);
+            foreach (Index i in table.Indexes) {
                 if (i.IndexKeyType == IndexKeyType.DriPrimaryKey) {
                     return true;
                 }
@@ -737,6 +736,37 @@ namespace TeslaSQL {
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(server, dbName, cmd);
             }
+
+        public void CreateTableInfoTable(TServer server, string dbName, Int64 CTID) {
+            //drop the table on the relay server if it exists
+            bool tExisted = DropTableIfExists(server, dbName, "tblCTTableInfo_" + CTID, "dbo");
+
+            //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
+            string query = "CREATE TABLE [dbo].[tblCTTableInfo_" + CTID + "] (";
+            query += @"
+            [CtiID] [int] NOT NULL IDENTITY(1,1) PRIMARY KEY,
+	        [CtiTableName] [varchar](500) NOT NULL,
+            [CtiSchemaName] [varchar](100) NOT NULL,
+            [CtiPKList] [varchar](500) NOT NULL,
+            [CtiExpectedRows] [int] NOT NULL,
+            )";
+
+            SqlCommand cmd = new SqlCommand(query);
+
+            int result = SqlNonQuery(server, dbName, cmd);
+        }
+
+
+        public void PublishTableInfo(TServer server, string dbName, TableConf t, long CTID, long expectedRows) {
+            SqlCommand cmd = new SqlCommand(
+               String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows)
+                  VALUES (@tableName, @schemaName, @pkList, @expectedRows)", CTID));
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = t.Name;
+            cmd.Parameters.Add("@schemaName", SqlDbType.VarChar, 500).Value = t.schemaName;
+            cmd.Parameters.Add("@pkList", SqlDbType.VarChar, 500).Value = string.Join(",", t.columns.Where(c => c.isPk));
+            cmd.Parameters.Add("@expectedRows", SqlDbType.Int).Value = expectedRows;
+
+            SqlNonQuery(server, dbName, cmd);
         }
     }
 }
