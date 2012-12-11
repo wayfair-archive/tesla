@@ -145,14 +145,13 @@ namespace TeslaSQL {
         }
 
         public void CreateSchemaChangeTable(TServer server, string dbName, Int64 CTID) {
-            DataTable tblCTSchemaChange = new DataTable("dbo.tblCTSchemaChange_" + Convert.ToString(CTID));
+            DataTable tblCTSchemaChange = new DataTable("dbo.tblCTSchemaChange_" + Convert.ToString(CTID), GetTableSpace(server, dbName));
 
-            DataTable tblCTSlaveVersion = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(server, dbName)];
-            DataColumn CscID = tblCTSlaveVersion.Columns.Add("CscID", typeof(Int32));
+            DataColumn CscID = tblCTSchemaChange.Columns.Add("CscID", typeof(Int32));
             CscID.AutoIncrement = true;
             CscID.AutoIncrementSeed = 100;
             CscID.AutoIncrementStep = 1;
-            tblCTSlaveVersion.PrimaryKey = new DataColumn[] { CscID };
+            tblCTSchemaChange.PrimaryKey = new DataColumn[] { CscID };
 
             tblCTSchemaChange.Columns.Add("CscDdeID", typeof(Int32));
             tblCTSchemaChange.Columns.Add("CscTableName", typeof(string));
@@ -408,29 +407,6 @@ namespace TeslaSQL {
             return true;
         }
 
-        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
-            string columnName, string newColumnName) {
-            //TODO implement - can you rename columns on a datatable?
-            //should just be able to do dt.Columns[x].ColumnName = newColumnName
-            /*
-            var cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-            cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "." + columnName;
-            cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
-
-            int result = SqlNonQuery(server, dbName, cmd);
-            //check for history table, if it is configured we need to modify that too
-            if (t.recordHistoryTable) {
-                cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-                //TODO verify the _History suffix is correct
-                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
-                cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
-                result = SqlNonQuery(server, dbName, cmd);
-            }
-            */
-
-        }
-
-
         public void LogError(string message) {
             return;
         }
@@ -444,6 +420,51 @@ namespace TeslaSQL {
             return;
         }
 
+        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string newColumnName) {
+            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(server, dbName)];
+            dt.Columns[columnName].ColumnName = newColumnName;
+        }
+
+        public void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+            //can't change the datatype of a column in a datatable but since this is just for unit testing, we can just drop and recreate it
+            //instead since there is no data to worry about losing       
+            DropColumn(t, server, dbName, schema, table, columnName);
+            AddColumn(t, server, dbName, schema, table, columnName, baseType, characterMaximumLength, numericPrecision, numericScale);
+        }
+
+        public void AddColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {                 
+            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(server, dbName)];
+            Type type;
+            //since this is just for unit testing we only need to support a subset of data types     
+            switch (baseType) {
+                case "varchar":
+                case "nvarchar":
+                case "char":
+                case "nchar":
+                    type = typeof(string);
+                    break;
+                case "int":
+                    type = typeof(Int32);
+                    break;
+                case "bigint":
+                    type = typeof(Int64);
+                    break;
+                case "datetime":
+                    type = typeof(DateTime);
+                    break;
+                default:
+                    throw new NotImplementedException("Data type " + baseType + " not supported for testing");
+            }
+            dt.Columns.Add(columnName, type);
+        }
+
+        public void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName) {
+            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(server, dbName)];
+            dt.Columns.Remove(columnName);
+        }
 
         public void CreateTableInfoTable(TServer tServer, string p, long p_2) {
             throw new NotImplementedException();

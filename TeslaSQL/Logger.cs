@@ -20,6 +20,7 @@ namespace TeslaSQL {
             this.statsdPort = statsdPort;
             this.errorLogDB = errorLogDB;
         }
+
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, IDataUtils dataUtils) {
             this.logLevel = logLevel;
             this.statsdHost = statsdHost;

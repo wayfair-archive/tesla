@@ -616,27 +616,9 @@ namespace TeslaSQL {
             return t_smo.ChangeTrackingEnabled;
         }
 
-        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
-            string columnName, string newColumnName) {
-            var cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-            cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "." + columnName;
-            cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
-
-            int result = SqlNonQuery(server, dbName, cmd);
-            //check for history table, if it is configured we need to modify that too
-            if (t.recordHistoryTable) {
-                cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-                //TODO verify the _History suffix is correct
-                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
-                cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
-                result = SqlNonQuery(server, dbName, cmd);
-            }
-
-        }
-
         public void LogError(string message) {
             SqlCommand cmd = new SqlCommand("INSERT INTO tblCtError (CelError) VALUES ( @error )");
-            cmd.Parameters.Add("@error", SqlDbType.VarChar, 1000).Value = message;
+            cmd.Parameters.Add("@error", SqlDbType.VarChar, -1).Value = message;
             SqlNonQuery(TServer.RELAY, config.errorLogDB, cmd);
         }
 
@@ -648,6 +630,112 @@ namespace TeslaSQL {
         public void MarkErrorsSent(IEnumerable<int> celIds) {
             SqlCommand cmd = new SqlCommand("UPDATE tblCtError SET CelSent = 1 WHERE CelId IN (" + string.Join(",", celIds) + ")");
             SqlNonQuery(TServer.RELAY, config.errorLogDB, cmd);
+        }
+
+        private bool CheckColumnExists(TServer server, string dbName, string schema, string table, string column) {
+            Table t_smo = GetSmoTable(server, dbName, table, schema);
+            if (t_smo.Columns.Contains(column)) {
+                return true;
+            }
+            return false;
+        }
+
+        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string newColumnName) {           
+            SqlCommand cmd;
+            //rename the column if it exists
+            if (CheckColumnExists(server, dbName, schema, table, columnName)) {
+                cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
+                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "." + columnName;
+                cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
+                logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(server, dbName, cmd);
+            }
+            //check for history table, if it is configured and contains the column we need to modify that too
+            if (t.recordHistoryTable && CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
+                cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
+                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
+                cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(server, dbName, cmd);
+            }
+        }      
+
+        public void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table, 
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+
+            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
+            var typesUsingScale = new string[2] { "numeric", "decimal" };
+            string suffix = "";
+            string query;
+            SqlCommand cmd;
+            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
+                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
+                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
+            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
+                suffix = "(" + numericPrecision + ", " + numericScale + ")";
+            }
+
+            //Modify the column if it exists
+            if (CheckColumnExists(server, dbName, schema, table, columnName)) {
+                query = "ALTER TABLE " + schema + "." + table + " ALTER COLUMN " + columnName + " " + baseType;
+                cmd = new SqlCommand(query + suffix);
+                logger.Log("Altering table column with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(server, dbName, cmd);
+            }
+            //modify on history table if that exists too
+            if (t.recordHistoryTable && CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
+                query = "ALTER TABLE " + schema + "." + table + "_History ALTER COLUMN " + columnName + " " + baseType;
+                cmd = new SqlCommand(query + suffix);
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(server, dbName, cmd);
+            }
+        }
+
+        public void AddColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+            string query;
+            SqlCommand cmd;
+            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
+            var typesUsingScale = new string[2] { "numeric", "decimal" };
+
+            string suffix = "";
+            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
+                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
+                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
+            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
+                suffix = "(" + numericPrecision + ", " + numericScale + ")";
+            }
+            //add column if it doesn't exist
+            if (!CheckColumnExists(server, dbName, schema, table, columnName)) {
+                query = "ALTER TABLE " + schema + "." + table + " ADD " + columnName + " " + baseType;
+                cmd = new SqlCommand(query + suffix);
+                logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(server, dbName, cmd);
+            }
+            //add column to history table if the table exists and the column doesn't
+            if (t.recordHistoryTable && !CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
+                query = "ALTER TABLE " + schema + "." + table + "_History ADD " + columnName + " " + baseType;
+                cmd = new SqlCommand(query + suffix);
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(server, dbName, cmd);
+            }
+        }
+
+        public void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName) {
+            SqlCommand cmd;
+            //drop column if it exists
+            if (CheckColumnExists(server, dbName, schema, table, columnName)) {
+                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " DROP COLUMN " + columnName);
+                logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(server, dbName, cmd);
+            }
+            //if history table exists and column exists, drop it there too
+            if (t.recordHistoryTable && CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
+                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History DROP COLUMN " + columnName);
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(server, dbName, cmd);
+            }
         }
 
         public void CreateTableInfoTable(TServer server, string dbName, Int64 CTID) {

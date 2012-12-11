@@ -65,6 +65,10 @@ namespace TeslaSQL {
         }
 
         static void Main(string[] args) {
+            var sctd = new Slave.ApplySchemaChangeTestData();
+            var sct = new Slave.ApplySchemaChangeTest();
+            sct.SetFixture(sctd);
+            sct.TestApply_AddSingleColumn_WithoutColumnList();
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);

@@ -276,6 +276,12 @@ namespace TeslaSQL {
         /// <returns>True if it is enabled, false if it's not.</returns>
         bool IsChangeTrackingEnabled(TServer server, string dbName, string table, string schema);
 
+        void LogError(string message);
+
+        DataTable GetUnsentErrors();
+
+        void MarkErrorsSent(IEnumerable<int> celIds);
+
         /// <summary>
         /// Renames a column in a table, and the associated history table if recording history is configured
         /// <summary>
@@ -289,10 +295,48 @@ namespace TeslaSQL {
         void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
             string columnName, string newColumnName);
 
-        void LogError(string message);
+        /// <summary>
+        /// Changes a column's data type
+        /// </summary>
+        /// <param name="t">TableConf object for the table</param>
+        /// <param name="server">Server identifer where the table lives</param>
+        /// <param name="dbName">Database name the table lives in</param>
+        /// <param name="schema">Schema the table is part of</param>
+        /// <param name="table">Table name</param>
+        /// <param name="columnName">Column name to modify</param>
+        /// <param name="baseType">Base data type (i.e. varchar, int)</param>
+        /// <param name="characterMaximumLength">Max length for *char data types</param>
+        /// <param name="numericPrecision">Numeric precision for numeric/decimal types</param>
+        /// <param name="numericScale">Numeric scale for numeric/decimal types</param>
+        void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale);
 
-        DataTable GetUnsentErrors();
-        void MarkErrorsSent(IEnumerable<int> celIds);
+        /// <summary>
+        /// Adds a column to a table
+        /// </summary>
+        /// <param name="t">TableConf object for the table</param>
+        /// <param name="server">Server identifer where the table lives</param>
+        /// <param name="dbName">Database name the table lives in</param>
+        /// <param name="schema">Schema the table is part of</param>
+        /// <param name="table">Table name</param>
+        /// <param name="columnName">Column name to add</param>
+        /// <param name="baseType">Base data type (i.e. varchar, int)</param>
+        /// <param name="characterMaximumLength">Max length for *char data types</param>
+        /// <param name="numericPrecision">Numeric precision for numeric/decimal types</param>
+        /// <param name="numericScale">Numeric scale for numeric/decimal types</param>
+        void AddColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale);
+
+        /// <summary>
+        /// Drops a column from a table
+        /// </summary>
+        /// <param name="t">TableConf object for the table</param>
+        /// <param name="server">Server identifer where the table lives</param>
+        /// <param name="dbName">Database name the table lives in</param>
+        /// <param name="schema">Schema the table is part of</param>
+        /// <param name="table">Table name</param>
+        /// <param name="columnName">Column name to drop</param>
+        void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName);        
 
         void CreateTableInfoTable(TServer tServer, string p, long p_2);
 
