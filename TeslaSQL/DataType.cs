@@ -20,7 +20,7 @@ namespace TeslaSQL {
             this.baseType = baseType;
             this.characterMaximumLength = characterMaximumLength;
             this.numericPrecision = numericPrecision;
-            this.numericScale = numericScale;
+            this.numericScale = numericScale;            
         }
 
 
@@ -41,9 +41,25 @@ namespace TeslaSQL {
                 ) {
                 return false;
             }
+            
             return true;
 
+        }
 
+
+        public override string ToString() {
+            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
+            var typesUsingScale = new string[2] { "numeric", "decimal" };
+
+            string suffix = "";
+            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
+                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
+                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
+            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
+                suffix = "(" + numericPrecision + ", " + numericScale + ")";
+            }
+
+            return "test";
         }
     }
 }

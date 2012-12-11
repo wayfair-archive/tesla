@@ -238,7 +238,7 @@ namespace TeslaSQL {
             var columns_2 = new List<string>();
 
             //create this so that casing changes to columns don't cause problems, just use the lowercase column name
-            foreach(Column c in dt2.Columns) {
+            foreach (Column c in dt2.Columns) {
                 columns_2.Add(c.Name.ToLower());
             }
 
@@ -409,8 +409,9 @@ namespace TeslaSQL {
             return true;
         }
 
-        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table, 
+        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
             string columnName, string newColumnName) {
+            throw new NotImplementedException("Need to implement this still");
             //TODO implement - can you rename columns on a datatable?
             //should just be able to do dt.Columns[x].ColumnName = newColumnName
             /*
@@ -428,7 +429,19 @@ namespace TeslaSQL {
                 result = SqlNonQuery(server, dbName, cmd);
             }
             */
-            
+        }
+
+        public void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+
+            //can't change the datatype of a column in a datatable but this is not really that big of a deal to implement            
+            throw new NotImplementedException("Modifying columns not possible on DataTables. Don't use that event for tests");
+        }
+
+        public void AddColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+            //TODO implment
+            throw new NotImplementedException("Need to implement this still");
         }
     }
 }

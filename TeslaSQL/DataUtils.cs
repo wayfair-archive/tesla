@@ -618,20 +618,92 @@ namespace TeslaSQL {
 
         public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table, 
             string columnName, string newColumnName) {
+
             var cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
             cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "." + columnName;
             cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
-
+            logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
             int result = SqlNonQuery(server, dbName, cmd);
             //check for history table, if it is configured we need to modify that too
             if (t.recordHistoryTable) {
                 cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-                //TODO verify the _History suffix is correct
                 cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 result = SqlNonQuery(server, dbName, cmd);
             }
             
+        }
+
+        
+
+        public void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table, 
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+
+            string query = "ALTER TABLE " + schema + "." + table + " ALTER COLUMN " + columnName + " " + baseType;
+            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
+            var typesUsingScale = new string[2] { "numeric", "decimal" };
+
+            string suffix = "";
+            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
+                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
+                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
+            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
+                suffix = "(" + numericPrecision + ", " + numericScale + ")";
+            }
+            
+            var cmd = new SqlCommand(query + suffix);
+            logger.Log("Altering table column with command: " + cmd.CommandText, LogLevel.Debug);
+            int result = SqlNonQuery(server, dbName, cmd);
+
+            if (t.recordHistoryTable) {
+                query = "ALTER TABLE " + schema + "." + table + "_History ALTER COLUMN " + columnName + " " + baseType;
+                cmd = new SqlCommand(query + suffix);
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                result = SqlNonQuery(server, dbName, cmd);
+            }
+        }
+
+        public void AddColumn(TableConf t, TServer server, string dbName, string schema, string table,
+            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+
+            string query = "ALTER TABLE " + schema + "." + table + " ADD " + columnName + " " + baseType;
+            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
+            var typesUsingScale = new string[2] { "numeric", "decimal" };
+
+            string suffix = "";
+            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
+                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
+                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
+            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
+                suffix = "(" + numericPrecision + ", " + numericScale + ")";
+            }
+
+            var cmd = new SqlCommand(query + suffix);
+            logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
+            int result = SqlNonQuery(server, dbName, cmd);
+
+            if (t.recordHistoryTable) {
+                query = "ALTER TABLE " + schema + "." + table + "_History ADD " + columnName + " " + baseType;
+                cmd = new SqlCommand(query + suffix);
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                result = SqlNonQuery(server, dbName, cmd);
+            }
+        }
+
+        public void AddColumn(TableConf t, TServer server, string dbName, string schema, string table,
+    string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+
+            var cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " DROP COLUMN " + columnName);
+  
+            logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
+            int result = SqlNonQuery(server, dbName, cmd);
+
+            if (t.recordHistoryTable) {
+                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History DROP COLUMN " + columnName);
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                result = SqlNonQuery(server, dbName, cmd);
+            }
         }
     }
 }

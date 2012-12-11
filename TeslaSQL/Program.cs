@@ -64,7 +64,7 @@ namespace TeslaSQL {
             Console.ReadLine();
         }
 
-        static void Main(string[] args) {
+        static void Main(string[] args) {   
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);

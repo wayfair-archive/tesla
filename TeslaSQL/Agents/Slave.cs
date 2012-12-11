@@ -265,8 +265,7 @@ namespace TeslaSQL.Agents {
         private List<string> CopyChangeTables(TableConf[] tables, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 CTID) {
             //TODO change from ref variable to returning a list
             //TODO add logger statements
-            bool found = false;
-
+            bool found = false;            
             List<string> tableList = new List<string>();
             foreach (TableConf t in tables) {
                 found = false;
@@ -316,33 +315,36 @@ namespace TeslaSQL.Agents {
                 logger.Log("Processing schema change (CscID: " + Convert.ToString(row.Field<int>("CscID")) + 
                     " of type " + schemaChange.eventType + " for table " + t.Name, LogLevel.Info);
 
-                switch (schemaChange.eventType) {
-                    case SchemaChangeType.Rename:
-                        if (t.columnList == null || t.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
+                if (t.columnList == null || t.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
+                    logger.Log("Schema change applies to a valid column, so we will apply it", LogLevel.Info);
+                    switch (schemaChange.eventType) {
+                        case SchemaChangeType.Rename:
                             logger.Log("Renaming column " + schemaChange.columnName + " to " + schemaChange.newColumnName, LogLevel.Info);
-                            dataUtils.RenameColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, 
+                            dataUtils.RenameColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName,
                                 schemaChange.columnName, schemaChange.newColumnName);
-                        } else {
-                            logger.Log("Skipped rename of column " + schemaChange.columnName + " because it's not in the configured list", LogLevel.Info);
-                        }    
-                        break;
-                    case SchemaChangeType.Modify:
-                        //foreach node in /EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name
-                            //if this column exists on this slave (don't bother checking column lists etc.)
-                                //run the alter command on this table and the history table
-                                /*
-                                 * SELECT @sql = 'ALTER TABLE ' + @DBName+ '.'+@SchemaName+'.'+ @ObjectName+ ' ALTER COLUMN '
-						           + @ColumnName + ' ' + @column_type		
-                                 */
-                                //if history table exists, run it there too
-                        break;
-                    case SchemaChangeType.Add:
-                        //foreach node in /EVENT_INSTANCE/AlterTableActionList/Create/Columns/Name
-                            //if columnlist for this table is specified
-                        break;
-                    case SchemaChangeType.Drop:
-                        break;
+                            break;
+                        case SchemaChangeType.Modify:
+                            logger.Log("Changing data type on column " + schemaChange.columnName, LogLevel.Info);
+                            dataUtils.ModifyColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
+                                 schemaChange.dataType.baseType,schemaChange.dataType.characterMaximumLength,
+                                 schemaChange.dataType.numericPrecision,schemaChange.dataType.numericScale);                                                 
+                            break;
+                        case SchemaChangeType.Add:
+                            logger.Log("Adding column " + schemaChange.columnName, LogLevel.Info);
+                            dataUtils.AddColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
+                                 schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
+                                 schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);   
+                            break;
+                        case SchemaChangeType.Drop:
+                            logger.Log("Dropping column " + schemaChange.columnName, LogLevel.Info);
+                            dataUtils.DropColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);  
+                            break;
+                    }
+
+                } else {
+                    logger.Log("Skipped schema change because the column it impacts is not in our list", LogLevel.Info);
                 }
+
             }
         }
     }
