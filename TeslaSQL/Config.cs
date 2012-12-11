@@ -684,7 +684,6 @@ namespace TeslaSQL {
             }
         }
 
-
         [XmlIgnore]
         public string notNullPKList {
             get {
@@ -709,6 +708,9 @@ namespace TeslaSQL {
         public TColumn(string name, bool isPk) {
             this.name = name;
             this.isPk = isPk;
+        }
+        public override string ToString() {
+            return name;
         }
     }
 

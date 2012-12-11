@@ -650,12 +650,6 @@ namespace TeslaSQL {
             SqlNonQuery(TServer.RELAY, config.errorLogDB, cmd);
         }
 
-
-        public void PublishTableInfo(TableConf t, Int64 CTID) {
-
-        }
-
-
         public void CreateTableInfoTable(TServer server, string dbName, Int64 CTID) {
             //drop the table on the relay server if it exists
             bool tExisted = DropTableIfExists(server, dbName, "tblCTTableInfo_" + CTID, "dbo");
@@ -667,7 +661,6 @@ namespace TeslaSQL {
 	        [CtiTableName] [varchar](500) NOT NULL,
             [CtiSchemaName] [varchar](100) NOT NULL,
             [CtiPKList] [varchar](500) NOT NULL,
-            [CtiNotNullPKList] [varchar](500) NOT NULL,
             [CtiExpectedRows] [int] NOT NULL,
             )";
 
@@ -679,12 +672,11 @@ namespace TeslaSQL {
 
         public void PublishTableInfo(TServer server, string dbName, TableConf t, long CTID, long expectedRows) {
             SqlCommand cmd = new SqlCommand(
-               String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiNotNullPKList, CtiExpectedRows)
-                  VALUES (@tableName, @schemaName, @pkList, @notNullPKList, @expectedRows)", CTID));
+               String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows)
+                  VALUES (@tableName, @schemaName, @pkList, @expectedRows)", CTID));
             cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = t.Name;
             cmd.Parameters.Add("@schemaName", SqlDbType.VarChar, 500).Value = t.schemaName;
-            cmd.Parameters.Add("@pkList", SqlDbType.VarChar, 500).Value = t.pkList;
-            cmd.Parameters.Add("@notNullPKList", SqlDbType.VarChar, 500).Value = t.notNullPKList;
+            cmd.Parameters.Add("@pkList", SqlDbType.VarChar, 500).Value = string.Join(",", t.columns.Where(c => c.isPk));
             cmd.Parameters.Add("@expectedRows", SqlDbType.Int).Value = expectedRows;
 
             SqlNonQuery(server, dbName, cmd);
