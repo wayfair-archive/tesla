@@ -9,7 +9,6 @@ namespace TeslaSQL {
     /// Class representing a change tracking batch
     /// </summary>
    public class ChangeTrackingBatch {
-        private DataRow row;
 
         public Int64 CTID { get; set; }
 
