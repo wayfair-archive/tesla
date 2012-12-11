@@ -635,6 +635,13 @@ namespace TeslaSQL {
         public string pkList { get; set; }
 
         public string notNullPKList { get; set; }
+
+        [XmlIgnore]
+        public string fullName {
+            get {
+                return schemaName + "." + Name;
+            }
+        }
     }
 
     public class ColumnModifier {
