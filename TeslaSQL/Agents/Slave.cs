@@ -54,7 +54,6 @@ namespace TeslaSQL.Agents {
         /// <returns>List of change tracking batches to work on</returns>
         private List<ChangeTrackingBatch> InitializeBatch() {
             var batches = new List<ChangeTrackingBatch>();
-            DateTime syncStartTime;
             ChangeTrackingBatch ctb;
 
             //get the last CT version this slave worked on in tblCTSlaveVersion
@@ -111,8 +110,7 @@ namespace TeslaSQL.Agents {
 
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                     //copy the change tables for each batch if it hasn't been done yet
-                    //TODO implement
-                    //ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, batch.CTID);
+                    ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, batch.CTID);
 
                     //persist bitwise progress to database
                     dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
@@ -170,8 +168,7 @@ namespace TeslaSQL.Agents {
 
             //apply schema changes if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                //TODO implement
-                //ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, kvp.Key);
+                ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, ctb.CTID);
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
             }
 
@@ -342,6 +339,7 @@ namespace TeslaSQL.Agents {
         public class ApplySchemaChangeTest : IUseFixture<ApplySchemaChangeTestData> {
             public TableConf[] tables;
             public TestDataUtils dataUtils;
+            public Slave slave;
 
             /// <summary>
             /// xunit will automatically create an instance of DDLEventTestData and pass it to this method before running tests
@@ -349,6 +347,7 @@ namespace TeslaSQL.Agents {
             public void SetFixture(ApplySchemaChangeTestData data) {
                 this.tables = data.tables;
                 this.dataUtils = data.dataUtils;
+                this.slave = data.slave;
             }
 
             [Fact]
@@ -370,17 +369,20 @@ namespace TeslaSQL.Agents {
                 row["CscNumericPrecision"] = DBNull.Value;
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
-                var config = new Config();
-                config.relayDB = "CT_testdb";
-                config.logLevel = LogLevel.Critical;
-                var slave = new Slave(config, (IDataUtils)dataUtils);
-                slave.dataUtils = dataUtils;
+
+                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test1", "dbo");
+                DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
+                test1.Columns.Add("column1", typeof(Int32));
+                test1.Columns.Add("column2", typeof(Int32));
+                dataUtils.testData.Tables.Add(test1);
+
                 slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
 
                 var expected = new DataColumn("testadd", typeof(Int32));
                 var actual = dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["testadd"];
                 //assert.equal doesn't work for objects but this does
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
+                dataUtils.testData.RejectChanges();
             }
 
             [Fact]
@@ -402,16 +404,19 @@ namespace TeslaSQL.Agents {
                 row["CscNumericPrecision"] = DBNull.Value;
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
-                var config = new Config();
-                config.relayDB = "CT_testdb";
-                config.logLevel = LogLevel.Critical;
-                var slave = new Slave(config, (IDataUtils)dataUtils);
-                slave.dataUtils = dataUtils;
+
+                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test2", "dbo");
+                DataTable test2 = new DataTable("dbo.test2", "SLAVE.testdb");
+                test2.Columns.Add("column1", typeof(Int32));
+                test2.Columns.Add("column3", typeof(string));
+                dataUtils.testData.Tables.Add(test2);
+
                 slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
 
                 var expected = new DataColumn("column2", typeof(Int32));
                 var actual = dataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns["column2"];
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
+                dataUtils.testData.RejectChanges();
             }
 
             [Fact]
@@ -433,14 +438,116 @@ namespace TeslaSQL.Agents {
                 row["CscNumericPrecision"] = DBNull.Value;
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
-                var config = new Config();
-                config.relayDB = "CT_testdb";
-                config.logLevel = LogLevel.Critical;
-                var slave = new Slave(config, (IDataUtils)dataUtils);
-                slave.dataUtils = dataUtils;
+
+                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test2", "dbo");
+                DataTable test2 = new DataTable("dbo.test2", "SLAVE.testdb");
+                test2.Columns.Add("column1", typeof(Int32));
+                test2.Columns.Add("column3", typeof(string));
+                dataUtils.testData.Tables.Add(test2);
+
                 slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
 
                 Assert.False(dataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns.Contains("testadd"));
+                dataUtils.testData.RejectChanges();
+            }
+
+            [Fact]
+            public void TestApply_RenameColumn() {
+                //add a column and make sure it is published
+                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                //gets rid of all the rows
+                dt.Clear();
+                //create a row                
+                DataRow row = dt.NewRow();
+                row["CscDdeID"] = 1;
+                row["CscTableName"] = "test1";
+                row["CscEventType"] = "Rename";
+                row["CscSchema"] = "dbo";
+                row["CscColumnName"] = "column2";
+                row["CscNewColumnName"] = "column2_new";
+                row["CscBaseDataType"] = DBNull.Value;
+                row["CscCharacterMaximumLength"] = DBNull.Value;
+                row["CscNumericPrecision"] = DBNull.Value;
+                row["CscNumericScale"] = DBNull.Value;
+                dt.Rows.Add(row);
+
+                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test1", "dbo");
+                DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
+                test1.Columns.Add("column1", typeof(Int32));
+                test1.Columns.Add("column2", typeof(Int32));
+                dataUtils.testData.Tables.Add(test1);
+
+                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
+
+                Assert.True(dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2_new"));
+                dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].RejectChanges();
+            }
+
+            [Fact]
+            public void TestApply_DropColumn() {
+                //add a column and make sure it is published
+                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                //gets rid of all the rows
+                dt.Clear();
+                //create a row                
+                DataRow row = dt.NewRow();
+                row["CscDdeID"] = 1;
+                row["CscTableName"] = "test1";
+                row["CscEventType"] = "Drop";
+                row["CscSchema"] = "dbo";
+                row["CscColumnName"] = "column2";
+                row["CscNewColumnName"] = DBNull.Value;
+                row["CscBaseDataType"] = DBNull.Value;
+                row["CscCharacterMaximumLength"] = DBNull.Value;
+                row["CscNumericPrecision"] = DBNull.Value;
+                row["CscNumericScale"] = DBNull.Value;
+                dt.Rows.Add(row);
+
+                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test1", "dbo");
+                DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
+                test1.Columns.Add("column1", typeof(Int32));
+                test1.Columns.Add("column2", typeof(Int32));
+                dataUtils.testData.Tables.Add(test1);
+
+                //if this assert fails it means the test setup got borked
+                Assert.True(dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
+                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
+                Assert.False(dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
+                dataUtils.testData.RejectChanges();
+            }
+
+            [Fact]
+            public void TestApply_ModifyColumn() {
+                //add a column and make sure it is published
+                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                //gets rid of all the rows
+                dt.Clear();
+                //create a row                
+                DataRow row = dt.NewRow();
+                row["CscDdeID"] = 1;
+                row["CscTableName"] = "test1";
+                row["CscEventType"] = "Modify";
+                row["CscSchema"] = "dbo";
+                row["CscColumnName"] = "column2";
+                row["CscNewColumnName"] = DBNull.Value;
+                row["CscBaseDataType"] = "datetime";
+                row["CscCharacterMaximumLength"] = DBNull.Value;
+                row["CscNumericPrecision"] = DBNull.Value;
+                row["CscNumericScale"] = DBNull.Value;
+                dt.Rows.Add(row);
+
+                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test1", "dbo");
+                DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
+                test1.Columns.Add("column1", typeof(Int32));
+                test1.Columns.Add("column2", typeof(Int32));
+                dataUtils.testData.Tables.Add(test1);
+
+                //if this assert fails it means the test setup got borked
+                var expected = new DataColumn("column2", typeof(DateTime));
+                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
+                var actual = dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["column2"];                
+                Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
+                dataUtils.testData.RejectChanges();
             }
 
         }
@@ -452,6 +559,7 @@ namespace TeslaSQL.Agents {
             public DataSet testData;
             public TableConf[] tables;
             public TestDataUtils dataUtils;
+            public Slave slave;
 
             public ApplySchemaChangeTestData() {
                 tables = new TableConf[2];
@@ -469,15 +577,11 @@ namespace TeslaSQL.Agents {
                 dataUtils.testData = new DataSet();
                 //this method, conveniently, sets up the datatable schema we need
                 dataUtils.CreateSchemaChangeTable(TServer.RELAY, "CT_testdb", 1);
-                DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
-                test1.Columns.Add("column1", typeof(Int32));
-                test1.Columns.Add("column2", typeof(Int32));
-                dataUtils.testData.Tables.Add(test1);
 
-                DataTable test2 = new DataTable("dbo.test2", "SLAVE.testdb");
-                test2.Columns.Add("column1", typeof(Int32));
-                test2.Columns.Add("column3", typeof(string));
-                dataUtils.testData.Tables.Add(test2);
+                var config = new Config();
+                config.relayDB = "CT_testdb";
+                config.logLevel = LogLevel.Critical;
+                slave = new Slave(config, (IDataUtils)dataUtils);
             }
         }
 
