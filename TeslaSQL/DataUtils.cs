@@ -381,30 +381,19 @@ namespace TeslaSQL {
         }
 
 
-        public string GetIntersectColumnList(TServer server, string dbName, string table1, string schema1, string table2, string schema2) {
-            Table t_smo_1 = GetSmoTable(server, dbName, table1, schema1);
-            Table t_smo_2 = GetSmoTable(server, dbName, table2, schema2);
-            string columnList = "";
-
-            //list to hold lowercased column names
-            var columns_2 = new List<string>();
-
+        public IEnumerable<string> GetIntersectColumnList(TServer server, string dbName, string tableName1, string schema1, string tableName2, string schema2) {
+            Table table1 = GetSmoTable(server, dbName, tableName1, schema1);
+            Table table2 = GetSmoTable(server, dbName, tableName2, schema2);
+            var columns1 = new List<string>();
+            var columns2 = new List<string>();
             //create this so that casing changes to columns don't cause problems, just use the lowercase column name
-            foreach (Column c in t_smo_2.Columns) {
-                columns_2.Add(c.Name.ToLower());
+            foreach (Column c in table1.Columns) {
+                columns1.Add(c.Name.ToLower());
             }
-
-            foreach (Column c in t_smo_1.Columns) {
-                //case insensitive comparison using ToLower()
-                if (columns_2.Contains(c.Name.ToLower())) {
-                    if (columnList != "") {
-                        columnList += ",";
-                    }
-
-                    columnList += "[" + c.Name + "]";
-                }
+            foreach (Column c in table2.Columns) {
+                columns2.Add(c.Name.ToLower());
             }
-            return columnList;
+            return columns1.Intersect(columns2);
         }
 
 
@@ -459,7 +448,7 @@ namespace TeslaSQL {
 
         public void CopyTable(TServer sourceServer, string sourceDB, string table, string schema, TServer destServer, string destDB, int timeout) {
             //drop table at destination and create from source schema
-            CopyTableDefinition(sourceServer, sourceDB, table, schema, destServer, destDB);
+            CopyTableDefinition(sourceServer, sourceDB, table, schema, destServer, destDB, table);
 
             //can't parametrize tablename or schema name but they have already been validated against the server so it's safe
             SqlCommand cmd = new SqlCommand("SELECT * FROM " + schema + "." + table);
@@ -472,19 +461,17 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="sourceServer">Source server identifier</param>
         /// <param name="sourceDB">Source database name</param>
-        /// <param name="table">Table name</param>
+        /// <param name="sourceTableName">Table name</param>
         /// <param name="schema">Table's schema</param>
         /// <param name="destServer">Destination server identifier</param>
         /// <param name="destDB">Destination database name</param>
-        private void CopyTableDefinition(TServer sourceServer, string sourceDB, string table, string schema, TServer destServer, string destDB) {
-            //script out the table at the source
-            string createScript = ScriptTable(sourceServer, sourceDB, table, schema);
+        private void CopyTableDefinition(TServer sourceServer, string sourceDB, string sourceTableName, string schema, TServer destServer, string destDB, string destTableName) {
+            string createScript = ScriptTable(sourceServer, sourceDB, sourceTableName, schema);
+            createScript = createScript.Replace(sourceTableName, destTableName);
             SqlCommand cmd = new SqlCommand(createScript);
 
-            //drop it if it exists at the destination
-            bool didExist = DropTableIfExists(destServer, destDB, table, schema);
+            bool didExist = DropTableIfExists(destServer, destDB, destTableName, schema);
 
-            //create it at the destination
             int result = SqlNonQuery(destServer, destDB, cmd);
         }
 
@@ -494,20 +481,20 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="server">Server identifier to connect to</param>
         /// <param name="dbName">Database name</param>
-        /// <param name="table">Table name</param>
+        /// <param name="tableName">Table name</param>
         /// <param name="schema">Table's schema</param>
         /// <returns>The CREATE TABLE script as a string</returns>
-        private string ScriptTable(TServer server, string dbName, string table, string schema) {
+        private string ScriptTable(TServer server, string dbName, string tableName, string schema) {
             //initialize scriptoptions variable
             ScriptingOptions scriptOptions = new ScriptingOptions();
             scriptOptions.ScriptBatchTerminator = true;
             scriptOptions.NoCollation = true;
 
             //get smo table object
-            Table t_smo = GetSmoTable(server, dbName, table, schema);
+            Table table = GetSmoTable(server, dbName, tableName, schema);
 
             //script out the table, it comes back as a StringCollection object with one string per query batch
-            StringCollection scriptResults = t_smo.Script(scriptOptions);
+            StringCollection scriptResults = table.Script(scriptOptions);
 
             //ADO.NET does not allow multiple batches in one query, but we don't really need the
             //SET ANSI_NULLS ON etc. statements, so just find the CREATE TABLE statement and return that
@@ -833,6 +820,35 @@ namespace TeslaSQL {
                     cmd.ExecuteNonQuery();
                 }
             }
+        }
+
+        public void CreateConsolidatedTable(string tableName, Int64 CTID, TServer server, string schemaName, string dbName) {
+            CopyTableDefinition(server, dbName, tableName + "_"+CTID, schemaName, server, dbName, tableName + "_consolidated");
+        }
+        public void Consolidate(string tableName, long CTID, TServer server, string dbName, string schemaName) {
+            var consolidatedTableName = tableName + "_consolidated";
+            var ctTableName = tableName + "_" + CTID;
+            var columns = GetIntersectColumnList(TServer.SLAVE, dbName, ctTableName, schemaName, consolidatedTableName, schemaName);
+            var cmd = new SqlCommand(string.Format(
+                "INSERT INTO {0} ({1}) SELECT {1} FROM {2}",
+                consolidatedTableName, string.Join(",", columns), ctTableName));
+            SqlNonQuery(TServer.SLAVE, dbName, cmd);
+        }
+
+        public void RemoveDuplicatePrimaryKeyChangeRows(string p) {
+
+        }
+
+
+        public DataTable GetPendingCTSlaveVersions(TServer server, string dbName) {
+            string query = @"SELECT * FROM tblCTSlaveVersion
+                            WHERE CTID > 
+                            (
+                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE syncBitWise = 255
+                            )";
+            SqlCommand cmd = new SqlCommand(query);
+
+            return SqlQuery(server, dbName, cmd);
         }
     }
 }

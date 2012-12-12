@@ -56,6 +56,13 @@ namespace TeslaSQL.Agents {
             var batches = new List<ChangeTrackingBatch>();
             ChangeTrackingBatch ctb;
 
+            var incompleteBatches = dataUtils.GetPendingCTSlaveVersions(TServer.RELAY, config.relayDB);
+            if (incompleteBatches.Rows.Count > 0) {
+                foreach (DataRow row in incompleteBatches.Rows) {
+                    batches.Add(new ChangeTrackingBatch(row));
+                }
+                return batches;
+            }
             //get the last CT version this slave worked on in tblCTSlaveVersion
             logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
             DataRow lastBatch = dataUtils.GetLastCTBatch(TServer.RELAY, config.relayDB, AgentType.Slave, config.slave);
@@ -70,7 +77,7 @@ namespace TeslaSQL.Agents {
                 //get all pending revisions that this slave hasn't done yet
                 DataTable pendingVersions = dataUtils.GetPendingCTVersions(TServer.RELAY, config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
                 logger.Log("Retrieved " + pendingVersions.Rows.Count + " pending CT version(s) to work on.", LogLevel.Debug);
-
+                
                 foreach (DataRow row in pendingVersions.Rows) {
                     ctb = new ChangeTrackingBatch(row);
                     batches.Add(ctb);
@@ -125,10 +132,7 @@ namespace TeslaSQL.Agents {
 
             //consolidate the change sets into one changetable per table
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
-                //TODO implement
                 ConsolidateBatches(tables, batches);
-
-                //persist bitwise progress to database
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
 
@@ -150,23 +154,28 @@ namespace TeslaSQL.Agents {
         }
 
         private void ConsolidateBatches(List<string> tables, List<ChangeTrackingBatch> batches) {
-            foreach (var tn in tables) { Console.WriteLine(tn); }
-            Environment.Exit(-1);
-            //dataUtils.DropConsolidatedTables(TServer.SLAVE, config.slaveCTDB);
-            foreach (var table in config.tables) {
-
+            var lu = new Dictionary<string, List<Int64>>();
+            foreach (var tableName in tables) {
+                var lastUnderscore = tableName.LastIndexOf('_');
+                var name = tableName.Substring(0, lastUnderscore);
+                var ctid = int.Parse(tableName.Substring(lastUnderscore+1));
+                if (!lu.ContainsKey(name)) {
+                    lu[name] = new List<Int64>();
+                }
+                lu[name].Add(ctid);
             }
-            /*b.	drop all tables named _consolidated in the slave CTDB
-                c.	foreach table in config
-                i.	find the last CTID that contains changes for that table
-                1.	if none
-                a.	continue since this table had no changes
-                ii.	create a tblCT<tablename>_consolidated table using that last version’s schema
-                iii.	foreach CTID in the list to work on
-                1.	if this table has a changetable for that CTID, insert all the rows into the consolidated table using a column list from DataUtils.GetIntersectColumnList
-                iv.	now just delete all but the most recent SYS_CHANGE_VERSION for each primary key
-                */
-
+            foreach (var table in config.tables) {
+                var ctName = "tblCT" + table.Name;
+                if (!lu.ContainsKey(ctName)) {
+                    continue;
+                }
+                var ctid = lu[ctName].OrderByDescending(c => c).First();
+                dataUtils.CreateConsolidatedTable(ctName, ctid, TServer.SLAVE, table.schemaName, config.slaveCTDB);
+                foreach (var c in lu[ctName].OrderByDescending(c => c)) {
+                    dataUtils.Consolidate(ctName, c, TServer.SLAVE, config.slaveCTDB, table.schemaName);
+                }
+                dataUtils.RemoveDuplicatePrimaryKeyChangeRows(table.Name);
+            }
         }
 
         /// <summary>
@@ -251,7 +260,7 @@ namespace TeslaSQL.Agents {
             foreach (TableConf t in tables) {
                 ctTableName = CTTableName(t.Name, CTID);
                 if (dataUtils.CheckTableExists(server, dbName, ctTableName, t.schemaName)) {
-                    tableList.Add(t.schemaName + "." + ctTableName);
+                    tableList.Add(ctTableName);
                 }
             }
             return tableList;
@@ -292,7 +301,7 @@ namespace TeslaSQL.Agents {
                     }
                 }
                 if (found) {
-                    tableList.Add(t.schemaName + "." + ctTable);
+                    tableList.Add(ctTable);
                 }
             }
             return tableList;

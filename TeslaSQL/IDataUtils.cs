@@ -170,7 +170,7 @@ namespace TeslaSQL {
         /// <param name="table2">Second table (order doesn't matter)</param>
         /// <param name="schema2">Second table's schema</param>
         /// <returns>String containing the resulting intersect column list</returns>
-        string GetIntersectColumnList(TServer server, string dbName, string table1, string schema1, string table2, string schema2);
+        IEnumerable<string> GetIntersectColumnList(TServer server, string dbName, string table1, string schema1, string table2, string schema2);
 
         /// <summary>
         /// Check whether a table has a primary key
