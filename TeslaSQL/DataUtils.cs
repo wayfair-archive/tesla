@@ -35,7 +35,6 @@ namespace TeslaSQL {
             logger.Log(cmd.CommandText, LogLevel.Trace);
             //build connection string based on server/db info passed in
             string connStr = buildConnString(server, dbName);
-            logger.Log(connStr, LogLevel.Trace);
 
             //using block to avoid resource leaks
             using (SqlConnection conn = new SqlConnection(connStr)) {
