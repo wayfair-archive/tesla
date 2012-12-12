@@ -59,18 +59,22 @@ namespace TeslaSQL.Agents {
             //get the last CT version this slave worked on in tblCTSlaveVersion
             logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
             DataRow lastBatch = dataUtils.GetLastCTBatch(TServer.RELAY, config.relayDB, AgentType.Slave, config.slave);
-
+            if (lastBatch == null) {
+                ctb = new ChangeTrackingBatch(1, 0, 0, 0);
+                batches.Add(ctb);
+                return batches;
+            }
             //compare bitwise to the bit for last step of slave agent
             if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) > 0) {
-
                 logger.Log("Last batch was successful, checking for new batches.", LogLevel.Debug);
                 //get all pending revisions that this slave hasn't done yet
                 DataTable pendingVersions = dataUtils.GetPendingCTVersions(TServer.RELAY, config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
-                logger.Log("Retrieved " + Convert.ToString(pendingVersions.Rows.Count) + " pending CT version(s) to work on.", LogLevel.Debug);
+                logger.Log("Retrieved " + pendingVersions.Rows.Count + " pending CT version(s) to work on.", LogLevel.Debug);
 
                 foreach (DataRow row in pendingVersions.Rows) {
                     ctb = new ChangeTrackingBatch(row);
                     batches.Add(ctb);
+                    dataUtils.CreateSlaveCTVersion(TServer.RELAY, config.relayDB, ctb, config.slave);
                 }
                 return batches;
             }
@@ -110,7 +114,7 @@ namespace TeslaSQL.Agents {
 
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                     //copy the change tables for each batch if it hasn't been done yet
-                    ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, batch.CTID);
+                    ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveDB, batch.CTID);
 
                     //persist bitwise progress to database
                     dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
@@ -152,11 +156,9 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="CTID">Change tracking batch object to work on</param>
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
-            //TODO finish
             //TODO add logger statements
             //this will hold a list of all the CT tables that exist
             List<string> tables = new List<string>();
-            dataUtils.CreateSlaveCTVersion(TServer.RELAY, config.relayDB, ctb, config.slave);
             //copy change tables to slave if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 tables = CopyChangeTables(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, ctb.CTID);
@@ -168,20 +170,21 @@ namespace TeslaSQL.Agents {
 
             //apply schema changes if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, ctb.CTID);
+                ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveDB, ctb.CTID);
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
+                //marking this field so that completed slave batches will have the same values
+                dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
-
             //apply changes to destination tables if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 ApplyChanges(config.tables, config.slaveDB, tables, ctb.CTID);
+
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
             //update the history tables
             //TODO implement
             //SyncBatchedHistoryTables(config.tables, TServer.SLAVE, config.slaveCTDB, config.slaveDB, tables);
-
 
             //success! mark the batch as complete
             dataUtils.MarkBatchComplete(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
@@ -296,7 +299,7 @@ namespace TeslaSQL.Agents {
                     logger.Log("Ignoring schema change for table " + row.Field<string>("CscTableName") + " because it isn't in config", LogLevel.Debug);
                     continue;
                 }
-                logger.Log("Processing schema change (CscID: " + Convert.ToString(row.Field<int>("CscID")) +
+                logger.Log("Processing schema change (CscID: " + row.Field<int>("CscID") +
                     ") of type " + schemaChange.eventType + " for table " + t.Name, LogLevel.Info);
 
                 if (t.columnList == null || t.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {

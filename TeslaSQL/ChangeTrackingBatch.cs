@@ -8,7 +8,7 @@ namespace TeslaSQL {
     /// <summary>
     /// Class representing a change tracking batch
     /// </summary>
-   public class ChangeTrackingBatch {
+    public class ChangeTrackingBatch {
 
         public Int64 CTID { get; set; }
 
@@ -18,7 +18,7 @@ namespace TeslaSQL {
 
         public Int32 syncBitWise { get; set; }
 
-        public DateTime syncStartTime { get; set; }
+        public DateTime? syncStartTime { get; set; }
 
         public ChangeTrackingBatch(Int64 CTID, Int64 syncStartVersion, Int64 syncStopVersion, Int32 syncBitWise) {
             this.CTID = CTID;
@@ -27,12 +27,19 @@ namespace TeslaSQL {
             this.syncBitWise = syncBitWise;
         }
 
+        public ChangeTrackingBatch(Int64 CTID, Int64 syncStartVersion, Int64 syncStopVersion, Int32 syncBitWise, DateTime syncStartTime)
+            : this(CTID, syncStartVersion, syncStopVersion, syncBitWise) {
+            this.syncStartTime = syncStartTime;
+        }
+
         public ChangeTrackingBatch(DataRow row) {
             CTID = row.Field<Int64>("CTID");
             syncStartVersion = row.Field<Int64>("syncStartVersion");
             syncStopVersion = row.Field<Int64>("syncStopVersion");
             syncBitWise = row.Field<Int32>("syncBitWise");
-            syncStartTime = row.Field<DateTime>("syncStartTime");
+            if (row.Table.Columns.Contains("syncStartTime")) {
+                syncStartTime = row.Field<DateTime>("syncStartTime");
+            }
         }
 
     }

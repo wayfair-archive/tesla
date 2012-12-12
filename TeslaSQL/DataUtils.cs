@@ -28,8 +28,14 @@ namespace TeslaSQL {
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
         private DataTable SqlQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
+            foreach (IDataParameter p in cmd.Parameters) {
+                if (p.Value == null)
+                    p.Value = DBNull.Value;
+            }
+            logger.Log(cmd.CommandText, LogLevel.Trace);
             //build connection string based on server/db info passed in
             string connStr = buildConnString(server, dbName);
+            logger.Log(connStr, LogLevel.Trace);
 
             //using block to avoid resource leaks
             using (SqlConnection conn = new SqlConnection(connStr)) {
@@ -71,6 +77,11 @@ namespace TeslaSQL {
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
         private int SqlNonQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 600) {
+            logger.Log(cmd.CommandText, LogLevel.Trace);
+            foreach (IDataParameter p in cmd.Parameters) {
+                if (p.Value == null)
+                    p.Value = DBNull.Value;
+            }
             //build connection string based on server/db info passed in
             string connStr = buildConnString(server, dbName);
             int numrows;
@@ -136,7 +147,8 @@ namespace TeslaSQL {
             }
 
             DataTable result = SqlQuery(server, dbName, cmd);
-            return result.Rows[0];
+
+            return result.Rows.Count > 0 ? result.Rows[0] : null;
         }
 
 
@@ -295,10 +307,7 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = schemaChange.dataType.characterMaximumLength;
             cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = schemaChange.dataType.numericPrecision;
             cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = schemaChange.dataType.numericScale;
-            foreach (IDataParameter p in cmd.Parameters) {
-                if (p.Value == null)
-                    p.Value = DBNull.Value;
-            }
+
             int result = SqlNonQuery(server, dbName, cmd);
         }
 
@@ -359,11 +368,11 @@ namespace TeslaSQL {
         }
 
 
-        public bool CheckTableExists(TServer server, string dbName, string table, string schema = "dbo") {
+        public bool CheckTableExists(TServer server, string dbName, string tableName, string schema = "dbo") {
             try {
-                Table t_smo = GetSmoTable(server, dbName, table, schema);
+                Table table = GetSmoTable(server, dbName, tableName, schema);
 
-                if (t_smo != null) {
+                if (table != null) {
                     return true;
                 }
                 return false;

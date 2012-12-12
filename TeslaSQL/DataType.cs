@@ -22,6 +22,7 @@ namespace TeslaSQL {
             this.numericPrecision = numericPrecision;
             this.numericScale = numericScale;            
         }
+        
 
 
         /// <summary>
