@@ -10,8 +10,7 @@ namespace TeslaSQL.Agents {
     //TODO we need to set up field lists somewhere in here...
     //TODO figure out where to put check for MSSQL vs. netezza and where to branch the code paths
 
-    public class Slave : Agent
-    {
+    public class Slave : Agent {
         //base keyword invokes the base class's constructor
         public Slave(Config config, IDataUtils dataUtils)
             : base(config, dataUtils) {
@@ -178,8 +177,7 @@ namespace TeslaSQL.Agents {
 
             //apply changes to destination tables if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
-                //TODO implement
-                //ApplyChanges(config.tables, TServer.SLAVE, config.slaveCTDB, config.slaveDB, tables);
+                ApplyChanges(config.tables, config.slaveDB, tables, ctb.CTID);
                 dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
@@ -190,6 +188,33 @@ namespace TeslaSQL.Agents {
 
             //success! mark the batch as complete
             dataUtils.MarkBatchComplete(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
+        }
+
+        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 ctid) {
+            SetFieldLists(TServer.SLAVE, slaveDB, tableConf);
+            var hasArchive = new Dictionary<TableConf, TableConf>();
+            foreach (var table in tableConf) {
+                if (tables.Contains(table.Name)) {
+                    if (hasArchive.ContainsKey(table)) {
+                        //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
+                        continue;
+                    }
+                    if (table.Name.EndsWith("Archive")) {
+                        string nonArchiveTableName = table.Name.Substring(0, table.Name.Length - table.Name.LastIndexOf("Archive"));
+                        if (tables.Contains(nonArchiveTableName)) {
+                            var nonArchiveTable = tableConf.First(t => t.Name == nonArchiveTableName);
+                            hasArchive[nonArchiveTable] = table;
+                        } else {
+                            hasArchive[table] = null;
+                        }
+                    } else {
+                        hasArchive[table] = null;
+                    }
+                }
+            }
+            foreach (var tableArchive in hasArchive) {
+                ((DataUtils)dataUtils).ApplyTableChanges(tableArchive.Key, tableArchive.Value, TServer.SLAVE, config.slaveDB, ctid);
+            }
         }
 
 
@@ -414,7 +439,7 @@ namespace TeslaSQL.Agents {
                 var slave = new Slave(config, (IDataUtils)dataUtils);
                 slave.dataUtils = dataUtils;
                 slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
-             
+
                 Assert.False(dataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns.Contains("testadd"));
             }
 

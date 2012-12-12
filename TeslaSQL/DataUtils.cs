@@ -768,5 +768,63 @@ namespace TeslaSQL {
 
             SqlNonQuery(server, dbName, cmd);
         }
+
+        internal void ApplyTableChanges(TableConf table, TableConf archiveTable, TServer tServer, string dbName, Int64 ctid) {
+            var tableSql = BuildMergeQuery(table, dbName, ctid);
+            if (archiveTable != null) {
+                tableSql.Concat(BuildMergeQuery(archiveTable, dbName, ctid));
+            }
+            Transaction(tableSql, tServer, dbName);
+        }
+
+        private IList<SqlCommand> BuildMergeQuery(TableConf table, string dbName, Int64 ctid) {
+            var commands = new List<SqlCommand>();
+            commands.Add(new SqlCommand("DECLARE @rowcounts TABLE (mergeaction nvarchar(10);"));
+            string sql = string.Format(
+                @"MERGE {0}.{1} WITH (ROWLOCK) AS P
+                  USING (SELECT * FROM {2}) AS CT
+                  ON ({3})
+                  WHEN MATCHED AND CT.SYS_CHANGE_OPERATION = 'D'
+                      THEN DELETE
+                  WHEN MATCHED AND CT.SYS_CHANGE_OPERATION IN ('I', 'U')
+                      THEN UPDATE SET {4}
+                  WHEN NOT MATCHED BY TARGET AND CT.SYS_CHANGE_OPERATION IN ('I', 'U') THEN
+                      INSERT ({5}) VALUES ({6})
+                  OUTPUT $action INTO @rowcounts;",
+                                  dbName,
+                                  table.Name,
+                                  table.ToCTName(ctid),
+                                  table.pkList,
+                                  table.mergeUpdateList.Length > 2 ? table.mergeUpdateList : table.pkList.Replace("AND", ","),
+                                  table.masterColumnList.Replace("CT.", "").Replace("P.", ""),
+                                  table.masterColumnList.Replace("P.", "CT.")
+                                  );
+            commands.Add(new SqlCommand(sql));
+            sql = string.Format("INSERT INTO tblCTLog SELECT {0}, '    DELETE p COUNT:{1}, {2}, GETDATE(), SELECT COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE')",
+                                 ctid, sql, table.Name);
+            commands.Add(new SqlCommand(sql));
+            sql = string.Format("INSERT INTO tblCTLog SELECT {0}, '    INSERT COUNT:{1}, {2}, GETDATE(), SELECT COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE')",
+                                 ctid, sql, table.Name);
+            commands.Add(new SqlCommand(sql));
+            commands.Add(new SqlCommand("DELETE @rowcounts"));
+
+            return commands;
+        }
+
+
+        /// <summary>
+        /// executes a list of sql commands as a transaction. Untested.
+        /// </summary>
+        private void Transaction(IList<SqlCommand> commands, TServer server, string dbName) {
+            var connStr = buildConnString(server, dbName);
+            using (var conn = new SqlConnection(connStr)) {
+                conn.Open();
+                var trans = conn.BeginTransaction();
+                foreach (var cmd in commands) {
+                    cmd.Transaction = trans;
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
     }
 }
