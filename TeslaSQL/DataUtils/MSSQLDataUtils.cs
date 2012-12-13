@@ -701,7 +701,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="table">Table name to write to</param>
         /// <param name="timeout">Timeout</param>
         public void BulkCopy(SqlDataReader reader, string dbName, string schema, string table, int timeout) {
-            SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);            
+            SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);
             bulkCopy.BulkCopyTimeout = timeout;
             bulkCopy.DestinationTableName = schema + "." + table;
             bulkCopy.WriteToServer(reader);
@@ -800,16 +800,17 @@ namespace TeslaSQL.DataUtils {
         /// Copies the schema of a table from one server to another, dropping it first if it exists at the destination.
         /// </summary>
         /// <param name="sourceDB">Source database name</param>
-        /// <param name="table">Table name</param>
+        /// <param name="sourceTableName">Table name</param>
         /// <param name="schema">Table's schema</param>
         /// <param name="destDB">Destination database name</param>
-        private void CopyTableDefinition(string sourceDB, string table, string schema, string destDB, string destTable) {
+        private void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
             //script out the table at the source
-            string createScript = ScriptTable(sourceDB, table, schema);
+            string createScript = ScriptTable(sourceDB, sourceTableName, schema);
+            createScript = createScript.Replace(sourceTableName, destTableName);
             SqlCommand cmd = new SqlCommand(createScript);
 
             //drop it if it exists at the destination
-            bool didExist = DropTableIfExists(destDB, destTable, schema);
+            bool didExist = DropTableIfExists(destDB, destTableName, schema);
 
             //create it at the destination
             int result = SqlNonQuery(destDB, cmd);
@@ -829,8 +830,20 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-        public void RemoveDuplicatePrimaryKeyChangeRows(string p) {
-
+        public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string ctTableName, string dbName) {
+            var consolidatedTableName = ctTableName + "_consolidated";
+            var pks = table.columns.Where(c => c.isPk);
+            var zipped = pks.Zip(pks, (a, b) => "a." + a + " = b." + b);
+            string whereCondition = string.Join(" AND ", zipped);
+            
+            string delete = string.Format(
+                            @"DELETE a FROM {0} a 
+                              WHERE EXISTS (
+                                SELECT 1 FROM {0} b WHERE {1} AND a.sys_change_version < b.sys_change_version
+                              ) ",
+                              consolidatedTableName, whereCondition);
+            SqlCommand cmd = new SqlCommand(delete);
+            SqlNonQuery(dbName, cmd);
         }
 
 

@@ -483,5 +483,15 @@ namespace TeslaSQL.DataUtils {
         public void RemoveDuplicatePrimaryKeyChangeRows(string p) {
             throw new NotImplementedException("Still need to implement");
         }
+
+
+        public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string dbName) {
+            throw new NotImplementedException();
+        }
+
+
+        public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string consolidatedTableName, string dbName) {
+            throw new NotImplementedException();
+        }
     }
 }

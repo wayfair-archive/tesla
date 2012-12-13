@@ -420,28 +420,30 @@ namespace TeslaSQL.DataUtils {
              */
         }
 
-        public void CreateTableInfoTable(string dbName, Int64 CTID) {
-            throw new NotImplementedException("Netezza is only supported as a slave!");
+
+
+        public void CreateTableInfoTable(string p, long p_2) {
+            throw new NotImplementedException();
         }
 
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid) {
-            throw new NotImplementedException("Still need to implement");
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid) {
+            throw new NotImplementedException();
         }
 
-        public void CreateConsolidatedTable(string tableName, Int64 CTID, string schemaName, string dbName) {
-            throw new NotImplementedException("Still need to implement");
+        public void CreateConsolidatedTable(string tableName, long CTID, string schemaName, string dbName) {
+            throw new NotImplementedException();
         }
 
         public void Consolidate(string tableName, long CTID, string dbName, string schemaName) {
-            throw new NotImplementedException("Still need to implement");
+            throw new NotImplementedException();
         }
 
-        public void RemoveDuplicatePrimaryKeyChangeRows(string p) {
-            throw new NotImplementedException("Still need to implement");
+        public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string consolidatedTableName, string dbName) {
+            throw new NotImplementedException();
         }
     }
 }
