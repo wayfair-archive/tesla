@@ -39,7 +39,7 @@ namespace TeslaSQL.DataCopy {
             CopyTableDefinition(sourceDB, table, schema, destDB);
 
             //can't parametrize tablename or schema name but they have already been validated against the server so it's safe
-            SqlCommand cmd = new SqlCommand("SELECT * FROM " + schema + "." + table);
+            SqlCommand cmd = new SqlCommand("SELECT * FROM [" + schema + "].[" + table + "]");
             CopyDataFromQuery(sourceDB, destDB, cmd, table, schema, timeout, timeout);
         }
 
