@@ -69,7 +69,7 @@ namespace TeslaSQL.Agents {
             }
 
             logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
-            SetFieldLists(config.masterDB, config.tables);
+            SetFieldLists(config.masterDB, config.tables, sourceDataUtils);
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 logger.Log("Beginning capture changes phase", LogLevel.Info);

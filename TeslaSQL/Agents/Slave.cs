@@ -232,9 +232,8 @@ namespace TeslaSQL.Agents {
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
         }
 
-        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 ctid) {
-            //TODO fix the fact that this is going to use the source... do we just need to override this here or pass in a datautils to it?
-            SetFieldLists(slaveDB, tableConf);
+        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 ctid) {            
+            SetFieldLists(slaveDB, tableConf, destDataUtils);
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var table in tableConf) {
                 if (tables.Contains(table.Name)) {

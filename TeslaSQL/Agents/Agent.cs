@@ -42,11 +42,11 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="Database">Database name to run on</param>
         /// <param name="tableConfArray">Array of tableconf objects to loop through and set field lists on</param>
-        public void SetFieldLists(string database, TableConf[] tableConfArray) {
+        public void SetFieldLists(string database, TableConf[] tableConfArray, IDataUtils dataUtils) {
             Dictionary<string, bool> dict;
             foreach (TableConf t in tableConfArray) {
                 try {
-                    dict = sourceDataUtils.GetFieldList(database, t.Name, t.schemaName);
+                    dict = dataUtils.GetFieldList(database, t.Name, t.schemaName);
                     SetFieldList(t, dict);
                 } catch (Exception e) {
                     if (t.stopOnError) {
