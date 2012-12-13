@@ -115,29 +115,26 @@ namespace TeslaSQL.Agents {
             ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
 
             foreach (ChangeTrackingBatch batch in batches) {
-                logger.Log("Populating list of changetables for CTID : " + batch.CTID, LogLevel.Debug);            
+                logger.Log("Populating list of changetables for CTID : " + batch.CTID, LogLevel.Debug);
                 existingCTTables = existingCTTables.Concat(PopulateTableList(config.tables, config.slaveCTDB, batch.CTID)).ToList();
             }
 
             //consolidate the change sets into one changetable per table
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
-                //persist bitwise progress to database
-                sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
                 ConsolidateBatches(existingCTTables, batches);
                 sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
 
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 logger.Log("Downloading consolidated changetables", LogLevel.Debug);
-                CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, endBatch.CTID, isConsolidated:true);
+                CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, endBatch.CTID, isConsolidated: true);
                 logger.Log("Changes downloaded successfully", LogLevel.Debug);
                 sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
-            } 
+            }
 
             //loop through each batch and apply schema changes
             foreach (ChangeTrackingBatch batch in batches) {
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                    //copy the change tables for each batch if it hasn't been done yet
                     logger.Log("Applying schema changes", LogLevel.Debug);
                     ApplySchemaChanges(config.tables, config.slaveDB, batch.CTID);
                     sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
@@ -145,11 +142,9 @@ namespace TeslaSQL.Agents {
             }
 
             //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
-            
+
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
-                //TODO implement
-                //ApplyBatchedChanges(config.tables, config.slaveCTDB, config.slaveDB, tables);
-                //persist bitwise progress to database
+                //ApplyChanges(config.tables, config.slaveCTDB, existingCTTables, null);
                 sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
@@ -228,7 +223,7 @@ namespace TeslaSQL.Agents {
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
         }
 
-        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 CTID) {            
+        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 CTID) {
             SetFieldLists(slaveDB, tableConf, destDataUtils);
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var table in tableConf) {
