@@ -36,35 +36,6 @@ using TeslaSQL.DataUtils;
 
 namespace TeslaSQL {
     public class Program {
-        //TODO move this somewhere else
-        public static void TestData() {
-            //this will resolve to something like "C:\tesla\TeslaSQL\bin\Debug"
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            //relative path to the tests folder will be three directories up from that
-            string filePath = baseDir + @"..\..\..\Tests\test1\input_data.xml";
-            DataSet ds = new DataSet();
-            ds.ReadXml(filePath, XmlReadMode.ReadSchema);
-            //ds.AcceptChanges();
-            filePath = baseDir + @"..\..\..\Tests\test1\expected_data.xml";
-            DataSet expected = new DataSet();
-            expected.ReadXml(filePath, XmlReadMode.ReadSchema);
-
-            //expected.AcceptChanges();
-            Console.WriteLine(TestDataUtils.CompareDataSets(expected, ds));
-            Console.WriteLine("one hop this time");
-            DataRow row = ds.Tables["tblCTSlaveVersion"].NewRow();
-            row["CTID"] = 500;
-            row["slaveIdentifier"] = "TESTSLAVE";
-            row["syncStartVersion"] = 1000;
-            row["syncStopVersion"] = 2000;
-            row["syncStartTime"] = new DateTime(2012, 1, 1, 12, 0, 0);
-            row["syncBitWise"] = 0;
-            ds.Tables["tblCTSlaveVersion"].Rows.Add(row);
-
-            Console.WriteLine(TestDataUtils.CompareDataSets(expected, ds));
-            Console.ReadLine();
-        }
-
         static void Main(string[] args) {
             Params parameters = new Params();
             try {
@@ -164,7 +135,7 @@ namespace TeslaSQL {
         /// <summary>
         /// Struct holding data related to command line arguments
         /// </summary>
-        private struct Params {
+        protected struct Params {
             public string configFile { get; set; }
             public string logLevelOverride { get; set; }
             public bool validate { get; set; }
@@ -194,7 +165,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="args">Array of arguments</param>
         /// <returns>Params struct represnting the options</returns>
-        private static Params ParseArgs(string[] args) {
+        protected static Params ParseArgs(string[] args) {
             Params parameters = new Params();
             //Create a list of possible values of LogLevels to include in the help info
             string logLevels = "";
@@ -242,72 +213,6 @@ namespace TeslaSQL {
 
             return parameters;
         }
-
-        #region ParseArgs Unit Tests
-        [Fact]
-        public void TestParseArgs() {
-            Params parameters = new Params();
-            string[] testargs;
-            //test basic parameter
-            testargs = new string[2] { "-c", "C:\test.txt" };
-            parameters = ParseArgs(testargs);
-            Assert.Equal("C:\test.txt", parameters.configFile);
-            Assert.Equal(false, parameters.validate);
-            Assert.Equal(false, parameters.showHelp);
-            Assert.True(String.IsNullOrEmpty(parameters.logLevelOverride));
-
-            //config file and validate param
-            testargs = new string[3] { "-c", "C:\test.txt", "--validate" };
-            parameters = ParseArgs(testargs);
-            Assert.Equal("C:\test.txt", parameters.configFile);
-            Assert.Equal(true, parameters.validate);
-            Assert.Equal(false, parameters.showHelp);
-
-            //config file and logLevelOverride
-            testargs = new string[4] { "-c", "C:\test.txt", "-l", "Debug" };
-            parameters = ParseArgs(testargs);
-            Assert.Equal("C:\test.txt", parameters.configFile);
-            Assert.Equal("Debug", parameters.logLevelOverride);
-            Assert.Equal(false, parameters.validate);
-            Assert.Equal(false, parameters.showHelp);
-
-            //help param
-            testargs = new string[1] { "--help" };
-            parameters = ParseArgs(testargs);
-            Assert.True(String.IsNullOrEmpty(parameters.configFile));
-            Assert.Equal(false, parameters.validate);
-            Assert.Equal(true, parameters.showHelp);
-
-            //help param with another param
-            testargs = new string[3] { "-c", "C:\test.txt", "-h" };
-            parameters = ParseArgs(testargs);
-            Assert.Equal(false, parameters.validate);
-            Assert.Equal(true, parameters.showHelp);
-
-            //add the more param
-            testargs = new string[5] { "-c", "C:\test.txt", "--validate", "--more", "30" };
-            parameters = ParseArgs(testargs);
-            Assert.Equal("C:\test.txt", parameters.configFile);
-            Assert.Equal(true, parameters.validate);
-            Assert.Equal(false, parameters.showHelp);
-            Assert.Equal(30, parameters.more);
-
-            //add logLevel
-            testargs = new string[7] { "-c", "C:\test.txt", "--validate", "-m", "30", "--loglevel", "Warn" };
-            parameters = ParseArgs(testargs);
-            Assert.Equal("C:\test.txt", parameters.configFile);
-            Assert.Equal(true, parameters.validate);
-            Assert.Equal(false, parameters.showHelp);
-            Assert.Equal(30, parameters.more);
-            Assert.Equal("Warn", parameters.logLevelOverride);
-
-            //invalid --more param should throw an OptionException
-            testargs = new string[5] { "-c", "C:\test.txt", "--validate", "--more", "notanint" };
-            Assert.Throws<OptionException>(delegate { ParseArgs(testargs); });
-        }
-
-        #endregion
-
 
         /// <summary>
         /// Prints usage/option info based on the passed in OptionSet

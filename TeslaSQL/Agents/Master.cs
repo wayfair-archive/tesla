@@ -37,7 +37,7 @@ namespace TeslaSQL.Agents {
                 throw new Exception("Master agent requires a valid SQL flavor for relay and master");
             }
         }
-
+            
         public override void Run() {
             logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
             Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(config.masterDB);
@@ -206,7 +206,7 @@ namespace TeslaSQL.Agents {
         /// <param name="thresholdIgnoreStartTime">Beginning of timespan in which to ignore the max batch size (optional)</param>
         /// <param name="thresholdIgnoreEndTime">End of timespan in which to ignore the max batch size (optional)</param>
         /// <param name="CurrentDate">The current date. Mostly a parameter for the purposes of unit testing.</param>
-        private Int64 ResizeBatch(Int64 startVersion, Int64 stopVersion, Int64 curVersion, int maxBatchSize, TimeSpan? thresholdIgnoreStartTime, TimeSpan? thresholdIgnoreEndTime, DateTime CurrentDate) {
+        protected Int64 ResizeBatch(Int64 startVersion, Int64 stopVersion, Int64 curVersion, int maxBatchSize, TimeSpan? thresholdIgnoreStartTime, TimeSpan? thresholdIgnoreEndTime, DateTime CurrentDate) {
             //if max batch is not specified or if this batch is not large, we don't have to do anything
             if (maxBatchSize > 0 && stopVersion - startVersion > maxBatchSize) {
                 logger.Log("Batch is susceptible to resizing since the difference between stopVersion and startVersion is larger than configured maxBatchSize", LogLevel.Trace);
@@ -346,7 +346,6 @@ namespace TeslaSQL.Agents {
                     logger.Log("Publishing changes for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     try {
                         //hard coding timeout at 1 hour for bulk copy
-                        //TODO switch to some other class
                         dataCopy.CopyTable(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destCTDB, 36000);
                         logger.Log("Publishing changes succeeded for " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     } catch (Exception e) {
@@ -367,7 +366,7 @@ namespace TeslaSQL.Agents {
         /// <param name="tables">Array of table config objects</param>
         /// <param name="sourceCTDB">CT database name</param>
         /// <param name="CTID">CT batch id</param>
-        private Dictionary<string, Int64> GetRowCounts(TableConf[] tables, string sourceCTDB, Int64 CTID) {
+        public Dictionary<string, Int64> GetRowCounts(TableConf[] tables, string sourceCTDB, Int64 CTID) {
             Dictionary<string, Int64> rowCounts = new Dictionary<string, Int64>();
 
             foreach (TableConf t in tables) {
@@ -382,33 +381,5 @@ namespace TeslaSQL.Agents {
             }
             return rowCounts;
         }
-
-
-        #region Unit Tests
-        //unit tests for ResizeBatch method
-        [Fact]
-        public void TestResizeBatch() {
-            //test that it doesn't mess with batch size when maxBatchSize is 0
-            Assert.Equal(1000, ResizeBatch(500, 1000, 1000, 0, null, null, new DateTime(2000, 1, 1, 12, 0, 0)));
-
-            //test the basic case with threshold times not set
-            Assert.Equal(1000, ResizeBatch(500, 1500, 1500, 500, null, null, new DateTime(2000, 1, 1, 12, 0, 0)));
-
-            //same case with threshold times set (not wrapping around midnight), when we are not in the ignore window
-            Assert.Equal(1000, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(1, 0, 0), new TimeSpan(3, 0, 0), new DateTime(2000, 1, 1, 12, 0, 0)));
-
-            //threshold times set (not wrapping around midnight) and we are currently in the ignore window
-            Assert.Equal(1500, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(1, 0, 0), new TimeSpan(3, 0, 0), new DateTime(2000, 1, 1, 2, 0, 0)));
-
-            //threshold time wraps around midnight and we are not in the ignore window
-            Assert.Equal(1000, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(23, 45, 0), new TimeSpan(1, 30, 0), new DateTime(2000, 1, 1, 12, 0, 0)));
-
-            //threshold time wraps around midnight and we are in the ignore window (before midnight)
-            Assert.Equal(1500, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(23, 45, 0), new TimeSpan(1, 30, 0), new DateTime(2000, 1, 1, 23, 55, 0)));
-
-            //threshold time wraps around midnight and we are in the ignore window (after midnight)
-            Assert.Equal(1500, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(23, 45, 0), new TimeSpan(1, 30, 0), new DateTime(2000, 1, 1, 0, 30, 0)));
-        }
-        #endregion
     }
 }

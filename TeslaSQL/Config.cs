@@ -36,13 +36,13 @@ namespace TeslaSQL {
         public Config(ConfigLoader c) {
 
             //set global configuration properties
-            masterDB_m = ValidateNullableIdentifier(c.masterDB);
-            masterCTDB_m = ValidateNullableIdentifier(c.masterCTDB);
-            slaveCTDB_m = ValidateNullableIdentifier(c.slaveCTDB);
-            slaveDB_m = ValidateNullableIdentifier(c.slaveDB);
+            masterDB = ValidateNullableIdentifier(c.masterDB);
+            masterCTDB = ValidateNullableIdentifier(c.masterCTDB);
+            slaveCTDB = ValidateNullableIdentifier(c.slaveCTDB);
+            slaveDB = ValidateNullableIdentifier(c.slaveDB);
             relayDB = ValidateNullableIdentifier(c.relayDB);
-            errorLogDB_m = ValidateNullableIdentifier(c.errorLogDB);
-            errorTable_m = c.errorTable;
+            errorLogDB = ValidateNullableIdentifier(c.errorLogDB);
+            errorTable = c.errorTable;
             masterUser_m = ValidateNullableIdentifier(c.masterUser);
             masterPassword_m = c.masterPassword;
             slaveUser_m = ValidateNullableIdentifier(c.slaveUser);
@@ -101,9 +101,9 @@ namespace TeslaSQL {
                 throw new InvalidDataException("Invalid log level in configuration file!");
             }
 
-            tables_m = c.t;
+            tables = c.t;
             //this is the simplest way to simulate a "default value" when doing this deserialization
-            foreach (TableConf t in tables_m) {
+            foreach (TableConf t in tables) {
                 if (t.schemaName == null) {
                     t.schemaName = "dbo";
                 }
@@ -157,7 +157,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="identifier">Identifier string, which can also be null or empty</param>
         /// <returns>The identifier if it is valid. Throws an exception otherwise. </returns>
-        private static string ValidateNullableIdentifier(string identifier) {
+        protected static string ValidateNullableIdentifier(string identifier) {
             //the following regex represents a valid SQL identifier
             //it must start with a letter or underscore, followed by any combination
             //of word characters (letters, digits, underscores), the dollar sign, or spaces
@@ -295,9 +295,8 @@ namespace TeslaSQL {
         //log level from config file. public since it can also be set via override in the main program
         public LogLevel logLevel { get; set; }
 
-        //array of table objects for global configuration
-        private TableConf[] tables_m;
-        public TableConf[] tables { get { return tables_m; } }
+        //array of table objects for global configuration        
+        public TableConf[] tables { get; set; }
 
         //the agent type we should run (i.e. master, slave)
         private AgentType agentType_m;
@@ -328,30 +327,25 @@ namespace TeslaSQL {
         public SqlFlavor? slaveType { get { return slaveType_m; } }
 
         //master database name
-        private string masterDB_m;
-        public string masterDB { get { return masterDB_m; } }
+        public string masterDB { get; set; }
 
         //master CT database name
-        private string masterCTDB_m;
-        public string masterCTDB { get { return masterCTDB_m; } }
+        public string masterCTDB { get; set; }
 
         //slave database name
-        private string slaveDB_m;
-        public string slaveDB { get { return slaveDB_m; } }
+        public string slaveDB { get; set; }
 
         //slave CT database name
-        private string slaveCTDB_m;
-        public string slaveCTDB { get { return slaveCTDB_m; } }
+        public string slaveCTDB { get; set; }
 
         //relay database name. public for unit testing purposes        
         public string relayDB { get; set; }
 
         //database to log errors to
-        private string errorLogDB_m;
-        public string errorLogDB { get { return errorLogDB_m; } }
+        public string errorLogDB { get; set; }
 
-        private string errorTable_m;
-        public string errorTable { get { return errorTable_m; } }
+        public string errorTable { get; set; }
+
         //how many hours to retain changes for in the relay server
         private int changeRetentionHours_m;
         public int changeRetentionHours { get { return changeRetentionHours_m; } }
@@ -542,69 +536,6 @@ namespace TeslaSQL {
 
             return dictionary;
         }
-
-
-        public class TestConfig {
-            #region Unit Tests
-            [Fact]
-            public void TestValidateNullableIdentifier() {
-                //valid database identifiers
-                Assert.Equal("test", ValidateNullableIdentifier("test"));
-                Assert.Equal("test_1", ValidateNullableIdentifier("test_1"));
-                Assert.Equal("_test", ValidateNullableIdentifier("_test"));
-                Assert.Equal("test1", ValidateNullableIdentifier("test1"));
-                Assert.Equal("te$t moar", ValidateNullableIdentifier("te$t moar"));
-
-                //null and empty are okay too
-                Assert.Equal("", ValidateNullableIdentifier(""));
-                Assert.Equal(null, ValidateNullableIdentifier(null));
-
-                //invalid identifiers should all throw
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("$test"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("1test"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("#test"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier(" test"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("@test"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier(" "); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\t"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\r\n"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateNullableIdentifier("\r\ntest"); });
-            }
-
-            [Fact]
-            public void TestValidateRequiredHost() {
-                //valid hostnames or ips
-                Assert.Equal("testhost", ValidateRequiredHost("testhost"));
-                Assert.Equal("192.168.1.1", ValidateRequiredHost("192.168.1.1"));
-                Assert.Equal("10.25.30.40", ValidateRequiredHost("10.25.30.40"));
-                Assert.Equal("testhost01", ValidateRequiredHost("testhost01"));
-                Assert.Equal("test\\instance", ValidateRequiredHost("test\\instance"));
-
-                //null and empty are not okay
-                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(""); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(null); });
-
-                //invalid hostnames and ips
-                //TODO decide whether we care that bogus ips like 256.0.0.0 will get through because they are valid hostnames?
-                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(" startswithspace"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has a space"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has\twhitespace"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost("has\r\nnewline"); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateRequiredHost(" "); });
-
-            }
-
-            [Fact]
-            public void TestValidateSqlFlavor() {
-                Assert.Equal(SqlFlavor.MSSQL, ValidateSqlFlavor("MSSQL"));
-                Assert.Equal(SqlFlavor.Netezza, ValidateSqlFlavor("Netezza"));
-
-                Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor(""); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor(null); });
-                Assert.Throws<InvalidDataException>(delegate { ValidateSqlFlavor("SomethingElseInvalid"); });
-            }
-        }
-            #endregion
 
     }
 
