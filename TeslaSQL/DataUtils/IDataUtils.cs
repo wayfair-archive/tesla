@@ -24,6 +24,8 @@ namespace TeslaSQL.DataUtils {
         /// <param name="syncBitWise">Only include versions containing this bit</param>
         DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise);
 
+        DataTable GetPendingCTSlaveVersions(string dbName);
+
         /// <summary>
         /// Gets the start time of the last successful CT batch before the specified CTID
         /// </summary>
@@ -147,7 +149,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="table2">Second table (order doesn't matter)</param>
         /// <param name="schema2">Second table's schema</param>
         /// <returns>String containing the resulting intersect column list</returns>
-        string GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2);
+        IEnumerable<string> GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2);
 
         /// <summary>
         /// Check whether a table has a primary key
@@ -274,7 +276,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="characterMaximumLength">Max length for *char data types</param>
         /// <param name="numericPrecision">Numeric precision for numeric/decimal types</param>
         /// <param name="numericScale">Numeric scale for numeric/decimal types</param>
-        void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string baseType, 
+        void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string baseType,
             int? characterMaximumLength, int? numericPrecision, int? numericScale);
 
         /// <summary>
@@ -290,5 +292,13 @@ namespace TeslaSQL.DataUtils {
         void CreateTableInfoTable(string p, long p_2);
 
         void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows);
+
+        void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid);
+
+        void CreateConsolidatedTable(string tableName, Int64 CTID, string schemaName, string dbName);
+
+        void Consolidate(string tableName, long CTID, string dbName, string schemaName);
+
+        void RemoveDuplicatePrimaryKeyChangeRows(string p);
     }
 }

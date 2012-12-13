@@ -134,6 +134,10 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
+        public DataTable GetPendingCTSlaveVersions(string dbName) {
+            throw new NotImplementedException("Netezza is only supported as a slave!");
+        }
+
 
         public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
@@ -209,7 +213,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public string GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
+        public IEnumerable<string> GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
             throw new NotImplementedException("Not sure if we need this yet!");
             /*
             Table t_smo_1 = GetSmoTable(server, dbName, table1, schema1);
@@ -434,6 +438,22 @@ namespace TeslaSQL.DataUtils {
 
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
+        }
+
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid) {
+            throw new NotImplementedException("Still need to implement");
+        }
+
+        public void CreateConsolidatedTable(string tableName, Int64 CTID, string schemaName, string dbName) {
+            throw new NotImplementedException("Still need to implement");
+        }
+
+        public void Consolidate(string tableName, long CTID, string dbName, string schemaName) {
+            throw new NotImplementedException("Still need to implement");
+        }
+
+        public void RemoveDuplicatePrimaryKeyChangeRows(string p) {
+            throw new NotImplementedException("Still need to implement");
         }
     }
 }

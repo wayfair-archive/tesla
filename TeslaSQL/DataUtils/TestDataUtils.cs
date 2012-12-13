@@ -81,6 +81,11 @@ namespace TeslaSQL.DataUtils {
             return toReturn;
         }
 
+        public DataTable GetPendingCTSlaveVersions(string dbName) {
+            throw new NotImplementedException("still have to implement");
+        }
+
+
         public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise) {
             DateTime maxDate = DateTime.Now.AddDays(-1);
             DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
@@ -231,30 +236,20 @@ namespace TeslaSQL.DataUtils {
             return false;
         }
 
-        public string GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
+
+        public IEnumerable<string> GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
             DataTable dt1 = testData.Tables[schema1 + "." + table1, GetTableSpace(dbName)];
             DataTable dt2 = testData.Tables[schema2 + "." + table2, GetTableSpace(dbName)];
-            string columnList = "";
-
-            //list to hold lowercased column names
-            var columns_2 = new List<string>();
-
+            var columns1 = new List<string>();
+            var columns2 = new List<string>();
             //create this so that casing changes to columns don't cause problems, just use the lowercase column name
-            foreach (Column c in dt2.Columns) {
-                columns_2.Add(c.Name.ToLower());
-            }
-
             foreach (Column c in dt1.Columns) {
-                //case insensitive comparison using ToLower()
-                if (columns_2.Contains(c.Name.ToLower())) {
-                    if (columnList != "") {
-                        columnList += ",";
-                    }
-
-                    columnList += "[" + c.Name + "]";
-                }
+                columns1.Add(c.Name.ToLower());
             }
-            return columnList;
+            foreach (Column c in dt2.Columns) {
+                columns2.Add(c.Name.ToLower());
+            }
+            return columns1.Intersect(columns2);
         }
 
         public bool HasPrimaryKey(string dbName, string table, string schema) {
@@ -471,6 +466,22 @@ namespace TeslaSQL.DataUtils {
 
         public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
             throw new NotImplementedException();
+        }
+
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid) {
+            throw new NotImplementedException();
+        }
+
+        public void CreateConsolidatedTable(string tableName, Int64 CTID, string schemaName, string dbName) {
+            throw new NotImplementedException("Still need to implement");
+        }
+
+        public void Consolidate(string tableName, long CTID, string dbName, string schemaName) {
+            throw new NotImplementedException("Still need to implement");
+        }
+
+        public void RemoveDuplicatePrimaryKeyChangeRows(string p) {
+            throw new NotImplementedException("Still need to implement");
         }
     }
 }

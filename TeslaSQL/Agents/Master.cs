@@ -142,9 +142,8 @@ namespace TeslaSQL.Agents {
             if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
                 logger.Log("Last batch succeeded, creating a new one where that left off", LogLevel.Debug);
                 Int64 syncStartVersion = lastbatch.Field<Int64>("syncStopVersion");
-
                 Int64 CTID = destDataUtils.CreateCTVersion(config.relayDB, syncStartVersion, currentVersion);
-                logger.Log("Created CTID " + Convert.ToString(CTID), LogLevel.Debug);
+                logger.Log("Created CTID " + CTID, LogLevel.Debug);
                 return new ChangeTrackingBatch(CTID, syncStartVersion, currentVersion, 0);
             } else if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 logger.Log("Last batch failed before creating CT tables. Updating syncStopVersion to avoid falling too far behind", LogLevel.Debug);

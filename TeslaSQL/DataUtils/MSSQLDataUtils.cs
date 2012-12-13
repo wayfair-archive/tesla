@@ -29,6 +29,11 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
         private DataTable SqlQuery(string dbName, SqlCommand cmd, int timeout = 30) {
+            foreach (IDataParameter p in cmd.Parameters) {
+                if (p.Value == null)
+                    p.Value = DBNull.Value;
+            }
+            logger.Log(cmd.CommandText, LogLevel.Trace);
             //build connection string based on server/db info passed in
             string connStr = buildConnString(dbName);
 
@@ -70,6 +75,11 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
         public int SqlNonQuery(string dbName, SqlCommand cmd, int timeout = 600) {
+            logger.Log(cmd.CommandText, LogLevel.Trace);
+            foreach (IDataParameter p in cmd.Parameters) {
+                if (p.Value == null)
+                    p.Value = DBNull.Value;
+            }
             //build connection string based on server/db info passed in
             string connStr = buildConnString(dbName);
             int numrows;
@@ -134,7 +144,7 @@ namespace TeslaSQL.DataUtils {
             }
 
             DataTable result = SqlQuery(dbName, cmd);
-            return result.Rows[0];
+            return result.Rows.Count > 0 ? result.Rows[0] : null;
         }
 
 
@@ -355,12 +365,10 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
-
         public bool CheckTableExists(string dbName, string table, string schema = "dbo") {
             try {
                 Table t_smo = GetSmoTable(dbName, table, schema);
-
-                if (t_smo != null) {
+                if (table != null) {
                     return true;
                 }
                 return false;
@@ -370,30 +378,19 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public string GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
-            Table t_smo_1 = GetSmoTable(dbName, table1, schema1);
-            Table t_smo_2 = GetSmoTable(dbName, table2, schema2);
-            string columnList = "";
-
-            //list to hold lowercased column names
-            var columns_2 = new List<string>();
-
+        public IEnumerable<string> GetIntersectColumnList(string dbName, string tableName1, string schema1, string tableName2, string schema2) {
+            Table table1 = GetSmoTable(dbName, tableName1, schema1);
+            Table table2 = GetSmoTable(dbName, tableName2, schema2);
+            var columns1 = new List<string>();
+            var columns2 = new List<string>();
             //create this so that casing changes to columns don't cause problems, just use the lowercase column name
-            foreach (Column c in t_smo_2.Columns) {
-                columns_2.Add(c.Name.ToLower());
+            foreach (Column c in table1.Columns) {
+                columns1.Add(c.Name.ToLower());
             }
-
-            foreach (Column c in t_smo_1.Columns) {
-                //case insensitive comparison using ToLower()
-                if (columns_2.Contains(c.Name.ToLower())) {
-                    if (columnList != "") {
-                        columnList += ",";
-                    }
-
-                    columnList += "[" + c.Name + "]";
-                }
+            foreach (Column c in table2.Columns) {
+                columns2.Add(c.Name.ToLower());
             }
-            return columnList;
+            return columns1.Intersect(columns2);
         }
 
 
@@ -420,6 +417,7 @@ namespace TeslaSQL.DataUtils {
                 return false;
             }
         }
+
 
         public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
             Dictionary<string, bool> dict = new Dictionary<string, bool>();
@@ -708,6 +706,145 @@ namespace TeslaSQL.DataUtils {
             bulkCopy.BulkCopyTimeout = timeout;
             bulkCopy.DestinationTableName = schema + "." + table;
             bulkCopy.WriteToServer(reader);
+        }
+
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid) {
+            var tableSql = BuildMergeQuery(table, dbName, ctid);
+            if (archiveTable != null) {
+                tableSql.Concat(BuildMergeQuery(archiveTable, dbName, ctid));
+            }
+            Transaction(tableSql, dbName);
+        }
+
+        private IList<SqlCommand> BuildMergeQuery(TableConf table, string dbName, Int64 ctid) {
+            var commands = new List<SqlCommand>();
+            commands.Add(new SqlCommand("DECLARE @rowcounts TABLE (mergeaction nvarchar(10);"));
+            string sql = string.Format(
+                @"MERGE {0}.{1} WITH (ROWLOCK) AS P
+                  USING (SELECT * FROM {2}) AS CT
+                  ON ({3})
+                  WHEN MATCHED AND CT.SYS_CHANGE_OPERATION = 'D'
+                      THEN DELETE
+                  WHEN MATCHED AND CT.SYS_CHANGE_OPERATION IN ('I', 'U')
+                      THEN UPDATE SET {4}
+                  WHEN NOT MATCHED BY TARGET AND CT.SYS_CHANGE_OPERATION IN ('I', 'U') THEN
+                      INSERT ({5}) VALUES ({6})
+                  OUTPUT $action INTO @rowcounts;",
+                                  dbName,
+                                  table.Name,
+                                  table.ToCTName(ctid),
+                                  table.pkList,
+                                  table.mergeUpdateList.Length > 2 ? table.mergeUpdateList : table.pkList.Replace("AND", ","),
+                                  table.masterColumnList.Replace("CT.", "").Replace("P.", ""),
+                                  table.masterColumnList.Replace("P.", "CT.")
+                                  );
+            commands.Add(new SqlCommand(sql));
+            sql = string.Format("INSERT INTO tblCTLog SELECT {0}, '    DELETE p COUNT:{1}, {2}, GETDATE(), SELECT COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE')",
+                                 ctid, sql, table.Name);
+            commands.Add(new SqlCommand(sql));
+            sql = string.Format("INSERT INTO tblCTLog SELECT {0}, '    INSERT COUNT:{1}, {2}, GETDATE(), SELECT COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE')",
+                                 ctid, sql, table.Name);
+            commands.Add(new SqlCommand(sql));
+            commands.Add(new SqlCommand("DELETE @rowcounts"));
+
+            return commands;
+        }
+
+
+        /// <summary>
+        /// executes a list of sql commands as a transaction. Untested.
+        /// </summary>
+        private void Transaction(IList<SqlCommand> commands, string dbName) {
+            var connStr = buildConnString(dbName);
+            using (var conn = new SqlConnection(connStr)) {
+                conn.Open();
+                var trans = conn.BeginTransaction();
+                foreach (var cmd in commands) {
+                    cmd.Transaction = trans;
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Scripts out a table as CREATE TABLE
+        /// </summary>
+        /// <param name="server">Server identifier to connect to</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="table">Table name</param>
+        /// <param name="schema">Table's schema</param>
+        /// <returns>The CREATE TABLE script as a string</returns>
+        private string ScriptTable(string dbName, string table, string schema) {
+            //initialize scriptoptions variable
+            ScriptingOptions scriptOptions = new ScriptingOptions();
+            scriptOptions.ScriptBatchTerminator = true;
+            scriptOptions.NoCollation = true;
+
+            //get smo table object
+            Table t_smo = GetSmoTable(dbName, table, schema);
+
+            //script out the table, it comes back as a StringCollection object with one string per query batch
+            StringCollection scriptResults = t_smo.Script(scriptOptions);
+
+            //ADO.NET does not allow multiple batches in one query, but we don't really need the
+            //SET ANSI_NULLS ON etc. statements, so just find the CREATE TABLE statement and return that
+            foreach (string s in scriptResults) {
+                if (s.StartsWith("CREATE")) {
+                    return s;
+                }
+            }
+            return "";
+        }
+
+        /// <summary>
+        /// Copies the schema of a table from one server to another, dropping it first if it exists at the destination.
+        /// </summary>
+        /// <param name="sourceDB">Source database name</param>
+        /// <param name="table">Table name</param>
+        /// <param name="schema">Table's schema</param>
+        /// <param name="destDB">Destination database name</param>
+        private void CopyTableDefinition(string sourceDB, string table, string schema, string destDB, string destTable) {
+            //script out the table at the source
+            string createScript = ScriptTable(sourceDB, table, schema);
+            SqlCommand cmd = new SqlCommand(createScript);
+
+            //drop it if it exists at the destination
+            bool didExist = DropTableIfExists(destDB, destTable, schema);
+
+            //create it at the destination
+            int result = SqlNonQuery(destDB, cmd);
+        }
+
+        public void CreateConsolidatedTable(string tableName, Int64 CTID, string schemaName, string dbName) {
+            CopyTableDefinition(dbName, tableName + "_" + CTID, schemaName, dbName, tableName + "_consolidated");
+        }
+
+        public void Consolidate(string tableName, long CTID, string dbName, string schemaName) {
+            var consolidatedTableName = tableName + "_consolidated";
+            var ctTableName = tableName + "_" + CTID;
+            var columns = GetIntersectColumnList(dbName, ctTableName, schemaName, consolidatedTableName, schemaName);
+            var cmd = new SqlCommand(string.Format(
+                "INSERT INTO {0} ({1}) SELECT {1} FROM {2}",
+                consolidatedTableName, string.Join(",", columns), ctTableName));
+            SqlNonQuery(dbName, cmd);
+        }
+
+        public void RemoveDuplicatePrimaryKeyChangeRows(string p) {
+
+        }
+
+
+        public DataTable GetPendingCTSlaveVersions(string dbName) {
+            //TODO remove hardcoded 255
+            string query = @"SELECT * FROM tblCTSlaveVersion
+                            WHERE CTID > 
+                            (
+                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE syncBitWise = 255
+                            )";
+            SqlCommand cmd = new SqlCommand(query);
+
+            return SqlQuery(dbName, cmd);
         }
     }
 }

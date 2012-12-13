@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Net.Sockets;
 using TeslaSQL.DataUtils;
+using System.IO;
+using System.Diagnostics;
 
 namespace TeslaSQL {
     public class Logger {
@@ -13,7 +15,7 @@ namespace TeslaSQL {
         private string statsdPort { get; set; }
         private string errorLogDB { get; set; }
         public IDataUtils dataUtils { private get; set; }
-
+        private readonly string fileName = "tesla.log";
 
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB) {
             this.logLevel = logLevel;
@@ -38,8 +40,14 @@ namespace TeslaSQL {
         public void Log(string message, LogLevel logLevel) {
             //compareto method returns a number less than 0 if logLevel is less than configured
             if (logLevel.CompareTo(this.logLevel) >= 0) {
-                Console.WriteLine(message);
-                //TODO log to gelf or something else here
+                var frame = new StackFrame(1);
+                var method = frame.GetMethod();
+                var obj = method.DeclaringType.ToString();
+                var newMessage = DateTime.Now + ": " + logLevel + ": " + obj + " " + method + "\r\n\t" + message;
+                Console.WriteLine(newMessage);
+                using (var writer = new StreamWriter(fileName, true)) {
+                    writer.WriteLine(newMessage);
+                }
             }
 
             //errors are special - they are exceptions that don't stop the program but we want to write them to a database

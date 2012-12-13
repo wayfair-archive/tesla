@@ -704,6 +704,10 @@ namespace TeslaSQL {
                 return schemaName + "." + Name;
             }
         }
+
+        public string ToCTName(Int64 CTID) {
+            return "tblCT" + Name + "_" + CTID;
+        }
     }
 
     public class TColumn {
