@@ -14,8 +14,7 @@ namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     //TODO we need to set up field lists somewhere in here...
     //TODO figure out where to put check for MSSQL vs. netezza and where to branch the code paths
-    public class Slave : Agent
-    {
+    public class Slave : Agent {
         public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
             this.config = config;
             this.sourceDataUtils = sourceDataUtils;
@@ -39,9 +38,12 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             logger.Log("Initializing CT batch", LogLevel.Trace);
-            //set up the variables and CT version info for this run
             List<ChangeTrackingBatch> batches = InitializeBatch();
 
+            /**
+             * If you run a batch as Multi, and that batch fails, and before the next run,
+             * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
+             */
             if (batches.Count < config.batchConsolidationThreshold) {
                 foreach (var batch in batches) {
                     RunSingleBatch(batch);
@@ -70,7 +72,6 @@ namespace TeslaSQL.Agents {
                 }
                 return batches;
             }
-            //get the last CT version this slave worked on in tblCTSlaveVersion
             logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
 
             DataRow lastBatch = sourceDataUtils.GetLastCTBatch(config.relayDB, AgentType.Slave, config.slave);
@@ -83,10 +84,9 @@ namespace TeslaSQL.Agents {
             //compare bitwise to the bit for last step of slave agent
             if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) > 0) {
                 logger.Log("Last batch was successful, checking for new batches.", LogLevel.Debug);
-                //get all pending revisions that this slave hasn't done yet
 
                 DataTable pendingVersions = sourceDataUtils.GetPendingCTVersions(config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
-                logger.Log("Retrieved " + Convert.ToString(pendingVersions.Rows.Count) + " pending CT version(s) to work on.", LogLevel.Debug);
+                logger.Log("Retrieved " + pendingVersions.Rows.Count + " pending CT version(s) to work on.", LogLevel.Debug);
 
                 foreach (DataRow row in pendingVersions.Rows) {
                     ctb = new ChangeTrackingBatch(row);
@@ -95,7 +95,6 @@ namespace TeslaSQL.Agents {
                 }
                 return batches;
             }
-            //if we get here, last batch failed so we are now about to retry
             ctb = new ChangeTrackingBatch(lastBatch);
             logger.Log("Last batch failed, retrying CTID " + ctb.CTID, LogLevel.Warn);
             batches.Add(ctb);
@@ -109,48 +108,41 @@ namespace TeslaSQL.Agents {
         /// <param name="ctidTable">DataTable object listing all the batches</param>
         private void RunMultiBatch(List<ChangeTrackingBatch> batches) {
             //TODO add logger statements
-
-            //this will hold a list of all the CT tables that exist
-            List<string> tables = new List<string>();
+            List<string> existingCTTables = new List<string>();
 
             //loop through each batch and copy the ct tables and apply schema changes
             foreach (ChangeTrackingBatch batch in batches) {
                 logger.Log("Multi batch run - beginning work on CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                     logger.Log("Downloading change tables for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
-                    //copy the change tables for each batch if it hasn't been done yet
+
                     var changedTables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, batch.CTID);
-                    tables = tables.Concat(changedTables).ToList();
+                    existingCTTables = existingCTTables.Concat(changedTables).ToList();
                     logger.Log("Changes downloaded successfully for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                     //persist bitwise progress to database
                     sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 } else {
                     logger.Log("Not downloading changes since it was already done, instead populating table list for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
-                    //we've already downloaded changes in a previous run so fill in the List of tables using the slave server
-                    tables = tables.Concat(PopulateTableList(config.tables, config.slaveCTDB, batch.CTID)).ToList();
+                    existingCTTables = existingCTTables.Concat(PopulateTableList(config.tables, config.slaveCTDB, batch.CTID)).ToList();
                 }
 
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                     //copy the change tables for each batch if it hasn't been done yet
-                    ApplySchemaChanges(config.tables, config.relayDB, config.slaveCTDB, batch.CTID);
-
-                    //persist bitwise progress to database
+                    logger.Log("Applying schema changes", LogLevel.Debug);
+                    ApplySchemaChanges(config.tables, config.slaveDB, batch.CTID);
                     sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 }
             }
 
             //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
             ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
-
-            //consolidate the change sets into one changetable per table
+            SetFieldLists(config.slaveDB, config.tables, destDataUtils);
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
-                //persist bitwise progress to database
-                sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
-                ConsolidateBatches(tables, batches);
+                logger.Log("Consolidating tables", LogLevel.Trace);
+                ConsolidateBatches(existingCTTables, batches);
                 sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
 
-            //apply the changes to the destination tables
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 //TODO implement
                 //ApplyBatchedChanges(config.tables, config.slaveCTDB, config.slaveDB, tables);
@@ -172,7 +164,7 @@ namespace TeslaSQL.Agents {
             foreach (var tableName in tables) {
                 var lastUnderscore = tableName.LastIndexOf('_');
                 var name = tableName.Substring(0, lastUnderscore);
-                var ctid = int.Parse(tableName.Substring(lastUnderscore+1));
+                var ctid = int.Parse(tableName.Substring(lastUnderscore + 1));
                 if (!lu.ContainsKey(name)) {
                     lu[name] = new List<Int64>();
                 }
@@ -184,11 +176,12 @@ namespace TeslaSQL.Agents {
                     continue;
                 }
                 var ctid = lu[ctName].OrderByDescending(c => c).First();
+
                 destDataUtils.CreateConsolidatedTable(ctName, ctid, table.schemaName, config.slaveCTDB);
                 foreach (var c in lu[ctName].OrderByDescending(c => c)) {
                     destDataUtils.Consolidate(ctName, c, config.slaveCTDB, table.schemaName);
                 }
-                destDataUtils.RemoveDuplicatePrimaryKeyChangeRows(table.Name);
+                destDataUtils.RemoveDuplicatePrimaryKeyChangeRows(table, ctName, config.slaveCTDB);
             }
         }
 
@@ -198,29 +191,27 @@ namespace TeslaSQL.Agents {
         /// <param name="CTID">Change tracking batch object to work on</param>
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
             //TODO add logger statements
-            //this will hold a list of all the CT tables that exist
-            List<string> tables = new List<string>();
+            List<string> existingCTTables = new List<string>();
             sourceDataUtils.CreateSlaveCTVersion(config.relayDB, ctb, config.slave);
 
-            //copy change tables to slave if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
-                tables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
+                existingCTTables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
             } else {
                 //since CopyChangeTables doesn't need to be called to fill in CT table list, get it from the slave instead
-                tables = PopulateTableList(config.tables, config.slaveCTDB, ctb.CTID);
+                existingCTTables = PopulateTableList(config.tables, config.slaveCTDB, ctb.CTID);
             }
 
             //apply schema changes if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                ApplySchemaChanges(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
+                ApplySchemaChanges(config.tables, config.slaveDB, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
-                //marking this field so that completed slave batches will have the same values
+                //marking this field so that all completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
             //apply changes to destination tables if not already done
-            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {                
-                ApplyChanges(config.tables, config.slaveDB, tables, ctb.CTID);
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
+                ApplyChanges(config.tables, config.slaveDB, existingCTTables, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
@@ -232,8 +223,8 @@ namespace TeslaSQL.Agents {
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
         }
 
-        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 ctid) {            
-            SetFieldLists(slaveDB, tableConf, destDataUtils);
+        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 ctid) {
+            
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var table in tableConf) {
                 if (tables.Contains(table.Name)) {
@@ -274,7 +265,7 @@ namespace TeslaSQL.Agents {
             foreach (TableConf t in tables) {
                 ctTableName = CTTableName(t.Name, CTID);
                 if (sourceDataUtils.CheckTableExists(dbName, ctTableName, t.schemaName)) {
-                    tableList.Add(t.schemaName + "." + ctTableName);
+                    tableList.Add(ctTableName);
                 }
             }
             return tableList;
@@ -293,7 +284,7 @@ namespace TeslaSQL.Agents {
         private List<string> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID) {
             bool found = false;
             List<string> tableList = new List<string>();
-            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.masterType, (SqlFlavor)config.relayType, sourceDataUtils, destDataUtils);
+            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.relayType, (SqlFlavor)config.slaveType, sourceDataUtils, destDataUtils);
             foreach (TableConf t in tables) {
                 found = false;
                 string ctTable = CTTableName(t.Name, CTID);
@@ -320,7 +311,7 @@ namespace TeslaSQL.Agents {
             return tableList;
         }
 
-        private void ApplySchemaChanges(TableConf[] tables, string sourceDB, string destDB, Int64 CTID) {
+        private void ApplySchemaChanges(TableConf[] tables, string destDB, Int64 CTID) {
             //get list of schema changes from tblCTSChemaChange_ctid on the relay server/db
             DataTable result = sourceDataUtils.GetSchemaChanges(config.relayDB, CTID);
 
@@ -335,7 +326,6 @@ namespace TeslaSQL.Agents {
                 t = tables.SingleOrDefault(item => String.Compare(item.Name, schemaChange.tableName, ignoreCase: true) == 0);
 
                 if (t == null) {
-                    //table isn't in our config so we don't care about this schema change
                     logger.Log("Ignoring schema change for table " + row.Field<string>("CscTableName") + " because it isn't in config", LogLevel.Debug);
                     continue;
                 }
@@ -421,7 +411,7 @@ namespace TeslaSQL.Agents {
                 test1.Columns.Add("column2", typeof(Int32));
                 destDataUtils.testData.Tables.Add(test1);
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", 1);
 
                 var expected = new DataColumn("testadd", typeof(Int32));
                 var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["testadd"];
@@ -455,7 +445,7 @@ namespace TeslaSQL.Agents {
                 test2.Columns.Add("column3", typeof(string));
                 destDataUtils.testData.Tables.Add(test2);
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", 1);
 
                 var expected = new DataColumn("column2", typeof(Int32));
                 var actual = destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns["column2"];
@@ -488,8 +478,8 @@ namespace TeslaSQL.Agents {
                 test2.Columns.Add("column3", typeof(string));
                 destDataUtils.testData.Tables.Add(test2);
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
-             
+                slave.ApplySchemaChanges(tables, "testdb", 1);
+
                 Assert.False(destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns.Contains("testadd"));
             }
 
@@ -519,7 +509,7 @@ namespace TeslaSQL.Agents {
                 test1.Columns.Add("column2", typeof(Int32));
                 destDataUtils.testData.Tables.Add(test1);
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", 1);
 
                 Assert.True(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2_new"));
                 destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].RejectChanges();
@@ -553,7 +543,7 @@ namespace TeslaSQL.Agents {
 
                 //if this assert fails it means the test setup got borked
                 Assert.True(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", 1);
                 Assert.False(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
             }
 
@@ -586,8 +576,8 @@ namespace TeslaSQL.Agents {
                 //if this assert fails it means the test setup got borked
                 var expected = new DataColumn("column2", typeof(DateTime));
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
-                var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["column2"];                
+                slave.ApplySchemaChanges(tables, "testdb", 1);
+                var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["column2"];
 
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
             }
@@ -617,7 +607,7 @@ namespace TeslaSQL.Agents {
 
                 sourceDataUtils = new TestDataUtils(TServer.RELAY);
                 destDataUtils = new TestDataUtils(TServer.SLAVE);
-                
+
                 testData = new DataSet();
                 sourceDataUtils.testData = new DataSet();
                 destDataUtils.testData = new DataSet();

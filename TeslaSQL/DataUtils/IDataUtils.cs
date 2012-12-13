@@ -299,6 +299,6 @@ namespace TeslaSQL.DataUtils {
 
         void Consolidate(string tableName, long CTID, string dbName, string schemaName);
 
-        void RemoveDuplicatePrimaryKeyChangeRows(string p);
+        void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string consolidatedTableName, string dbName);
     }
 }
