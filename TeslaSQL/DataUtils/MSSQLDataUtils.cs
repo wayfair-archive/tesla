@@ -701,7 +701,7 @@ namespace TeslaSQL.DataUtils {
         public void BulkCopy(SqlDataReader reader, string dbName, string schema, string table, int timeout) {
             SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);
             bulkCopy.BulkCopyTimeout = timeout;
-            bulkCopy.DestinationTableName = schema + "." + table;
+            bulkCopy.DestinationTableName = schema + ".[" + table+"]";
             bulkCopy.WriteToServer(reader);
         }
 

@@ -295,7 +295,7 @@ namespace TeslaSQL.DataUtils {
 
         void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid);
 
-        void CreateConsolidatedTable(string originalName, string schemaName, string dbName, string consolidatedName);
+        //void CreateConsolidatedTable(string originalName, string schemaName, string dbName, string consolidatedName);
 
         void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName);
 

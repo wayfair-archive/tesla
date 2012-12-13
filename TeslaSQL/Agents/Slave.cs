@@ -186,6 +186,7 @@ namespace TeslaSQL.Agents {
         }
 
         private void ConsolidateBatches(List<ChangeTable> tables, List<ChangeTrackingBatch> batches) {
+            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, sourceDataUtils);
             var lu = new Dictionary<string, List<ChangeTable>>();
             foreach (var changeTable in tables) {
                 if (!lu.ContainsKey(changeTable.name)) {
@@ -198,7 +199,8 @@ namespace TeslaSQL.Agents {
                     continue;
                 }
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
-                sourceDataUtils.CreateConsolidatedTable(lastChangeTable.ctName, table.schemaName, config.relayDB, lastChangeTable.consolidatedName);
+                dataCopy.CopyTable(config.relayDB, lastChangeTable.ctName, table.schemaName, config.relayDB, 36000, lastChangeTable.consolidatedName);
+                //sourceDataUtils.CreateConsolidatedTable(lastChangeTable.ctName, table.schemaName, config.relayDB, lastChangeTable.consolidatedName);
                 foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid)) {
                     sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, config.relayDB, table.schemaName);
                 }
