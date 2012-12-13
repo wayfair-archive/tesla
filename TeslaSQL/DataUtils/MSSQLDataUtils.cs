@@ -760,6 +760,7 @@ namespace TeslaSQL.DataUtils {
                 var trans = conn.BeginTransaction();
                 foreach (var cmd in commands) {
                     cmd.Transaction = trans;
+                    cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
                 }
             }
