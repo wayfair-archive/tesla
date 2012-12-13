@@ -21,17 +21,6 @@ namespace TeslaSQL.DataUtils {
             this.server = server;
         }
 
-        public static void NZTest() {
-            string connString = "Data Source=SWIFT;User ID=system_init;Password=2zN$&k54CGH9Pu;Initial Catalog=CSN_PRODUCT;Provider=NZOLEDB;";
-            var conn = new OleDbConnection(connString);
-            conn.Open();
-            OleDbCommand cmd = new OleDbCommand("SELECT * FROM TBLPLPRODUCTSTATUS;", conn);
-            OleDbDataReader rdr = cmd.ExecuteReader();
-            while (rdr.Read()) {
-                Console.WriteLine(rdr[0]);
-            }
-        }
-
         /// <summary>
         /// Runs a sql query and returns results as requested type
         /// </summary>

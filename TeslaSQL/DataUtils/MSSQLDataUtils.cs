@@ -707,10 +707,10 @@ namespace TeslaSQL.DataUtils {
             bulkCopy.WriteToServer(reader);
         }
 
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid) {
-            var tableSql = BuildMergeQuery(table, dbName, ctid);
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID) {
+            var tableSql = BuildMergeQuery(table, dbName, CTID);
             if (archiveTable != null) {
-                tableSql.Concat(BuildMergeQuery(archiveTable, dbName, ctid));
+                tableSql.Concat(BuildMergeQuery(archiveTable, dbName, CTID));
             }
             Transaction(tableSql, dbName);
         }

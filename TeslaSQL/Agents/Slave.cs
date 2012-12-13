@@ -70,6 +70,7 @@ namespace TeslaSQL.Agents {
                 }
                 return batches;
             }
+
             //get the last CT version this slave worked on in tblCTSlaveVersion
             logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
 
@@ -113,33 +114,7 @@ namespace TeslaSQL.Agents {
             //this will hold a list of all the CT tables that exist
             List<string> tables = new List<string>();
 
-            //loop through each batch and copy the ct tables and apply schema changes
-            foreach (ChangeTrackingBatch batch in batches) {
-                logger.Log("Multi batch run - beginning work on CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
-                if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
-                    logger.Log("Downloading change tables for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
-                    //copy the change tables for each batch if it hasn't been done yet
-                    var changedTables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, batch.CTID);
-                    tables = tables.Concat(changedTables).ToList();
-                    logger.Log("Changes downloaded successfully for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
-                    //persist bitwise progress to database
-                    sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
-                } else {
-                    logger.Log("Not downloading changes since it was already done, instead populating table list for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
-                    //we've already downloaded changes in a previous run so fill in the List of tables using the slave server
-                    tables = tables.Concat(PopulateTableList(config.tables, config.slaveCTDB, batch.CTID)).ToList();
-                }
-
-                if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                    //copy the change tables for each batch if it hasn't been done yet
-                    ApplySchemaChanges(config.tables, config.relayDB, config.slaveCTDB, batch.CTID);
-
-                    //persist bitwise progress to database
-                    sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
-                }
-            }
-
-            //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
+            //get last batch in hte list
             ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
 
             //consolidate the change sets into one changetable per table
@@ -150,6 +125,29 @@ namespace TeslaSQL.Agents {
                 sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
 
+            if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
+                logger.Log("Downloading consolidated changetables", LogLevel.Debug);
+                tables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, endBatch.CTID, isConsolidated:true);
+                logger.Log("Changes downloaded successfully", LogLevel.Debug);
+                sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
+            } else {
+                logger.Log("Not downloading changes since it was already done, instead populating table list", LogLevel.Debug);
+                tables = PopulateTableList(config.tables, config.slaveCTDB, endBatch.CTID);
+            }
+
+            //loop through each batch and copy the ct tables and apply schema changes
+            foreach (ChangeTrackingBatch batch in batches) {
+                if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
+                    //copy the change tables for each batch if it hasn't been done yet
+                    ApplySchemaChanges(config.tables, config.relayDB, config.slaveCTDB, batch.CTID);
+
+                    //persist bitwise progress to database
+                    sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
+                }
+            }
+
+            //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
+            
             //apply the changes to the destination tables
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 //TODO implement
@@ -179,7 +177,7 @@ namespace TeslaSQL.Agents {
                 lu[name].Add(ctid);
             }
             foreach (var table in config.tables) {
-                var ctName = "tblCT" + table.Name;
+                var ctName = CTTableName(table.Name);
                 if (!lu.ContainsKey(ctName)) {
                     continue;
                 }
@@ -206,6 +204,8 @@ namespace TeslaSQL.Agents {
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 tables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
+                //marking this field so that completed slave batches will have the same values
+                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             } else {
                 //since CopyChangeTables doesn't need to be called to fill in CT table list, get it from the slave instead
                 tables = PopulateTableList(config.tables, config.slaveCTDB, ctb.CTID);
@@ -214,9 +214,7 @@ namespace TeslaSQL.Agents {
             //apply schema changes if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                 ApplySchemaChanges(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
-                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
-                //marking this field so that completed slave batches will have the same values
-                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
+                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);                
             }
             //apply changes to destination tables if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {                
@@ -232,7 +230,7 @@ namespace TeslaSQL.Agents {
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
         }
 
-        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 ctid) {            
+        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<string> tables, Int64 CTID) {            
             SetFieldLists(slaveDB, tableConf, destDataUtils);
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var table in tableConf) {
@@ -255,17 +253,16 @@ namespace TeslaSQL.Agents {
                 }
             }
             foreach (var tableArchive in hasArchive) {
-                destDataUtils.ApplyTableChanges(tableArchive.Key, tableArchive.Value, config.slaveDB, ctid);
+                destDataUtils.ApplyTableChanges(tableArchive.Key, tableArchive.Value, config.slaveDB, CTID);
             }
         }
 
 
         /// <summary>
-        /// For the specified list of batches and tables, populate a list of each CT tables exist
+        /// For the specified list of tables, populate a list of which CT tables exist
         /// </summary>
         /// <param name="tables">Array of table config objects</param>
         /// <param name="dbName">Database name</param>
-        /// <param name="batches">Dictionary of batches, where the key is a CTID</param>
         /// <param name="tables">List of table names to populate</param>
         private List<string> PopulateTableList(TableConf[] tables, string dbName, Int64 CTID) {
             //TODO add logger statements
@@ -273,11 +270,26 @@ namespace TeslaSQL.Agents {
             string ctTableName;
             foreach (TableConf t in tables) {
                 ctTableName = CTTableName(t.Name, CTID);
-                if (sourceDataUtils.CheckTableExists(dbName, ctTableName, t.schemaName)) {
+                if (destDataUtils.CheckTableExists(dbName, ctTableName, t.schemaName)) {
                     tableList.Add(t.schemaName + "." + ctTableName);
                 }
             }
             return tableList;
+        }
+
+        /// <summary>
+        /// Given a table name and CTID, returns the CT table name
+        /// </summary>
+        /// <param name="table">Table name</param>
+        /// <param name="CTID">Change tracking batch iD</param>
+        /// <returns>CT table name</returns>
+        public string CTTableName(string table, Int64? CTID = null) {
+            if (CTID != null) {
+                return "tblCT" + table + "_" + Convert.ToString(CTID);
+            } else {
+                //consolidated table always has the same name
+                return "tblCT" + table + "_" + config.slave;
+            }
         }
 
 
@@ -290,31 +302,32 @@ namespace TeslaSQL.Agents {
         /// <param name="CTID">CT batch ID this is for</param>
         /// <param name="tables">Reference variable, list of tables that have >0 changes. Passed by ref instead of output
         ///     because in multi batch mode it is built up over several calls to this method.</param>
-        private List<string> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID) {
+        private List<string> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
             bool found = false;
             List<string> tableList = new List<string>();
             IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.masterType, (SqlFlavor)config.relayType, sourceDataUtils, destDataUtils);
             foreach (TableConf t in tables) {
                 found = false;
-                string ctTable = CTTableName(t.Name, CTID);
+                string sourceCTTable = isConsolidated ? CTTableName(t.Name, null) : CTTableName(t.Name, CTID);
+                string destCTTable = CTTableName(t.Name, CTID);
                 //attempt to copy the change table locally
                 try {
                     //hard coding timeout at 1 hour for bulk copy
-                    dataCopy.CopyTable(sourceCTDB, ctTable, t.schemaName, destCTDB, 36000);
-                    logger.Log("Copied table " + t.schemaName + "." + ctTable + " to slave", LogLevel.Trace);
+                    dataCopy.CopyTable(sourceCTDB, sourceCTTable, t.schemaName, destCTDB, 36000, destCTTable);
+                    logger.Log("Copied table " + t.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
                     found = true;
                 } catch (DoesNotExistException) {
                     //this is a totally normal and expected case since we only publish changetables when data actually changed
-                    logger.Log("No changes to pull for table " + t.schemaName + "." + ctTable + " because it does not exist ", LogLevel.Debug);
+                    logger.Log("No changes to pull for table " + t.schemaName + "." + sourceCTTable + " because it does not exist ", LogLevel.Debug);
                 } catch (Exception e) {
                     if (t.stopOnError) {
                         throw e;
                     } else {
-                        logger.Log("Copying change data for table " + t.schemaName + "." + ctTable + " failed with error: " + e.Message, LogLevel.Error);
+                        logger.Log("Copying change data for table " + t.schemaName + "." + sourceCTTable + " failed with error: " + e.Message, LogLevel.Error);
                     }
                 }
                 if (found) {
-                    tableList.Add(ctTable);
+                    tableList.Add(destCTTable);
                 }
             }
             return tableList;

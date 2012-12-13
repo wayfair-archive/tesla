@@ -17,7 +17,7 @@ namespace TeslaSQL.DataCopy {
             this.destDataUtils = destDataUtils;
         }
 
-        public void CopyTable(string sourceDB, string table, string schema, string destDB, int timeout) {
+        public void CopyTable(string sourceDB, string table, string schema, string destDB, int timeout, string destTableName = null) {
             throw new NotImplementedException();
         }
 

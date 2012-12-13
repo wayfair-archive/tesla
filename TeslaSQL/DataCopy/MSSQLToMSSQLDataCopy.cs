@@ -31,7 +31,10 @@ namespace TeslaSQL.DataCopy {
             }           
         }
 
-        public void CopyTable(string sourceDB, string table, string schema, string destDB, int timeout) {
+        public void CopyTable(string sourceDB, string table, string schema, string destDB, int timeout, string destTableName = null) {
+            //by default the dest table will have the same name as the source table
+            destTableName = (destTableName == null) ? table : destTableName;
+
             //drop table at destination and create from source schema
             CopyTableDefinition(sourceDB, table, schema, destDB);
 
