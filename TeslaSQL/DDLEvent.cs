@@ -8,6 +8,7 @@ using System.Data;
 using System.Data.SqlTypes;
 using Xunit;
 using Xunit.Extensions;
+using TeslaSQL.DataUtils;
 #endregion
 
 namespace TeslaSQL {
@@ -33,9 +34,8 @@ namespace TeslaSQL {
         /// Parse XML EVENTDATA and create zero or more SchemaChange objects from that
         /// </summary>
         /// <param name="tables">Array of table configuration objects</param>
-        /// <param name="TServer">Server to connect to if we need to retrieve data type info</param>
         /// <param name="dbName">Database for retrieving data type info</param>
-        public List<SchemaChange> Parse(TableConf[] tables, IDataUtils dataUtils, TServer server, string dbName) {
+        public List<SchemaChange> Parse(TableConf[] tables, IDataUtils dataUtils, string dbName) {
             var schemaChanges = new List<SchemaChange>();
             string columnName;
             string tableName;
@@ -97,7 +97,7 @@ namespace TeslaSQL {
                     foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {
                         columnName = xColumn.InnerText;
                         if (t.columnList == null || t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
-                            dataType = ParseDataType(dataUtils.GetDataType(server, dbName, tableName, schemaName, columnName));
+                            dataType = ParseDataType(dataUtils.GetDataType(dbName, tableName, schemaName, columnName));
                             sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
                         }
@@ -112,7 +112,7 @@ namespace TeslaSQL {
                         //slaves adding a new column that we don't plan to publish changes for.
                         //if column list is null, we want changes associated with all columns.
                         if (t.columnList == null || t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
-                            var type = dataUtils.GetDataType(server, dbName, tableName, schemaName, columnName);
+                            var type = dataUtils.GetDataType(dbName, tableName, schemaName, columnName);
                             dataType = ParseDataType(type);
                             sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
@@ -175,7 +175,7 @@ namespace TeslaSQL {
                 <Create><Columns><Name>column1</Name></Columns></Create></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Add, "dbo", "test1", "column1", null, new DataType("int", null, (byte)10, 0));
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 //assert.equal doesn't work for objects but this does
                 Assert.True(result[0].Equals(expected));
             }
@@ -189,7 +189,7 @@ namespace TeslaSQL {
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected1 = new SchemaChange(100, SchemaChangeType.Add, "dbo", "test1", "column1", null, new DataType("int", null, (byte)10, 0));
                 SchemaChange expected2 = new SchemaChange(100, SchemaChangeType.Add, "dbo", "test1", "column2", null, new DataType("varchar", 100, null, null));
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.True(result[0].Equals(expected1));
                 Assert.True(result[1].Equals(expected2));
             }
@@ -201,7 +201,7 @@ namespace TeslaSQL {
                 <ObjectName>test2</ObjectName><ObjectType>TABLE</ObjectType><AlterTableActionList>
                 <Create><Columns><Name>column3</Name></Columns></Create></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);                
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.Equal(0, result.Count);             
             }
 
@@ -213,7 +213,7 @@ namespace TeslaSQL {
                 <Create><Columns><Name>column2</Name></Columns></Create></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Add, "dbo", "test2", "column2", null, new DataType("datetime", null, null, null));
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");                
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");                
                 Assert.True(result[0].Equals(expected));     
             }
 
@@ -224,7 +224,7 @@ namespace TeslaSQL {
                 <ObjectName>testnotinconfig</ObjectName><ObjectType>TABLE</ObjectType><AlterTableActionList>
                 <Create><Columns><Name>column1</Name></Columns></Create></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.Equal(0, result.Count);  
             }
 
@@ -237,7 +237,7 @@ namespace TeslaSQL {
                 <Constraints><Name>DF_test1_column3</Name></Constraints></Create></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Add, "dbo", "test1", "column1", null, new DataType("int", null, (byte)10, 0));
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");                
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");                
                 Assert.True(result[0].Equals(expected));
             }
 
@@ -248,7 +248,7 @@ namespace TeslaSQL {
                 <SchemaName>dbo</SchemaName><ObjectName>test1</ObjectName><ObjectType>TABLE</ObjectType>
                 <TSQLCommand><CommandText>alter table test1 enable change_tracking</CommandText></TSQLCommand></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.Equal(0, result.Count);
             }
 
@@ -259,7 +259,7 @@ namespace TeslaSQL {
                 <SchemaName>dbo</SchemaName><ObjectName>test1</ObjectName><ObjectType>TABLE</ObjectType><AlterTableActionList>
                 <Create><Constraints><Name>DF_test1_column1</Name></Constraints></Create></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.Equal(0, result.Count);
             }
 
@@ -272,7 +272,7 @@ namespace TeslaSQL {
                 <Parameters><Param>test1.column2</Param><Param>col2</Param><Param>COLUMN</Param></Parameters></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Rename, "dbo", "test1", "column2", "col2", null);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.True(result[0].Equals(expected));
             }
 
@@ -285,7 +285,7 @@ namespace TeslaSQL {
                 <Parameters><Param>test2.column2</Param><Param>col2</Param><Param>COLUMN</Param></Parameters></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Rename, "dbo", "test2", "column2", "col2", null);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.True(result[0].Equals(expected));
             }
 
@@ -297,7 +297,7 @@ namespace TeslaSQL {
                 <TargetObjectType>TABLE</TargetObjectType><NewObjectName>col3</NewObjectName>
                 <Parameters><Param>test1.col2</Param><Param>col3</Param><Param>COLUMN</Param></Parameters></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.Equal(0, result.Count);
             }
 
@@ -309,7 +309,7 @@ namespace TeslaSQL {
                 <TargetObjectName /><TargetObjectType /><NewObjectName>test1_renamed</NewObjectName>
                 <Parameters><Param>test1</Param><Param>test1_renamed</Param><Param /></Parameters></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.Equal(0, result.Count);
             }
             
@@ -322,7 +322,7 @@ namespace TeslaSQL {
                 <AlterTableActionList><Alter><Columns><Name>column1</Name></Columns></Alter></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Modify, "dbo", "test1", "column1", null, new DataType("int", null, (byte)10, 0));
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.True(result[0].Equals(expected));
             }
 
@@ -335,7 +335,7 @@ namespace TeslaSQL {
                 <AlterTableActionList><Alter><Columns><Name>COLUMN1</Name></Columns></Alter></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Modify, "dbo", "TEST1", "COLUMN1", null, new DataType("int", null, (byte)10, 0));
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.True(result[0].Equals(expected));
             }
 
@@ -347,7 +347,7 @@ namespace TeslaSQL {
                 <AlterTableActionList><Alter><Columns><Name>column2</Name></Columns></Alter></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Modify, "dbo", "test2", "column2", null, new DataType("datetime", null, null, null));
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.True(result[0].Equals(expected));
             }
 
@@ -358,7 +358,7 @@ namespace TeslaSQL {
                 <SchemaName>dbo</SchemaName><ObjectName>test2</ObjectName><ObjectType>TABLE</ObjectType>
                 <AlterTableActionList><Alter><Columns><Name>col2</Name></Columns></Alter></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.Equal(0, result.Count);
             }
 
@@ -370,7 +370,7 @@ namespace TeslaSQL {
                 <AlterTableActionList><Drop><Columns><Name>column1</Name></Columns></Drop></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Drop, "dbo", "test1", "column1", null, null);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.True(result[0].Equals(expected));
             }
 
@@ -382,7 +382,7 @@ namespace TeslaSQL {
                 <AlterTableActionList><Drop><Columns><Name>column1</Name></Columns></Drop></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
                 SchemaChange expected = new SchemaChange(100, SchemaChangeType.Drop, "dbo", "test2", "column1", null, null);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.True(result[0].Equals(expected));
             }
 
@@ -393,7 +393,7 @@ namespace TeslaSQL {
                 <SchemaName>dbo</SchemaName><ObjectName>test2</ObjectName><ObjectType>TABLE</ObjectType>
                 <AlterTableActionList><Drop><Columns><Name>col2</Name></Columns></Drop></AlterTableActionList></EVENT_INSTANCE>";
                 DDLEvent dde = new DDLEvent(100, xml);
-                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, TServer.MASTER, "testdb");
+                List<SchemaChange> result = dde.Parse(tables, (IDataUtils)dataUtils, "testdb");
                 Assert.Equal(0, result.Count);
             }
         }
@@ -417,9 +417,9 @@ namespace TeslaSQL {
                 tables[1].Name = "test2";
                 tables[1].columnList = new string[2] { "column1", "column2" };
 
-                dataUtils = new TestDataUtils();
+                dataUtils = new TestDataUtils(TServer.MASTER);
                 testData = new DataSet();
-                var dt = new DataTable("INFORMATION_SCHEMA.COLUMNS", dataUtils.GetTableSpace(TServer.MASTER, "testdb"));
+                var dt = new DataTable("INFORMATION_SCHEMA.COLUMNS", dataUtils.GetTableSpace("testdb"));
                 dt.Columns.Add("TABLE_SCHEMA", typeof(string));
                 dt.Columns.Add("TABLE_CATALOG", typeof(string));
                 dt.Columns.Add("TABLE_NAME", typeof(string));

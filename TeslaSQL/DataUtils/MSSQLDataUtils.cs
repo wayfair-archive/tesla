@@ -8,28 +8,29 @@ using System.Data;
 using Microsoft.SqlServer.Management.Smo;
 using Microsoft.SqlServer.Management.Common;
 
-namespace TeslaSQL {
-    public class DataUtils : IDataUtils {
+namespace TeslaSQL.DataUtils {
+    public class MSSQLDataUtils : IDataUtils {
 
         public Logger logger;
         public Config config;
+        public TServer server;
 
-        public DataUtils(Config config, Logger logger) {
+        public MSSQLDataUtils(Config config, Logger logger, TServer server) {
             this.config = config;
             this.logger = logger;
+            this.server = server;
         }
 
         /// <summary>
-        /// Runs a sql query and returns results as requested type
+        /// Runs a sql query and returns results as a datatable
         /// </summary>
-        /// <param name="server">Server to run the query on</param>
         /// <param name="dbName">Database name</param>
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
-        private DataTable SqlQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
+        private DataTable SqlQuery(string dbName, SqlCommand cmd, int timeout = 30) {
             //build connection string based on server/db info passed in
-            string connStr = buildConnString(server, dbName);
+            string connStr = buildConnString(dbName);
 
             //using block to avoid resource leaks
             using (SqlConnection conn = new SqlConnection(connStr)) {
@@ -51,13 +52,12 @@ namespace TeslaSQL {
         /// <summary>
         /// Runs a sql query and returns first column and row from results as specified type
         /// </summary>
-        /// <param name="server">Server to run the query on</param>
         /// <param name="dbName">Database name</param>
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>The value in the first column and row, as the specified type</returns>
-        private T SqlQueryToScalar<T>(TServer server, string dbName, SqlCommand cmd, int timeout = 30) {
-            DataTable result = SqlQuery(server, dbName, cmd, timeout);
+        private T SqlQueryToScalar<T>(string dbName, SqlCommand cmd, int timeout = 30) {
+            DataTable result = SqlQuery(dbName, cmd, timeout);
             //return result in first column and first row as specified type
             return (T)result.Rows[0][0];
         }
@@ -65,14 +65,13 @@ namespace TeslaSQL {
         /// <summary>
         /// Runs a query that does not return results (i.e. a write operation)
         /// </summary>
-        /// <param name="server">Server to run on</param>
         /// <param name="dbName">Database name</param>
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        private int SqlNonQuery(TServer server, string dbName, SqlCommand cmd, int timeout = 600) {
+        public int SqlNonQuery(string dbName, SqlCommand cmd, int timeout = 600) {
             //build connection string based on server/db info passed in
-            string connStr = buildConnString(server, dbName);
+            string connStr = buildConnString(dbName);
             int numrows;
             //using block to avoid resource leaks
             using (SqlConnection conn = new SqlConnection(connStr)) {
@@ -92,12 +91,11 @@ namespace TeslaSQL {
 
 
         /// <summary>
-        /// Builds a connection string for the passed in server identifier using global config values
+        /// Builds a connection string for the passed in database name
         /// </summary>
-        /// <param name="server">Server identifier</param>
         /// <param name="database">Database name</param>
         /// <returns>An ADO.NET connection string</returns>
-        private string buildConnString(TServer server, string database) {
+        private string buildConnString(string database) {
             string sqlhost = "";
             string sqluser = "";
             string sqlpass = "";
@@ -124,7 +122,7 @@ namespace TeslaSQL {
         }
 
 
-        public DataRow GetLastCTBatch(TServer server, string dbName, AgentType agentType, string slaveIdentifier = "") {
+        public DataRow GetLastCTBatch(string dbName, AgentType agentType, string slaveIdentifier = "") {
             SqlCommand cmd;
             //for slave we have to pass the slave identifier in and use tblCTSlaveVersion
             if (agentType.Equals(AgentType.Slave)) {
@@ -135,12 +133,12 @@ namespace TeslaSQL {
                 cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise FROM dbo.tblCTVersion ORDER BY CTID DESC");
             }
 
-            DataTable result = SqlQuery(server, dbName, cmd);
+            DataTable result = SqlQuery(dbName, cmd);
             return result.Rows[0];
         }
 
 
-        public DataTable GetPendingCTVersions(TServer server, string dbName, Int64 CTID, int syncBitWise) {
+        public DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise) {
             string query = ("SELECT CTID, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise" +
                 " FROM dbo.tblCTVersion WITH(NOLOCK) WHERE CTID > @ctid AND syncBitWise & @syncbitwise > 0" +
                 " ORDER BY CTID ASC");
@@ -149,16 +147,16 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
 
             //get query results as a datatable since there can be multiple rows
-            return SqlQuery(server, dbName, cmd);
+            return SqlQuery(dbName, cmd);
         }
 
 
-        public DateTime GetLastStartTime(TServer server, string dbName, Int64 CTID, int syncBitWise) {
+        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise) {
             SqlCommand cmd = new SqlCommand("select MAX(syncStartTime) as maxStart FROM dbo.tblCTVersion WITH(NOLOCK)"
                 + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID");
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
             cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
-            DateTime? lastStartTime = SqlQueryToScalar<DateTime?>(server, dbName, cmd);
+            DateTime? lastStartTime = SqlQueryToScalar<DateTime?>(dbName, cmd);
             if (lastStartTime == null) {
                 return DateTime.Now.AddDays(-1);
             }
@@ -166,20 +164,20 @@ namespace TeslaSQL {
         }
 
 
-        public Int64 GetCurrentCTVersion(TServer server, string dbName) {
+        public Int64 GetCurrentCTVersion(string dbName) {
             SqlCommand cmd = new SqlCommand("SELECT CHANGE_TRACKING_CURRENT_VERSION();");
-            return SqlQueryToScalar<Int64>(server, dbName, cmd);
+            return SqlQueryToScalar<Int64>(dbName, cmd);
         }
 
 
-        public Int64 GetMinValidVersion(TServer server, string dbName, string table, string schema) {
+        public Int64 GetMinValidVersion(string dbName, string table, string schema) {
             SqlCommand cmd = new SqlCommand("SELECT CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID(@tablename))");
             cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = schema + "." + table;
-            return SqlQueryToScalar<Int64>(server, dbName, cmd);
+            return SqlQueryToScalar<Int64>(dbName, cmd);
         }
 
 
-        public int SelectIntoCTTable(TServer server, string sourceCTDB, string masterColumnList, string ctTableName,
+        public int SelectIntoCTTable(string sourceCTDB, string masterColumnList, string ctTableName,
             string sourceDB, string schemaName, string tableName, Int64 startVersion, string pkList, Int64 stopVersion, string notNullPkList, int timeout) {
             /*
              * There is no way to have column lists or table names be parametrized/dynamic in sqlcommands other than building the string
@@ -199,11 +197,11 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@startVersion", SqlDbType.BigInt).Value = startVersion;
             cmd.Parameters.Add("@stopVersion", SqlDbType.BigInt).Value = stopVersion;
 
-            return SqlNonQuery(server, sourceCTDB, cmd, 1200);
+            return SqlNonQuery(sourceCTDB, cmd, 1200);
         }
 
 
-        public Int64 CreateCTVersion(TServer server, string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
+        public Int64 CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
             //create new row in tblCTVersion, output the CTID
             string query = "INSERT INTO dbo.tblCTVersion (syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
             query += " OUTPUT inserted.CTID";
@@ -214,11 +212,11 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@startVersion", SqlDbType.BigInt).Value = syncStartVersion;
             cmd.Parameters.Add("@stopVersion", SqlDbType.BigInt).Value = syncStopVersion;
 
-            return SqlQueryToScalar<Int64>(server, dbName, cmd);
+            return SqlQueryToScalar<Int64>(dbName, cmd);
         }
 
 
-        public void CreateSlaveCTVersion(TServer server, string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
+        public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
 
             string query = "INSERT INTO dbo.tblCTSlaveVersion (CTID, slaveIdentifier, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
             query += " VALUES (@ctid, @slaveidentifier, @startversion, @stopversion, @starttime, @syncbitwise)";
@@ -232,13 +230,13 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@starttime", SqlDbType.DateTime).Value = ctb.syncStartTime;
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = ctb.syncBitWise;
 
-            int result = SqlNonQuery(server, dbName, cmd, 30);
+            int result = SqlNonQuery(dbName, cmd, 30);
         }
 
 
-        public void CreateSchemaChangeTable(TServer server, string dbName, Int64 CTID) {
+        public void CreateSchemaChangeTable(string dbName, Int64 CTID) {
             //drop the table on the relay server if it exists
-            bool tExisted = DropTableIfExists(server, dbName, "tblCTSchemaChange_" + Convert.ToString(CTID), "dbo");
+            bool tExisted = DropTableIfExists(dbName, "tblCTSchemaChange_" + Convert.ToString(CTID), "dbo");
 
             //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
             string query = "CREATE TABLE [dbo].[tblCTSchemaChange_" + CTID + "] (";
@@ -258,12 +256,12 @@ namespace TeslaSQL {
 
             SqlCommand cmd = new SqlCommand(query);
 
-            int result = SqlNonQuery(server, dbName, cmd);
+            int result = SqlNonQuery(dbName, cmd);
         }
 
 
-        public DataTable GetDDLEvents(TServer server, string dbName, DateTime afterDate) {
-            if (!CheckTableExists(server, dbName, "tblDDLEvent")) {
+        public DataTable GetDDLEvents(string dbName, DateTime afterDate) {
+            if (!CheckTableExists(dbName, "tblDDLEvent")) {
                 throw new Exception("tblDDLEvent does not exist on the source database, unable to check for schema changes. Please create the table and the trigger that populates it!");
             }
 
@@ -272,11 +270,11 @@ namespace TeslaSQL {
             SqlCommand cmd = new SqlCommand(query);
             cmd.Parameters.Add("@afterdate", SqlDbType.DateTime).Value = afterDate;
 
-            return SqlQuery(server, dbName, cmd);
+            return SqlQuery(dbName, cmd);
         }
 
 
-        public void WriteSchemaChange(TServer server, string dbName, Int64 CTID, SchemaChange schemaChange) {
+        public void WriteSchemaChange(string dbName, Int64 CTID, SchemaChange schemaChange) {
 
             string query = "INSERT INTO dbo.tblCTSchemaChange_" + Convert.ToString(CTID) +
                 " (CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName, CscNewColumnName, " +
@@ -299,11 +297,11 @@ namespace TeslaSQL {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
             }
-            int result = SqlNonQuery(server, dbName, cmd);
+            int result = SqlNonQuery(dbName, cmd);
         }
 
 
-        public DataRow GetDataType(TServer server, string dbName, string table, string schema, string column) {
+        public DataRow GetDataType(string dbName, string table, string schema, string column) {
             var cmd = new SqlCommand("SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE " +
                 "FROM INFORMATION_SCHEMA.COLUMNS WITH(NOLOCK) WHERE TABLE_SCHEMA = @schema AND TABLE_CATALOG = @db " +
                 "AND TABLE_NAME = @table AND COLUMN_NAME = @column");
@@ -312,7 +310,7 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@schema", SqlDbType.VarChar, 500).Value = schema;
             cmd.Parameters.Add("@column", SqlDbType.VarChar, 500).Value = column;
 
-            DataTable result = SqlQuery(server, dbName, cmd);
+            DataTable result = SqlQuery(dbName, cmd);
 
             if (result == null || result.Rows.Count == 0) {
                 throw new DoesNotExistException("Column " + column + " does not exist on table " + table + "!");
@@ -322,26 +320,25 @@ namespace TeslaSQL {
         }
 
 
-        public void UpdateSyncStopVersion(TServer server, string dbName, Int64 syncStopVersion, Int64 CTID) {
+        public void UpdateSyncStopVersion(string dbName, Int64 syncStopVersion, Int64 CTID) {
             string query = "UPDATE dbo.tblCTVersion set syncStopVersion = @stopversion WHERE CTID = @ctid";
             SqlCommand cmd = new SqlCommand(query);
 
             cmd.Parameters.Add("@stopVersion", SqlDbType.BigInt).Value = syncStopVersion;
             cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
 
-            int res = SqlNonQuery(server, dbName, cmd);
+            int res = SqlNonQuery(dbName, cmd);
         }
 
 
         /// <summary>
         /// Retrieves an SMO table object if the table exists, throws exception if not.
         /// </summary>
-        /// <param name="server">Server idenitfier</param>
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table Name</param>
         /// <returns>Smo.Table object representing the table</returns>
-        private Table GetSmoTable(TServer server, string dbName, string table, string schema = "dbo") {
-            using (SqlConnection sqlconn = new SqlConnection(buildConnString(server, dbName))) {
+        public Table GetSmoTable(string dbName, string table, string schema = "dbo") {
+            using (SqlConnection sqlconn = new SqlConnection(buildConnString(dbName))) {
                 ServerConnection serverconn = new ServerConnection(sqlconn);
                 Server svr = new Server(serverconn);
                 Database db = new Database();
@@ -359,9 +356,9 @@ namespace TeslaSQL {
         }
 
 
-        public bool CheckTableExists(TServer server, string dbName, string table, string schema = "dbo") {
+        public bool CheckTableExists(string dbName, string table, string schema = "dbo") {
             try {
-                Table t_smo = GetSmoTable(server, dbName, table, schema);
+                Table t_smo = GetSmoTable(dbName, table, schema);
 
                 if (t_smo != null) {
                     return true;
@@ -373,9 +370,9 @@ namespace TeslaSQL {
         }
 
 
-        public string GetIntersectColumnList(TServer server, string dbName, string table1, string schema1, string table2, string schema2) {
-            Table t_smo_1 = GetSmoTable(server, dbName, table1, schema1);
-            Table t_smo_2 = GetSmoTable(server, dbName, table2, schema2);
+        public string GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
+            Table t_smo_1 = GetSmoTable(dbName, table1, schema1);
+            Table t_smo_2 = GetSmoTable(dbName, table2, schema2);
             string columnList = "";
 
             //list to hold lowercased column names
@@ -400,8 +397,8 @@ namespace TeslaSQL {
         }
 
 
-        public bool HasPrimaryKey(TServer server, string dbName, string tableName, string schema) {
-            Table table = GetSmoTable(server, dbName, tableName, schema);
+        public bool HasPrimaryKey(string dbName, string tableName, string schema) {
+            Table table = GetSmoTable(dbName, tableName, schema);
             foreach (Index i in table.Indexes) {
                 if (i.IndexKeyType == IndexKeyType.DriPrimaryKey) {
                     return true;
@@ -411,9 +408,9 @@ namespace TeslaSQL {
         }
 
 
-        public bool DropTableIfExists(TServer server, string dbName, string table, string schema) {
+        public bool DropTableIfExists(string dbName, string table, string schema) {
             try {
-                Table t_smo = GetSmoTable(server, dbName, table, schema);
+                Table t_smo = GetSmoTable(dbName, table, schema);
                 if (t_smo != null) {
                     t_smo.Drop();
                     return true;
@@ -424,101 +421,13 @@ namespace TeslaSQL {
             }
         }
 
-        /// <summary>
-        /// Runs a query on the source server and copies the resulting data to the destination
-        /// </summary>
-        /// <param name="sourceServer">Source server identifier</param>
-        /// <param name="sourceDB">Source database name</param>
-        /// <param name="destServer">Destination server identifier</param>
-        /// <param name="destDB">Destination database name</param>
-        /// <param name="cmd">Query to get the data from</param>
-        /// <param name="destinationTable">Table to write to on the destination (must already exist)</param>
-        /// <param name="queryTimeout">How long the query on the source can run for</param>
-        /// <param name="bulkCopyTimeout">How long writing to the destination can take</param>
-        private void CopyDataFromQuery(TServer sourceServer, string sourceDB, TServer destServer, string destDB, SqlCommand cmd, string destinationTable, string destinationSchema = "dbo", int queryTimeout = 36000, int bulkCopyTimeout = 36000) {
-            using (SqlConnection sourceConn = new SqlConnection(buildConnString(sourceServer, sourceDB))) {
-                sourceConn.Open();
-                cmd.Connection = sourceConn;
-                cmd.CommandTimeout = queryTimeout;
-                SqlDataReader reader = cmd.ExecuteReader();
-
-                SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(destServer, destDB), SqlBulkCopyOptions.KeepIdentity);
-                bulkCopy.BulkCopyTimeout = bulkCopyTimeout;
-                bulkCopy.DestinationTableName = destinationSchema + "." + destinationTable;
-                bulkCopy.WriteToServer(reader);
-            }
-        }
-
-        public void CopyTable(TServer sourceServer, string sourceDB, string table, string schema, TServer destServer, string destDB, int timeout) {
-            //drop table at destination and create from source schema
-            CopyTableDefinition(sourceServer, sourceDB, table, schema, destServer, destDB);
-
-            //can't parametrize tablename or schema name but they have already been validated against the server so it's safe
-            SqlCommand cmd = new SqlCommand("SELECT * FROM " + schema + "." + table);
-            CopyDataFromQuery(sourceServer, sourceDB, destServer, destDB, cmd, table, schema, timeout, timeout);
-        }
-
-
-        /// <summary>
-        /// Copies the schema of a table from one server to another, dropping it first if it exists at the destination.
-        /// </summary>
-        /// <param name="sourceServer">Source server identifier</param>
-        /// <param name="sourceDB">Source database name</param>
-        /// <param name="table">Table name</param>
-        /// <param name="schema">Table's schema</param>
-        /// <param name="destServer">Destination server identifier</param>
-        /// <param name="destDB">Destination database name</param>
-        private void CopyTableDefinition(TServer sourceServer, string sourceDB, string table, string schema, TServer destServer, string destDB) {
-            //script out the table at the source
-            string createScript = ScriptTable(sourceServer, sourceDB, table, schema);
-            SqlCommand cmd = new SqlCommand(createScript);
-
-            //drop it if it exists at the destination
-            bool didExist = DropTableIfExists(destServer, destDB, table, schema);
-
-            //create it at the destination
-            int result = SqlNonQuery(destServer, destDB, cmd);
-        }
-
-
-        /// <summary>
-        /// Scripts out a table as CREATE TABLE
-        /// </summary>
-        /// <param name="server">Server identifier to connect to</param>
-        /// <param name="dbName">Database name</param>
-        /// <param name="table">Table name</param>
-        /// <param name="schema">Table's schema</param>
-        /// <returns>The CREATE TABLE script as a string</returns>
-        private string ScriptTable(TServer server, string dbName, string table, string schema) {
-            //initialize scriptoptions variable
-            ScriptingOptions scriptOptions = new ScriptingOptions();
-            scriptOptions.ScriptBatchTerminator = true;
-            scriptOptions.NoCollation = true;
-
-            //get smo table object
-            Table t_smo = GetSmoTable(server, dbName, table, schema);
-
-            //script out the table, it comes back as a StringCollection object with one string per query batch
-            StringCollection scriptResults = t_smo.Script(scriptOptions);
-
-            //ADO.NET does not allow multiple batches in one query, but we don't really need the
-            //SET ANSI_NULLS ON etc. statements, so just find the CREATE TABLE statement and return that
-            foreach (string s in scriptResults) {
-                if (s.StartsWith("CREATE")) {
-                    return s;
-                }
-            }
-            return "";
-        }
-
-
-        public Dictionary<string, bool> GetFieldList(TServer server, string dbName, string table, string schema) {
+        public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
             Dictionary<string, bool> dict = new Dictionary<string, bool>();
             Table t_smo;
 
             //attempt to get smo table object
             try {
-                t_smo = GetSmoTable(server, dbName, table, schema);
+                t_smo = GetSmoTable(dbName, table, schema);
             } catch (DoesNotExistException) {
                 //TODO figure out if we also want to throw here
                 logger.Log("Unable to get field list for table " + table + " because it does not exist", LogLevel.Error);
@@ -534,7 +443,7 @@ namespace TeslaSQL {
         }
 
 
-        public void WriteBitWise(TServer server, string dbName, Int64 CTID, int value, AgentType agentType) {
+        public void WriteBitWise(string dbName, Int64 CTID, int value, AgentType agentType) {
             string query;
             SqlCommand cmd;
             if (agentType.Equals(AgentType.Slave)) {
@@ -551,11 +460,11 @@ namespace TeslaSQL {
                 cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = value;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             }
-            int result = SqlNonQuery(server, dbName, cmd);
+            int result = SqlNonQuery(dbName, cmd);
         }
 
 
-        public int ReadBitWise(TServer server, string dbName, Int64 CTID, AgentType agentType) {
+        public int ReadBitWise(string dbName, Int64 CTID, AgentType agentType) {
             string query;
             SqlCommand cmd;
             if (agentType.Equals(AgentType.Slave)) {
@@ -570,11 +479,11 @@ namespace TeslaSQL {
                 cmd = new SqlCommand(query);
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             }
-            return SqlQueryToScalar<Int32>(server, dbName, cmd);
+            return SqlQueryToScalar<Int32>(dbName, cmd);
         }
 
 
-        public void MarkBatchComplete(TServer server, string dbName, Int64 CTID, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "") {
+        public void MarkBatchComplete(string dbName, Int64 CTID, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "") {
             string query;
             SqlCommand cmd;
             if (agentType.Equals(AgentType.Slave)) {
@@ -593,74 +502,74 @@ namespace TeslaSQL {
                 cmd.Parameters.Add("@syncstoptime", SqlDbType.DateTime).Value = syncStopTime;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             }
-            int result = SqlNonQuery(server, dbName, cmd);
+            int result = SqlNonQuery(dbName, cmd);
         }
 
 
-        public DataTable GetSchemaChanges(TServer server, string dbName, Int64 CTID) {
+        public DataTable GetSchemaChanges(string dbName, Int64 CTID) {
             SqlCommand cmd = new SqlCommand("SELECT CscID, CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName" +
              ", CscNewColumnName, CscBaseDataType, CscCharacterMaximumLength, CscNumericPrecision, CscNumericScale" +
              " FROM dbo.tblCTSchemaChange_" + Convert.ToString(CTID));
-            return SqlQuery(server, dbName, cmd);
+            return SqlQuery(dbName, cmd);
         }
 
 
-        public Int64 GetTableRowCount(TServer server, string dbName, string table, string schema) {
-            Table t_smo = GetSmoTable(server, dbName, table, schema);
+        public Int64 GetTableRowCount(string dbName, string table, string schema) {
+            Table t_smo = GetSmoTable(dbName, table, schema);
             return t_smo.RowCount;
         }
 
-        public bool IsChangeTrackingEnabled(TServer server, string dbName, string table, string schema) {
-            Table t_smo = GetSmoTable(server, dbName, table, schema);
+        public bool IsChangeTrackingEnabled(string dbName, string table, string schema) {
+            Table t_smo = GetSmoTable(dbName, table, schema);
             return t_smo.ChangeTrackingEnabled;
         }
 
         public void LogError(string message) {
             SqlCommand cmd = new SqlCommand("INSERT INTO tblCtError (CelError) VALUES ( @error )");
             cmd.Parameters.Add("@error", SqlDbType.VarChar, -1).Value = message;
-            SqlNonQuery(TServer.RELAY, config.errorLogDB, cmd);
+            SqlNonQuery(config.errorLogDB, cmd);
         }
 
         public DataTable GetUnsentErrors() {
             SqlCommand cmd = new SqlCommand("SELECT CelError, CelId FROM tblCtError WHERE CelSent = 0");
-            return SqlQuery(TServer.RELAY, config.errorLogDB, cmd);
+            return SqlQuery(config.errorLogDB, cmd);
         }
 
         public void MarkErrorsSent(IEnumerable<int> celIds) {
             SqlCommand cmd = new SqlCommand("UPDATE tblCtError SET CelSent = 1 WHERE CelId IN (" + string.Join(",", celIds) + ")");
-            SqlNonQuery(TServer.RELAY, config.errorLogDB, cmd);
+            SqlNonQuery(config.errorLogDB, cmd);
         }
 
-        private bool CheckColumnExists(TServer server, string dbName, string schema, string table, string column) {
-            Table t_smo = GetSmoTable(server, dbName, table, schema);
+        private bool CheckColumnExists(string dbName, string schema, string table, string column) {
+            Table t_smo = GetSmoTable(dbName, table, schema);
             if (t_smo.Columns.Contains(column)) {
                 return true;
             }
             return false;
         }
 
-        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
+        public void RenameColumn(TableConf t, string dbName, string schema, string table,
             string columnName, string newColumnName) {
             SqlCommand cmd;
             //rename the column if it exists
-            if (CheckColumnExists(server, dbName, schema, table, columnName)) {
+            if (CheckColumnExists(dbName, schema, table, columnName)) {
                 cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
                 cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "." + columnName;
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
+                SqlNonQuery(dbName, cmd);
             }
             //check for history table, if it is configured and contains the column we need to modify that too
-            if (t.recordHistoryTable && CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
                 cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
+                SqlNonQuery(dbName, cmd);
             }
         }
 
-        public void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table,
+        public void ModifyColumn(TableConf t, string dbName, string schema, string table,
             string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
 
             var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
@@ -676,22 +585,22 @@ namespace TeslaSQL {
             }
 
             //Modify the column if it exists
-            if (CheckColumnExists(server, dbName, schema, table, columnName)) {
+            if (CheckColumnExists(dbName, schema, table, columnName)) {
                 query = "ALTER TABLE " + schema + "." + table + " ALTER COLUMN " + columnName + " " + baseType;
                 cmd = new SqlCommand(query + suffix);
                 logger.Log("Altering table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
+                SqlNonQuery(dbName, cmd);
             }
             //modify on history table if that exists too
-            if (t.recordHistoryTable && CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 query = "ALTER TABLE " + schema + "." + table + "_History ALTER COLUMN " + columnName + " " + baseType;
                 cmd = new SqlCommand(query + suffix);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
+                SqlNonQuery(dbName, cmd);
             }
         }
 
-        public void AddColumn(TableConf t, TServer server, string dbName, string schema, string table,
+        public void AddColumn(TableConf t, string dbName, string schema, string table,
             string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
             string query;
             SqlCommand cmd;
@@ -706,40 +615,40 @@ namespace TeslaSQL {
                 suffix = "(" + numericPrecision + ", " + numericScale + ")";
             }
             //add column if it doesn't exist
-            if (!CheckColumnExists(server, dbName, schema, table, columnName)) {
+            if (!CheckColumnExists(dbName, schema, table, columnName)) {
                 query = "ALTER TABLE " + schema + "." + table + " ADD " + columnName + " " + baseType;
                 cmd = new SqlCommand(query + suffix);
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
+                SqlNonQuery(dbName, cmd);
             }
             //add column to history table if the table exists and the column doesn't
-            if (t.recordHistoryTable && !CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 query = "ALTER TABLE " + schema + "." + table + "_History ADD " + columnName + " " + baseType;
                 cmd = new SqlCommand(query + suffix);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
+                SqlNonQuery(dbName, cmd);
             }
         }
 
-        public void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName) {
+        public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
             SqlCommand cmd;
             //drop column if it exists
-            if (CheckColumnExists(server, dbName, schema, table, columnName)) {
+            if (CheckColumnExists(dbName, schema, table, columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " DROP COLUMN " + columnName);
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
+                SqlNonQuery(dbName, cmd);
             }
             //if history table exists and column exists, drop it there too
-            if (t.recordHistoryTable && CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History DROP COLUMN " + columnName);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
+                SqlNonQuery(dbName, cmd);
             }
         }
 
-        public void CreateTableInfoTable(TServer server, string dbName, Int64 CTID) {
+        public void CreateTableInfoTable(string dbName, Int64 CTID) {
             //drop the table on the relay server if it exists
-            bool tExisted = DropTableIfExists(server, dbName, "tblCTTableInfo_" + CTID, "dbo");
+            bool tExisted = DropTableIfExists(dbName, "tblCTTableInfo_" + CTID, "dbo");
 
             //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
             string query = "CREATE TABLE [dbo].[tblCTTableInfo_" + CTID + "] (";
@@ -753,11 +662,11 @@ namespace TeslaSQL {
 
             SqlCommand cmd = new SqlCommand(query);
 
-            int result = SqlNonQuery(server, dbName, cmd);
+            int result = SqlNonQuery(dbName, cmd);
         }
 
 
-        public void PublishTableInfo(TServer server, string dbName, TableConf t, long CTID, long expectedRows) {
+        public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
             SqlCommand cmd = new SqlCommand(
                String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows)
                   VALUES (@tableName, @schemaName, @pkList, @expectedRows)", CTID));
@@ -766,7 +675,39 @@ namespace TeslaSQL {
             cmd.Parameters.Add("@pkList", SqlDbType.VarChar, 500).Value = string.Join(",", t.columns.Where(c => c.isPk));
             cmd.Parameters.Add("@expectedRows", SqlDbType.Int).Value = expectedRows;
 
-            SqlNonQuery(server, dbName, cmd);
+            SqlNonQuery(dbName, cmd);
+        }
+
+        /// <summary>
+        /// Runs a sql query and returns a DataReader
+        /// </summary>
+        /// <param name="dbName">Database name</param>
+        /// <param name="cmd">SqlCommand to run</param>
+        /// <param name="timeout">Query timeout</param>
+        /// <returns>DataReader object representing the result</returns>
+        public SqlDataReader ExecuteReader(string dbName, SqlCommand cmd, int timeout = 1200) {
+            using (SqlConnection sourceConn = new SqlConnection(buildConnString(dbName))) {
+                sourceConn.Open();
+                cmd.Connection = sourceConn;
+                cmd.CommandTimeout = timeout;
+                SqlDataReader reader = cmd.ExecuteReader();
+                return reader;
+            }
+        }
+
+        /// <summary>
+        /// Writes data from the given stream reader to a destination database
+        /// </summary>
+        /// <param name="reader">SqlDataReader object to stream input from</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="schema">Schema of the table to write to</param>
+        /// <param name="table">Table name to write to</param>
+        /// <param name="timeout">Timeout</param>
+        public void BulkCopy(SqlDataReader reader, string dbName, string schema, string table, int timeout) {
+            SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);
+            bulkCopy.BulkCopyTimeout = timeout;
+            bulkCopy.DestinationTableName = schema + "." + table;
+            bulkCopy.WriteToServer(reader);
         }
     }
 }

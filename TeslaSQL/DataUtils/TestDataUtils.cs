@@ -8,7 +8,7 @@ using System.Data;
 using Microsoft.SqlServer.Management.Smo;
 using Microsoft.SqlServer.Management.Common;
 
-namespace TeslaSQL {
+namespace TeslaSQL.DataUtils {
     /// <summary>
     /// This class is used for unit tests only as a replacement for DataUtils, so that unit tests don't require an actual database
     /// </summary>
@@ -18,21 +18,25 @@ namespace TeslaSQL {
 
         public Int64 currentVersion { get; set; }
 
+        public string server { get; set; }
+
         public Logger logger;
         public Config config;
 
         /// <summary>
         /// Constructor for unit tests that use config and logger elements
         /// </summary>
-        public TestDataUtils(Config config, Logger logger) {
+        public TestDataUtils(Config config, Logger logger, TServer server) {
             this.config = config;
             this.logger = logger;
+            this.server = Convert.ToString(server);
         }
 
         /// <summary>
         /// Constructor for unit tests that don't need the config or logger elements
         /// </summary>
-        public TestDataUtils() {
+        public TestDataUtils(TServer server) {
+            this.server = Convert.ToString(server);
         }
 
         /// <summary>
@@ -41,22 +45,22 @@ namespace TeslaSQL {
         /// <param name="server">Server identifer</param>
         /// <param name="dbName">Database name</param>
         /// <returns>String representing the tablespace</returns>
-        public string GetTableSpace(TServer server, string dbName) {
+        public string GetTableSpace(string dbName) {
             return Convert.ToString(server) + "." + dbName;
         }
 
-        public DataRow GetLastCTBatch(TServer server, string dbName, AgentType agentType, string slaveIdentifier = "") {
+        public DataRow GetLastCTBatch(string dbName, AgentType agentType, string slaveIdentifier = "") {
             //for slave we have to pass the slave identifier in and use tblCTSlaveVersion
             if (agentType.Equals(AgentType.Slave)) {
-                DataTable tblCTSlaveVersion = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(server, dbName)];
+                DataTable tblCTSlaveVersion = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
                 return tblCTSlaveVersion.Select("slaveIdentifier = '" + slaveIdentifier + "'", "CTID DESC")[0];
             } else {
-                DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(server, dbName)];
+                DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
                 return tblCTVersion.Select(null, "CTID DESC")[0];
             }
         }
 
-        public DataTable GetPendingCTVersions(TServer server, string dbName, Int64 CTID, int syncBitWise) {
+        public DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise) {
             /*
              * The below replaces a query like this:
              *
@@ -66,7 +70,7 @@ namespace TeslaSQL {
              *
              * But since bitwise operations aren't supported in DataTable expressions, we have to loop through to apply that filter.
              */
-            DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(server, dbName)];
+            DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
             DataRow[] unfilteredResult = tblCTVersion.Select("CTID > " + Convert.ToString(CTID));
             IEnumerable<DataRow> filteredResult = unfilteredResult.Where(item => (item.Field<Int32>("syncBitWise") & syncBitWise) > 0).OrderBy(item => item.Field<Int64>("CTID"));
             var toReturn = new DataTable();
@@ -77,9 +81,9 @@ namespace TeslaSQL {
             return toReturn;
         }
 
-        public DateTime GetLastStartTime(TServer server, string dbName, Int64 CTID, int syncBitWise) {
+        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise) {
             DateTime maxDate = DateTime.Now.AddDays(-1);
-            DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(server, dbName)];
+            DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
             DataRow[] result = tblCTVersion.Select("CTID < " + Convert.ToString(CTID));
 
             foreach (DataRow row in result) {
@@ -90,24 +94,24 @@ namespace TeslaSQL {
             return maxDate;
         }
 
-        public Int64 GetCurrentCTVersion(TServer server, string dbName) {
+        public Int64 GetCurrentCTVersion(string dbName) {
             return currentVersion;
         }
 
-        public Int64 GetMinValidVersion(TServer server, string dbName, string table, string schema) {
-            DataTable minValidVersions = testData.Tables["minValidVersions", GetTableSpace(server, dbName)];
+        public Int64 GetMinValidVersion(string dbName, string table, string schema) {
+            DataTable minValidVersions = testData.Tables["minValidVersions", GetTableSpace(dbName)];
             return minValidVersions.Select("table = '" + schema + "." + table + "'")[0].Field<Int64>("version");
         }
 
-        public int SelectIntoCTTable(TServer server, string sourceCTDB, string masterColumnList, string ctTableName,
+        public int SelectIntoCTTable(string sourceCTDB, string masterColumnList, string ctTableName,
             string sourceDB, string schema, string tableName, Int64 startVersion, string pkList, Int64 stopVersion, string notNullPkList, int timeout) {
             //no good way to fake this with DataTables so just return and make sure we are also unit testing the
             //methods that generate these sfield lists
-            return testData.Tables[schema + "." + ctTableName, GetTableSpace(server, sourceCTDB)].Rows.Count;
+            return testData.Tables[schema + "." + ctTableName, GetTableSpace(sourceCTDB)].Rows.Count;
         }
 
-        public Int64 CreateCTVersion(TServer server, string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
-            DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(server, dbName)];
+        public Int64 CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
+            DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
             DataRow row = tblCTVersion.NewRow();
             //this will be generated automatically since it's an auto increment column
             Int64 CTID = row.Field<Int64>("CTID");
@@ -125,10 +129,10 @@ namespace TeslaSQL {
         }
 
 
-        public void CreateSlaveCTVersion(TServer server, string dbName, Int64 CTID, string slaveIdentifier,
+        public void CreateSlaveCTVersion(string dbName, Int64 CTID, string slaveIdentifier,
             Int64 syncStartVersion, Int64 syncStopVersion, DateTime syncStartTime, Int32 syncBitWise) {
 
-            DataTable tblCTSlaveVersion = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(server, dbName)];
+            DataTable tblCTSlaveVersion = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
             //create the row
             DataRow row = tblCTSlaveVersion.NewRow();
             //set its values
@@ -144,8 +148,8 @@ namespace TeslaSQL {
             //tblCTSlaveVersion.AcceptChanges();
         }
 
-        public void CreateSchemaChangeTable(TServer server, string dbName, Int64 CTID) {
-            DataTable tblCTSchemaChange = new DataTable("dbo.tblCTSchemaChange_" + Convert.ToString(CTID), GetTableSpace(server, dbName));
+        public void CreateSchemaChangeTable(string dbName, Int64 CTID) {
+            DataTable tblCTSchemaChange = new DataTable("dbo.tblCTSchemaChange_" + Convert.ToString(CTID), GetTableSpace(dbName));
 
             DataColumn CscID = tblCTSchemaChange.Columns.Add("CscID", typeof(Int32));
             CscID.AutoIncrement = true;
@@ -167,13 +171,13 @@ namespace TeslaSQL {
             testData.Tables.Add(tblCTSchemaChange);
         }
 
-        public DataTable GetDDLEvents(TServer server, string dbName, DateTime afterDate) {
-            return testData.Tables["dbo.tblDDLEvent", GetTableSpace(server, dbName)].Select("DdeTime > '" + Convert.ToString(afterDate) + "'").CopyToDataTable();
+        public DataTable GetDDLEvents(string dbName, DateTime afterDate) {
+            return testData.Tables["dbo.tblDDLEvent", GetTableSpace(dbName)].Select("DdeTime > '" + Convert.ToString(afterDate) + "'").CopyToDataTable();
         }
 
-        public void WriteSchemaChange(TServer server, string dbName, Int64 CTID, SchemaChange schemaChange) {
+        public void WriteSchemaChange(string dbName, Int64 CTID, SchemaChange schemaChange) {
             string schemaChangeTableName = "dbo.tblCTSchemaChange_" + Convert.ToString(CTID);
-            DataRow row = testData.Tables[schemaChangeTableName, GetTableSpace(server, dbName)].NewRow();
+            DataRow row = testData.Tables[schemaChangeTableName, GetTableSpace(dbName)].NewRow();
             //set its values
             row["CscDdeID"] = schemaChange.ddeID;
             row["CscTableName"] = schemaChange.tableName;
@@ -186,15 +190,15 @@ namespace TeslaSQL {
             row["CscNumericPrecision"] = schemaChange.dataType.numericPrecision;
             row["CscNumericScale"] = schemaChange.dataType.numericScale;
             //add it to the datatable
-            testData.Tables[schemaChangeTableName, GetTableSpace(server, dbName)].Rows.Add(row);
+            testData.Tables[schemaChangeTableName, GetTableSpace(dbName)].Rows.Add(row);
             //commit the change
             //testData.Tables[schemaChangeTableName].AcceptChanges();
         }
 
-        public DataRow GetDataType(TServer server, string dbName, string table, string schema, string column) {
+        public DataRow GetDataType(string dbName, string table, string schema, string column) {
             string query = "TABLE_SCHEMA = '" + schema + "' AND TABLE_CATALOG = '" + dbName + "'" +
                 " AND TABLE_NAME = '" + table + "' AND COLUMN_NAME = '" + column + "'";
-            DataRow[] result = testData.Tables["INFORMATION_SCHEMA.COLUMNS", GetTableSpace(server, dbName)].Select(query);
+            DataRow[] result = testData.Tables["INFORMATION_SCHEMA.COLUMNS", GetTableSpace(dbName)].Select(query);
 
             if (result == null || result.Length == 0) {
                 throw new DoesNotExistException("Column " + column + " does not exist on table " + table + "!");
@@ -203,8 +207,8 @@ namespace TeslaSQL {
             return result.CopyToDataTable().Rows[0];
         }
 
-        public void UpdateSyncStopVersion(TServer server, string dbName, Int64 syncStopVersion, Int64 CTID) {
-            DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(server, dbName)];
+        public void UpdateSyncStopVersion(string dbName, Int64 syncStopVersion, Int64 CTID) {
+            DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
             //find the row
             DataRow row = tblCTVersion.Select("CTID = " + Convert.ToString(CTID))[0];
             //edit it
@@ -220,16 +224,16 @@ namespace TeslaSQL {
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table name to chekc for</param>
         /// <returns>Boolean representing whether or not the table exists.</returns>
-        public bool CheckTableExists(TServer server, string dbName, string table, string schema) {
-            if (testData.Tables.Contains(schema + "." + table, GetTableSpace(server, dbName))) {
+        public bool CheckTableExists(string dbName, string table, string schema) {
+            if (testData.Tables.Contains(schema + "." + table, GetTableSpace(dbName))) {
                 return true;
             }
             return false;
         }
 
-        public string GetIntersectColumnList(TServer server, string dbName, string table1, string schema1, string table2, string schema2) {
-            DataTable dt1 = testData.Tables[schema1 + "." + table1, GetTableSpace(server, dbName)];
-            DataTable dt2 = testData.Tables[schema2 + "." + table2, GetTableSpace(server, dbName)];
+        public string GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
+            DataTable dt1 = testData.Tables[schema1 + "." + table1, GetTableSpace(dbName)];
+            DataTable dt2 = testData.Tables[schema2 + "." + table2, GetTableSpace(dbName)];
             string columnList = "";
 
             //list to hold lowercased column names
@@ -253,38 +257,28 @@ namespace TeslaSQL {
             return columnList;
         }
 
-        public bool HasPrimaryKey(TServer server, string dbName, string table, string schema) {
-            return (testData.Tables[schema + "." + table, GetTableSpace(server, dbName)].PrimaryKey.Count() > 0);
+        public bool HasPrimaryKey(string dbName, string table, string schema) {
+            return (testData.Tables[schema + "." + table, GetTableSpace(dbName)].PrimaryKey.Count() > 0);
         }
 
-        public bool DropTableIfExists(TServer server, string dbName, string table, string schema) {
-            if (testData.Tables.Contains(schema + "." + table, GetTableSpace(server, dbName))) {
-                testData.Tables.Remove(schema + "." + table, GetTableSpace(server, dbName));
+        public bool DropTableIfExists(string dbName, string table, string schema) {
+            if (testData.Tables.Contains(schema + "." + table, GetTableSpace(dbName))) {
+                testData.Tables.Remove(schema + "." + table, GetTableSpace(dbName));
                 //testData.AcceptChanges();
                 return true;
             }
             return false;
         }
+       
 
-        public void CopyTable(TServer sourceServer, string sourceDB, string table, string schema, TServer destServer, string destDB, int timeout) {
-            //create a copy of the source table (data and schema)
-            DataTable copy = testData.Tables[schema + "." + table, GetTableSpace(sourceServer, sourceDB)].Copy();
-            //change the namespace to be the dest server
-            copy.Namespace = GetTableSpace(destServer, destDB);
-            //add it to the dataset
-            testData.Tables.Add(copy);
-            //commit
-            //testData.AcceptChanges();
-        }
-
-        public Dictionary<string, bool> GetFieldList(TServer server, string dbName, string table, string schema) {
+        public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
             Dictionary<string, bool> dict = new Dictionary<string, bool>();
 
-            if (!testData.Tables.Contains(schema + "." + table, GetTableSpace(server, dbName))) {
+            if (!testData.Tables.Contains(schema + "." + table, GetTableSpace(dbName))) {
                 return dict;
             }
 
-            DataTable dataTable = testData.Tables[schema + "." + table, GetTableSpace(server, dbName)];
+            DataTable dataTable = testData.Tables[schema + "." + table, GetTableSpace(dbName)];
 
             //loop through columns and add them to the dictionary along with whether they are part of the primary key
             foreach (DataColumn c in dataTable.Columns) {
@@ -294,17 +288,17 @@ namespace TeslaSQL {
             return dict;
         }
 
-        public void WriteBitWise(TServer server, string dbName, Int64 CTID, int value, AgentType agentType) {
+        public void WriteBitWise(string dbName, Int64 CTID, int value, AgentType agentType) {
             DataTable table;
             DataRow row;
             if (agentType.Equals(AgentType.Slave)) {
                 //find the table
-                table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(server, dbName)];
+                table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
                 //find the row
                 row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + config.slave + "'")[0];
             } else {
                 //find the table
-                table = testData.Tables["dbo.tblCTVersion", GetTableSpace(server, dbName)];
+                table = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
                 //find the row
                 row = table.Select("CTID = " + Convert.ToString(CTID))[0];
             }
@@ -318,34 +312,34 @@ namespace TeslaSQL {
         }
 
 
-        public int ReadBitWise(TServer server, string dbName, Int64 CTID, AgentType agentType) {
+        public int ReadBitWise(string dbName, Int64 CTID, AgentType agentType) {
             DataTable table;
             DataRow row;
             if (agentType.Equals(AgentType.Slave)) {
                 //find the table
-                table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(server, dbName)];
+                table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
                 //find the row
                 row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + config.slave + "'")[0];
             } else {
                 //find the table
-                table = testData.Tables["dbo.tblCTVersion", GetTableSpace(server, dbName)];
+                table = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
                 //find the row
                 row = table.Select("CTID = " + Convert.ToString(CTID))[0];
             }
             return row.Field<int>("syncBitWise");
         }
 
-        public void MarkBatchComplete(TServer server, string dbName, Int64 CTID, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "") {
+        public void MarkBatchComplete(string dbName, Int64 CTID, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "") {
             DataTable table;
             DataRow row;
             if (agentType.Equals(AgentType.Slave)) {
                 //find the table
-                table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(server, dbName)];
+                table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
                 //find the row
                 row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + slaveIdentifier + "'")[0];
             } else {
                 //find the table
-                table = testData.Tables["dbo.tblCTVersion", GetTableSpace(server, dbName)];
+                table = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
                 //find the row
                 row = table.Select("CTID = " + Convert.ToString(CTID))[0];
             }
@@ -359,15 +353,15 @@ namespace TeslaSQL {
             }
         }
 
-        public DataTable GetSchemaChanges(TServer server, string dbName, Int64 CTID) {
-            return testData.Tables["dbo.tblCTSchemaChange_" + Convert.ToString(CTID), GetTableSpace(server, dbName)];
+        public DataTable GetSchemaChanges(string dbName, Int64 CTID) {
+            return testData.Tables["dbo.tblCTSchemaChange_" + Convert.ToString(CTID), GetTableSpace(dbName)];
         }
 
-        public Int64 GetTableRowCount(TServer server, string dbName, string table, string schema) {
-            return testData.Tables[schema + "." + table, GetTableSpace(server, dbName)].Rows.Count;
+        public Int64 GetTableRowCount(string dbName, string table, string schema) {
+            return testData.Tables[schema + "." + table, GetTableSpace(dbName)].Rows.Count;
         }
 
-        public bool IsChangeTrackingEnabled(TServer server, string dbName, string table, string schema) {
+        public bool IsChangeTrackingEnabled(string dbName, string table, string schema) {
             return true;
         }
 
@@ -420,23 +414,23 @@ namespace TeslaSQL {
             return;
         }
 
-        public void RenameColumn(TableConf t, TServer server, string dbName, string schema, string table,
+        public void RenameColumn(TableConf t, string dbName, string schema, string table,
             string columnName, string newColumnName) {
-            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(server, dbName)];
+            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(dbName)];
             dt.Columns[columnName].ColumnName = newColumnName;
         }
 
-        public void ModifyColumn(TableConf t, TServer server, string dbName, string schema, string table,
+        public void ModifyColumn(TableConf t, string dbName, string schema, string table,
             string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
             //can't change the datatype of a column in a datatable but since this is just for unit testing, we can just drop and recreate it
             //instead since there is no data to worry about losing       
-            DropColumn(t, server, dbName, schema, table, columnName);
-            AddColumn(t, server, dbName, schema, table, columnName, baseType, characterMaximumLength, numericPrecision, numericScale);
+            DropColumn(t, dbName, schema, table, columnName);
+            AddColumn(t, dbName, schema, table, columnName, baseType, characterMaximumLength, numericPrecision, numericScale);
         }
 
-        public void AddColumn(TableConf t, TServer server, string dbName, string schema, string table,
+        public void AddColumn(TableConf t, string dbName, string schema, string table,
             string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {                 
-            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(server, dbName)];
+            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(dbName)];
             Type type;
             //since this is just for unit testing we only need to support a subset of data types     
             switch (baseType) {
@@ -461,21 +455,21 @@ namespace TeslaSQL {
             dt.Columns.Add(columnName, type);
         }
 
-        public void DropColumn(TableConf t, TServer server, string dbName, string schema, string table, string columnName) {
-            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(server, dbName)];
+        public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
+            DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(dbName)];
             dt.Columns.Remove(columnName);
         }
 
-        public void CreateTableInfoTable(TServer tServer, string p, long p_2) {
+        public void CreateTableInfoTable(string p, long p_2) {
             throw new NotImplementedException();
         }
 
-        public void PublishTableInfo(TServer server, string dbName, TableConf t, long CTID, long expectedRows) {
+        public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
             throw new NotImplementedException();
         }
 
 
-        public void CreateSlaveCTVersion(TServer server, string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
+        public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
             throw new NotImplementedException();
         }
     }

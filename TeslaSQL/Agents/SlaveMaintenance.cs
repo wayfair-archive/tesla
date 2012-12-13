@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using TeslaSQL.DataUtils;
 
 namespace TeslaSQL.Agents
 {
@@ -11,7 +12,8 @@ namespace TeslaSQL.Agents
     class SlaveMaintenance : Agent
     {
         //base keyword invokes the base class's constructor
-        public SlaveMaintenance(Config config, IDataUtils dataUtils) : base(config, dataUtils) {
+        public SlaveMaintenance(Config config, IDataUtils dataUtils)
+            : base(config, dataUtils, null) {
 
         }
 

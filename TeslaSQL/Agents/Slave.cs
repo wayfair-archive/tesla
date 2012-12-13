@@ -1,10 +1,15 @@
-﻿using System;
+﻿#region Using Statements
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Data;
 using System.Xml;
 using Xunit;
+using TeslaSQL.DataUtils;
+using TeslaSQL.DataCopy;
+#endregion
+
 namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     //TODO we need to set up field lists somewhere in here...
@@ -12,10 +17,12 @@ namespace TeslaSQL.Agents {
 
     public class Slave : Agent
     {
-        //base keyword invokes the base class's constructor
-        public Slave(Config config, IDataUtils dataUtils)
-            : base(config, dataUtils) {
-
+        public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
+            this.config = config;
+            this.sourceDataUtils = sourceDataUtils;
+            this.destDataUtils = destDataUtils;
+            //log server is source since source is relay for slave
+            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, sourceDataUtils);
         }
 
         public Slave() {
@@ -59,14 +66,14 @@ namespace TeslaSQL.Agents {
 
             //get the last CT version this slave worked on in tblCTSlaveVersion
             logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
-            DataRow lastBatch = dataUtils.GetLastCTBatch(TServer.RELAY, config.relayDB, AgentType.Slave, config.slave);
+            DataRow lastBatch = sourceDataUtils.GetLastCTBatch(config.relayDB, AgentType.Slave, config.slave);
 
             //compare bitwise to the bit for last step of slave agent
             if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) > 0) {
 
                 logger.Log("Last batch was successful, checking for new batches.", LogLevel.Debug);
                 //get all pending revisions that this slave hasn't done yet
-                DataTable pendingVersions = dataUtils.GetPendingCTVersions(TServer.RELAY, config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
+                DataTable pendingVersions = sourceDataUtils.GetPendingCTVersions(config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
                 logger.Log("Retrieved " + Convert.ToString(pendingVersions.Rows.Count) + " pending CT version(s) to work on.", LogLevel.Debug);
 
                 foreach (DataRow row in pendingVersions.Rows) {
@@ -99,22 +106,22 @@ namespace TeslaSQL.Agents {
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                     logger.Log("Downloading change tables for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                     //copy the change tables for each batch if it hasn't been done yet
-                    tables.Concat(CopyChangeTables(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, batch.CTID));
+                    tables.Concat(CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, batch.CTID));
                     logger.Log("Changes downloaded successfully for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                     //persist bitwise progress to database
-                    dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
+                    sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 } else {
                     logger.Log("Not downloading changes since it was already done, instead populating table list for CTID: " + Convert.ToString(batch.CTID), LogLevel.Debug);
                     //we've already downloaded changes in a previous run so fill in the List of tables using the slave server
-                    tables.Concat(PopulateTableList(config.tables, TServer.SLAVE, config.slaveCTDB, batch.CTID));
+                    tables.Concat(PopulateTableList(config.tables, config.slaveCTDB, batch.CTID));
                 }
 
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                     //copy the change tables for each batch if it hasn't been done yet
-                    ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, batch.CTID);
+                    ApplySchemaChanges(config.tables, config.relayDB, config.slaveCTDB, batch.CTID);
 
                     //persist bitwise progress to database
-                    dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
+                    sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 }
             }
 
@@ -124,26 +131,26 @@ namespace TeslaSQL.Agents {
             //consolidate the change sets into one changetable per table
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
                 //TODO implement
-                //ConsolidateBatches(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, kvp.Key, tables);
+                //ConsolidateBatches(config.tables, config.relayDB, config.slaveCTDB, kvp.Key, tables);
 
                 //persist bitwise progress to database
-                dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
+                sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
 
             //apply the changes to the destination tables
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 //TODO implement
-                //ApplyBatchedChanges(config.tables, TServer.SLAVE, config.slaveCTDB, config.slaveDB, tables);
+                //ApplyBatchedChanges(config.tables, config.slaveCTDB, config.slaveDB, tables);
                 //persist bitwise progress to database
-                dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
+                sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
             //final step, synchronize history tables
             //TODO implement
-            //SyncBatchedHistoryTables(config.tables, TServer.SLAVE, config.slaveCTDB, config.slaveDB, tables);
+            //SyncBatchedHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, tables);
             //success! go through and mark all the batches as complete in the db
             foreach (ChangeTrackingBatch batch in batches) {
-                dataUtils.MarkBatchComplete(TServer.RELAY, config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
+                sourceDataUtils.MarkBatchComplete(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
             }
         }
 
@@ -157,36 +164,36 @@ namespace TeslaSQL.Agents {
             //TODO add logger statements
             //this will hold a list of all the CT tables that exist
             List<string> tables = new List<string>();
-            dataUtils.CreateSlaveCTVersion(TServer.RELAY, config.relayDB, ctb, config.slave);
+            sourceDataUtils.CreateSlaveCTVersion(config.relayDB, ctb, config.slave);
             //copy change tables to slave if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
-                tables = CopyChangeTables(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, ctb.CTID);
-                dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
+                tables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
+                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
             } else {
                 //since CopyChangeTables doesn't need to be called to fill in CT table list, get it from the slave instead
-                tables = PopulateTableList(config.tables, TServer.SLAVE, config.slaveCTDB, ctb.CTID);
+                tables = PopulateTableList(config.tables, config.slaveCTDB, ctb.CTID);
             }
 
             //apply schema changes if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                ApplySchemaChanges(config.tables, TServer.RELAY, config.relayDB, TServer.SLAVE, config.slaveCTDB, ctb.CTID);
-                dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
+                ApplySchemaChanges(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
+                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
             }
 
             //apply changes to destination tables if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 //TODO implement
-                //ApplyChanges(config.tables, TServer.SLAVE, config.slaveCTDB, config.slaveDB, tables);
-                dataUtils.WriteBitWise(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
+                //ApplyChanges(config.tables, config.slaveCTDB, config.slaveDB, tables);
+                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
             //update the history tables
             //TODO implement
-            //SyncBatchedHistoryTables(config.tables, TServer.SLAVE, config.slaveCTDB, config.slaveDB, tables);
+            //SyncBatchedHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, tables);
 
 
             //success! mark the batch as complete
-            dataUtils.MarkBatchComplete(TServer.RELAY, config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
+            sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
         }
 
 
@@ -194,17 +201,16 @@ namespace TeslaSQL.Agents {
         /// For the specified list of batches and tables, populate a list of each CT tables exist
         /// </summary>
         /// <param name="tables">Array of table config objects</param>
-        /// <param name="server">Server identifier</param>
         /// <param name="dbName">Database name</param>
         /// <param name="batches">Dictionary of batches, where the key is a CTID</param>
         /// <param name="tables">List of table names to populate</param>
-        private List<string> PopulateTableList(TableConf[] tables, TServer server, string dbName, Int64 CTID) {
+        private List<string> PopulateTableList(TableConf[] tables, string dbName, Int64 CTID) {
             //TODO add logger statements
             var tableList = new List<string>();
             string ctTableName;
             foreach (TableConf t in tables) {
                 ctTableName = CTTableName(t.Name, CTID);
-                if (dataUtils.CheckTableExists(server, dbName, ctTableName, t.schemaName)) {
+                if (sourceDataUtils.CheckTableExists(dbName, ctTableName, t.schemaName)) {
                     tableList.Add(t.schemaName + "." + ctTableName);
                 }
             }
@@ -216,23 +222,22 @@ namespace TeslaSQL.Agents {
         /// Copies change tables from the master to the relay server
         /// </summary>
         /// <param name="tables">Array of table config objects</param>
-        /// <param name="sourceServer">Source server identifer</param>
         /// <param name="sourceCTDB">Source CT database</param>
-        /// <param name="destServer">Dest server identifier</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
         /// <param name="tables">Reference variable, list of tables that have >0 changes. Passed by ref instead of output
         ///     because in multi batch mode it is built up over several calls to this method.</param>
-        private List<string> CopyChangeTables(TableConf[] tables, TServer sourceServer, string sourceCTDB, TServer destServer, string destCTDB, Int64 CTID) {
+        private List<string> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID) {
             bool found = false;
             List<string> tableList = new List<string>();
+            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.masterType, (SqlFlavor)config.relayType, sourceDataUtils, destDataUtils);
             foreach (TableConf t in tables) {
                 found = false;
                 string ctTable = CTTableName(t.Name, CTID);
                 //attempt to copy the change table locally
                 try {
                     //hard coding timeout at 1 hour for bulk copy
-                    dataUtils.CopyTable(sourceServer, sourceCTDB, ctTable, t.schemaName, destServer, destCTDB, 36000);
+                    dataCopy.CopyTable(sourceCTDB, ctTable, t.schemaName, destCTDB, 36000);
                     logger.Log("Copied table " + t.schemaName + "." + ctTable + " to slave", LogLevel.Trace);
                     found = true;
                 } catch (DoesNotExistException) {
@@ -252,9 +257,9 @@ namespace TeslaSQL.Agents {
             return tableList;
         }
 
-        private void ApplySchemaChanges(TableConf[] tables, TServer sourceServer, string sourceDB, TServer destServer, string destDB, Int64 CTID) {
+        private void ApplySchemaChanges(TableConf[] tables, string sourceDB, string destDB, Int64 CTID) {
             //get list of schema changes from tblCTSChemaChange_ctid on the relay server/db
-            DataTable result = dataUtils.GetSchemaChanges(TServer.RELAY, config.relayDB, CTID);
+            DataTable result = sourceDataUtils.GetSchemaChanges(config.relayDB, CTID);
 
             if (result == null) {
                 return;
@@ -279,24 +284,24 @@ namespace TeslaSQL.Agents {
                     switch (schemaChange.eventType) {
                         case SchemaChangeType.Rename:
                             logger.Log("Renaming column " + schemaChange.columnName + " to " + schemaChange.newColumnName, LogLevel.Info);
-                            dataUtils.RenameColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName,
+                            destDataUtils.RenameColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName,
                                 schemaChange.columnName, schemaChange.newColumnName);
                             break;
                         case SchemaChangeType.Modify:
                             logger.Log("Changing data type on column " + schemaChange.columnName, LogLevel.Info);
-                            dataUtils.ModifyColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
+                            destDataUtils.ModifyColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
                                  schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
                                  schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);
                             break;
                         case SchemaChangeType.Add:
                             logger.Log("Adding column " + schemaChange.columnName, LogLevel.Info);
-                            dataUtils.AddColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
+                            destDataUtils.AddColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
                                  schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
                                  schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);
                             break;
                         case SchemaChangeType.Drop:
                             logger.Log("Dropping column " + schemaChange.columnName, LogLevel.Info);
-                            dataUtils.DropColumn(t, destServer, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);
+                            destDataUtils.DropColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);
                             break;
                     }
 
@@ -313,7 +318,8 @@ namespace TeslaSQL.Agents {
         /// </summary>
         public class ApplySchemaChangeTest : IUseFixture<ApplySchemaChangeTestData> {
             public TableConf[] tables;
-            public TestDataUtils dataUtils;
+            public TestDataUtils sourceDataUtils;
+            public TestDataUtils destDataUtils;
             public Slave slave;
 
             /// <summary>
@@ -321,14 +327,15 @@ namespace TeslaSQL.Agents {
             /// </summary>
             public void SetFixture(ApplySchemaChangeTestData data) {
                 this.tables = data.tables;
-                this.dataUtils = data.dataUtils;
+                this.sourceDataUtils = data.sourceDataUtils;
+                this.destDataUtils = data.destDataUtils;
                 this.slave = data.slave;
             }
 
             [Fact]
             public void TestApply_AddSingleColumn_WithoutColumnList() {
                 //add a column and make sure it is published
-                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                DataTable dt = sourceDataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
                 //gets rid of all the rows
                 dt.Clear();
                 //create a row                
@@ -345,25 +352,24 @@ namespace TeslaSQL.Agents {
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
 
-                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test1", "dbo");
+                destDataUtils.DropTableIfExists("testdb", "test1", "dbo");
                 DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
                 test1.Columns.Add("column1", typeof(Int32));
                 test1.Columns.Add("column2", typeof(Int32));
-                dataUtils.testData.Tables.Add(test1);
+                destDataUtils.testData.Tables.Add(test1);
 
-                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
 
                 var expected = new DataColumn("testadd", typeof(Int32));
-                var actual = dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["testadd"];
+                var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["testadd"];
                 //assert.equal doesn't work for objects but this does
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
-                dataUtils.testData.RejectChanges();
             }
 
             [Fact]
             public void TestApply_AddSingleColumn_WithColumnInList() {
                 //add a column and make sure it is published
-                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                DataTable dt = sourceDataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
                 //gets rid of all the rows
                 dt.Clear();
                 //create a row                
@@ -380,24 +386,23 @@ namespace TeslaSQL.Agents {
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
 
-                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test2", "dbo");
+                destDataUtils.DropTableIfExists("testdb", "test2", "dbo");
                 DataTable test2 = new DataTable("dbo.test2", "SLAVE.testdb");
                 test2.Columns.Add("column1", typeof(Int32));
                 test2.Columns.Add("column3", typeof(string));
-                dataUtils.testData.Tables.Add(test2);
+                destDataUtils.testData.Tables.Add(test2);
 
-                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
 
                 var expected = new DataColumn("column2", typeof(Int32));
-                var actual = dataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns["column2"];
+                var actual = destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns["column2"];
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
-                dataUtils.testData.RejectChanges();
             }
 
             [Fact]
             public void TestApply_AddSingleColumn_WithColumnNotInList() {
                 //add a column and make sure it is published
-                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                DataTable dt = sourceDataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
                 //gets rid of all the rows
                 dt.Clear();
                 //create a row                
@@ -414,22 +419,21 @@ namespace TeslaSQL.Agents {
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
 
-                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test2", "dbo");
+                destDataUtils.DropTableIfExists("testdb", "test2", "dbo");
                 DataTable test2 = new DataTable("dbo.test2", "SLAVE.testdb");
                 test2.Columns.Add("column1", typeof(Int32));
                 test2.Columns.Add("column3", typeof(string));
-                dataUtils.testData.Tables.Add(test2);
+                destDataUtils.testData.Tables.Add(test2);
 
-                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
              
-                Assert.False(dataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns.Contains("testadd"));
-                dataUtils.testData.RejectChanges();
+                Assert.False(destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns.Contains("testadd"));
             }
 
             [Fact]
             public void TestApply_RenameColumn() {
                 //add a column and make sure it is published
-                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                DataTable dt = sourceDataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
                 //gets rid of all the rows
                 dt.Clear();
                 //create a row                
@@ -446,22 +450,22 @@ namespace TeslaSQL.Agents {
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
 
-                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test1", "dbo");
+                destDataUtils.DropTableIfExists("testdb", "test1", "dbo");
                 DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
                 test1.Columns.Add("column1", typeof(Int32));
                 test1.Columns.Add("column2", typeof(Int32));
-                dataUtils.testData.Tables.Add(test1);
+                destDataUtils.testData.Tables.Add(test1);
 
-                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
 
-                Assert.True(dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2_new"));
-                dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].RejectChanges();
+                Assert.True(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2_new"));
+                destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].RejectChanges();
             }
 
             [Fact]
             public void TestApply_DropColumn() {
                 //add a column and make sure it is published
-                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                DataTable dt = sourceDataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
                 //gets rid of all the rows
                 dt.Clear();
                 //create a row                
@@ -478,23 +482,22 @@ namespace TeslaSQL.Agents {
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
 
-                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test1", "dbo");
+                destDataUtils.DropTableIfExists("testdb", "test1", "dbo");
                 DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
                 test1.Columns.Add("column1", typeof(Int32));
                 test1.Columns.Add("column2", typeof(Int32));
-                dataUtils.testData.Tables.Add(test1);
+                destDataUtils.testData.Tables.Add(test1);
 
                 //if this assert fails it means the test setup got borked
-                Assert.True(dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
-                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
-                Assert.False(dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
-                dataUtils.testData.RejectChanges();
+                Assert.True(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
+                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                Assert.False(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
             }
 
             [Fact]
             public void TestApply_ModifyColumn() {
                 //add a column and make sure it is published
-                DataTable dt = dataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
+                DataTable dt = sourceDataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
                 //gets rid of all the rows
                 dt.Clear();
                 //create a row                
@@ -511,18 +514,17 @@ namespace TeslaSQL.Agents {
                 row["CscNumericScale"] = DBNull.Value;
                 dt.Rows.Add(row);
 
-                dataUtils.DropTableIfExists(TServer.SLAVE, "testdb", "test1", "dbo");
+                destDataUtils.DropTableIfExists("testdb", "test1", "dbo");
                 DataTable test1 = new DataTable("dbo.test1", "SLAVE.testdb");
                 test1.Columns.Add("column1", typeof(Int32));
                 test1.Columns.Add("column2", typeof(Int32));
-                dataUtils.testData.Tables.Add(test1);
+                destDataUtils.testData.Tables.Add(test1);
 
                 //if this assert fails it means the test setup got borked
                 var expected = new DataColumn("column2", typeof(DateTime));
-                slave.ApplySchemaChanges(tables, TServer.RELAY, "CT_testdb", TServer.SLAVE, "testdb", 1);
-                var actual = dataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["column2"];                
+                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["column2"];                
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
-                dataUtils.testData.RejectChanges();
             }
 
         }
@@ -533,7 +535,8 @@ namespace TeslaSQL.Agents {
         public class ApplySchemaChangeTestData {
             public DataSet testData;
             public TableConf[] tables;
-            public TestDataUtils dataUtils;
+            public TestDataUtils sourceDataUtils;
+            public TestDataUtils destDataUtils;
             public Slave slave;
 
             public ApplySchemaChangeTestData() {
@@ -547,16 +550,19 @@ namespace TeslaSQL.Agents {
                 tables[1].Name = "test2";
                 tables[1].columnList = new string[2] { "column1", "column2" };
 
-                dataUtils = new TestDataUtils();
+                sourceDataUtils = new TestDataUtils(TServer.RELAY);
+                destDataUtils = new TestDataUtils(TServer.SLAVE);
+                
                 testData = new DataSet();
-                dataUtils.testData = new DataSet();
+                sourceDataUtils.testData = new DataSet();
+                destDataUtils.testData = new DataSet();
                 //this method, conveniently, sets up the datatable schema we need
-                dataUtils.CreateSchemaChangeTable(TServer.RELAY, "CT_testdb", 1);
+                sourceDataUtils.CreateSchemaChangeTable("CT_testdb", 1);
 
                 var config = new Config();
                 config.relayDB = "CT_testdb";
                 config.logLevel = LogLevel.Critical;
-                slave = new Slave(config, (IDataUtils)dataUtils);
+                slave = new Slave(config, (IDataUtils)sourceDataUtils, (IDataUtils)destDataUtils);
             }
         }
 

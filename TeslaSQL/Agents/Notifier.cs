@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Data;
+using TeslaSQL.DataUtils;
 
 namespace TeslaSQL.Agents {
     /// <summary>
@@ -13,7 +14,7 @@ namespace TeslaSQL.Agents {
 
         //base keyword invokes the base class's constructor
         public Notifier(Config config, IDataUtils dataUtils, IEmailClient emailClient)
-            : base(config, dataUtils) {
+            : base(config, dataUtils, null) {
             this.emailClient = emailClient;
         }
 
@@ -25,7 +26,7 @@ namespace TeslaSQL.Agents {
         }
 
         public override void Run() {
-            var errors = dataUtils.GetUnsentErrors();
+            var errors = sourceDataUtils.GetUnsentErrors();
             var errorList = new List<string>();
             var ids = new List<int>();
             foreach (DataRow row in errors.Rows) {
@@ -36,7 +37,7 @@ namespace TeslaSQL.Agents {
                 return;
             }
             emailClient.SendEmail(config.emailErrorRecipient, "Errors occurred during changetracking", string.Join("\r\n", errorList));
-            dataUtils.MarkErrorsSent(ids);
+            sourceDataUtils.MarkErrorsSent(ids);
         }
     }
 }

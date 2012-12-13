@@ -4,10 +4,11 @@ using System.Collections.Generic;
 using System.Text;
 using System.Linq;
 using System.IO;
+using System.Data;
 using NDesk.Options;
 using Xunit;
 using TeslaSQL.Agents;
-using System.Data;
+using TeslaSQL.DataUtils;
 #endregion
 
 /*
@@ -65,6 +66,7 @@ namespace TeslaSQL {
         }
 
         static void Main(string[] args) {
+            NetezzaDataUtils.NZTest();
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);
@@ -101,12 +103,10 @@ namespace TeslaSQL {
                 }
             }
 
-            var dataUtils = (IDataUtils)new DataUtils(config, logger);
-            logger.dataUtils = dataUtils;
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
             try {
-                Agent a = createAgent(config.agentType, config, dataUtils);
+                Agent a = createAgent(config.agentType, config, logger);
                 logger.Log("Running agent of type " + Convert.ToString(config.agentType), LogLevel.Info);
                 a.Run();
                 logger.Log("Agent completed successfully", LogLevel.Info);
@@ -119,28 +119,43 @@ namespace TeslaSQL {
             Environment.Exit(responseCode);
         }
 
-        private static Agent createAgent(AgentType agentType, Config config, IDataUtils dataUtils) {
+        private static Agent createAgent(AgentType agentType, Config config, Logger logger) {
+            IDataUtils sourceDataUtils;
+            IDataUtils destDataUtils;
             switch (agentType) {
                 case AgentType.Master:
-                    var master = new Master(config, dataUtils);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.MASTER, (SqlFlavor)config.masterType);
+                    destDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
+                    logger.dataUtils = destDataUtils;
+                    var master = new Master(config, sourceDataUtils, destDataUtils);
                     return master;
                 case AgentType.Slave:
-                    var slave = new Slave(config, dataUtils);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
+                    destDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.SLAVE, (SqlFlavor)config.slaveType);
+                    logger.dataUtils = sourceDataUtils;
+                    var slave = new Slave(config, sourceDataUtils, destDataUtils);
                     return slave;
                 case AgentType.ShardCoordinator:
-                    var shardCoordinator = new ShardCoordinator(config, dataUtils);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
+                    var shardCoordinator = new ShardCoordinator(config, sourceDataUtils);
+                    logger.dataUtils = sourceDataUtils;
                     return shardCoordinator;
                 case AgentType.Notifier:
-                    var notifier = new Notifier(config, dataUtils, new SimpleEmailClient(config.emailServerHost, config.emailFromAddress, config.emailServerPort));
+                    sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
+                    var notifier = new Notifier(config, sourceDataUtils, new SimpleEmailClient(config.emailServerHost, config.emailFromAddress, config.emailServerPort));
+                    logger.dataUtils = sourceDataUtils;
                     return notifier;
                 case AgentType.MasterMaintenance:
-                    var masterMaintenance = new MasterMaintenance(config, dataUtils);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.MASTER, (SqlFlavor)config.masterType);
+                    var masterMaintenance = new MasterMaintenance(config, sourceDataUtils);
                     return masterMaintenance;
                 case AgentType.RelayMaintenance:
-                    var relayMaintenance = new RelayMaintenance(config, dataUtils);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
+                    var relayMaintenance = new RelayMaintenance(config, sourceDataUtils);
                     return relayMaintenance;
                 case AgentType.SlaveMaintenance:
-                    var slaveMaintenance = new SlaveMaintenance(config, dataUtils);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.SLAVE, (SqlFlavor)config.slaveType);
+                    var slaveMaintenance = new SlaveMaintenance(config, sourceDataUtils);
                     return slaveMaintenance;
             }
             throw new Exception("Invalid agent type: " + agentType);

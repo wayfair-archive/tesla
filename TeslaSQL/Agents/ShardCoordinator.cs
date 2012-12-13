@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using TeslaSQL.DataUtils;
 
 namespace TeslaSQL.Agents
 {
@@ -11,7 +12,7 @@ namespace TeslaSQL.Agents
     class ShardCoordinator : Agent
     {
         //base keyword invokes the base class's constructor
-        public ShardCoordinator(Config config, IDataUtils dataUtils) : base(config, dataUtils) {
+        public ShardCoordinator(Config config, IDataUtils dataUtils) : base(config, dataUtils, null) {
 
         }
 

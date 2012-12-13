@@ -7,6 +7,7 @@ using System.Linq;
 using System.Data;
 using System.Diagnostics;
 using Xunit;
+using TeslaSQL.DataUtils;
 #endregion
 
 
@@ -16,7 +17,8 @@ namespace TeslaSQL.Agents {
 
         public Config config;
 
-        public IDataUtils dataUtils;
+        public IDataUtils sourceDataUtils;
+        public IDataUtils destDataUtils;
 
         public Logger logger;
 
@@ -24,10 +26,11 @@ namespace TeslaSQL.Agents {
             //parameterless constructor used only for unit tests
         }
 
-        protected Agent(Config config, IDataUtils dataUtils) {
+        public Agent(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
             this.config = config;
-            this.dataUtils = dataUtils;
-            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, dataUtils);
+            this.sourceDataUtils = sourceDataUtils;
+            this.destDataUtils = destDataUtils;
+            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, sourceDataUtils);
         }
 
         public abstract void Run();
@@ -37,14 +40,13 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// Set field list values for each table in the config
         /// </summary>
-        /// <param name="Server">Server to run on (i.e. Master, Slave, Relay)</param>
         /// <param name="Database">Database name to run on</param>
         /// <param name="tableConfArray">Array of tableconf objects to loop through and set field lists on</param>
-        public void SetFieldLists(TServer server, string database, TableConf[] tableConfArray) {
+        public void SetFieldLists(string database, TableConf[] tableConfArray) {
             Dictionary<string, bool> dict;
             foreach (TableConf t in tableConfArray) {
                 try {
-                    dict = dataUtils.GetFieldList(server, database, t.Name, t.schemaName);
+                    dict = sourceDataUtils.GetFieldList(database, t.Name, t.schemaName);
                     SetFieldList(t, dict);
                 } catch (Exception e) {
                     if (t.stopOnError) {
