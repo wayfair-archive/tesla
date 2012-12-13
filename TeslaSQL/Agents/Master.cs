@@ -40,7 +40,7 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
-            Int64 currentVersion = destDataUtils.GetCurrentCTVersion(config.masterDB);
+            Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(config.masterDB);
 
             logger.Log("Initializing CT batch", LogLevel.Debug);
             //set up the variables and CT version info for this run

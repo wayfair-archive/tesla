@@ -66,7 +66,7 @@ namespace TeslaSQL {
         }
 
         static void Main(string[] args) {
-            NetezzaDataUtils.NZTest();
+            //NetezzaDataUtils.NZTest();
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);

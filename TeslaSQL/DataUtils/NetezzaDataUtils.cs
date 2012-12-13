@@ -435,7 +435,6 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }

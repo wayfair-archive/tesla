@@ -684,13 +684,12 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataReader object representing the result</returns>
         public SqlDataReader ExecuteReader(string dbName, SqlCommand cmd, int timeout = 1200) {
-            using (SqlConnection sourceConn = new SqlConnection(buildConnString(dbName))) {
-                sourceConn.Open();
-                cmd.Connection = sourceConn;
-                cmd.CommandTimeout = timeout;
-                SqlDataReader reader = cmd.ExecuteReader();
-                return reader;
-            }
+            SqlConnection sourceConn = new SqlConnection(buildConnString(dbName));
+            sourceConn.Open();
+            cmd.Connection = sourceConn;
+            cmd.CommandTimeout = timeout;
+            SqlDataReader reader = cmd.ExecuteReader();
+            return reader;
         }
 
         /// <summary>
@@ -702,7 +701,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="table">Table name to write to</param>
         /// <param name="timeout">Timeout</param>
         public void BulkCopy(SqlDataReader reader, string dbName, string schema, string table, int timeout) {
-            SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);
+            SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);            
             bulkCopy.BulkCopyTimeout = timeout;
             bulkCopy.DestinationTableName = schema + "." + table;
             bulkCopy.WriteToServer(reader);
