@@ -31,16 +31,16 @@ namespace TeslaSQL.DataCopy {
             }           
         }
 
-        public void CopyTable(string sourceDB, string table, string schema, string destDB, int timeout, string destTableName = null) {
+        public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null) {
             //by default the dest table will have the same name as the source table
-            destTableName = (destTableName == null) ? table : destTableName;
+            destTableName = (destTableName == null) ? sourceTableName : destTableName;
 
             //drop table at destination and create from source schema
-            CopyTableDefinition(sourceDB, table, schema, destDB);
+            CopyTableDefinition(sourceDB, sourceTableName, schema, destDB, destTableName);
 
             //can't parametrize tablename or schema name but they have already been validated against the server so it's safe
-            SqlCommand cmd = new SqlCommand("SELECT * FROM [" + schema + "].[" + table + "]");
-            CopyDataFromQuery(sourceDB, destDB, cmd, table, schema, timeout, timeout);
+            SqlCommand cmd = new SqlCommand("SELECT * FROM [" + schema + "].[" + sourceTableName + "]");
+            CopyDataFromQuery(sourceDB, destDB, cmd, destTableName, schema, timeout, timeout);
         }
 
 
@@ -48,16 +48,17 @@ namespace TeslaSQL.DataCopy {
         /// Copies the schema of a table from one server to another, dropping it first if it exists at the destination.
         /// </summary>
         /// <param name="sourceDB">Source database name</param>
-        /// <param name="table">Table name</param>
+        /// <param name="sourceTableName">Table name</param>
         /// <param name="schema">Table's schema</param>
         /// <param name="destDB">Destination database name</param>
-        private void CopyTableDefinition(string sourceDB, string table, string schema, string destDB) {
+        private void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
             //script out the table at the source
-            string createScript = ScriptTable(sourceDB, table, schema);
+            string createScript = ScriptTable(sourceDB, sourceTableName, schema);
+            createScript = createScript.Replace(sourceTableName, destTableName);
             SqlCommand cmd = new SqlCommand(createScript);
 
             //drop it if it exists at the destination
-            bool didExist = destDataUtils.DropTableIfExists(destDB, table, schema);
+            bool didExist = destDataUtils.DropTableIfExists(destDB, sourceTableName, schema);
 
             //create it at the destination
             int result = destDataUtils.SqlNonQuery(destDB, cmd);

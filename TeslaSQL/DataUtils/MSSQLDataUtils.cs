@@ -33,7 +33,6 @@ namespace TeslaSQL.DataUtils {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
             }
-            logger.Log(cmd.CommandText, LogLevel.Trace);
             //build connection string based on server/db info passed in
             string connStr = buildConnString(dbName);
 
@@ -75,7 +74,6 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
         public int SqlNonQuery(string dbName, SqlCommand cmd, int timeout = 600) {
-            logger.Log(cmd.CommandText, LogLevel.Trace);
             foreach (IDataParameter p in cmd.Parameters) {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
@@ -817,32 +815,32 @@ namespace TeslaSQL.DataUtils {
             int result = SqlNonQuery(destDB, cmd);
         }
 
-        public void CreateConsolidatedTable(string tableName, Int64 CTID, string schemaName, string dbName) {
-            CopyTableDefinition(dbName, tableName + "_" + CTID, schemaName, dbName, tableName + "_consolidated");
+        public void CreateConsolidatedTable(string originalName, string schemaName, string dbName, string consolidatedName) {
+            CopyTableDefinition(dbName, originalName, schemaName, dbName, consolidatedName);
         }
 
-        public void Consolidate(string tableName, long CTID, string dbName, string schemaName) {
-            var consolidatedTableName = tableName + "_consolidated";
-            var ctTableName = tableName + "_" + CTID;
+        public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName) {
             var columns = GetIntersectColumnList(dbName, ctTableName, schemaName, consolidatedTableName, schemaName);
-            var cmd = new SqlCommand(string.Format(
-                "INSERT INTO {0} ({1}) SELECT {1} FROM {2}",
-                consolidatedTableName, string.Join(",", columns), ctTableName));
+            var query = string.Format(
+                "INSERT INTO [{0}] ({1}) SELECT {1} FROM [{2}]",
+                consolidatedTableName, string.Join(",", columns), ctTableName);
+            var cmd = new SqlCommand(query);
             SqlNonQuery(dbName, cmd);
         }
 
         public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string ctTableName, string dbName) {
-            var consolidatedTableName = ctTableName + "_consolidated";
+            
             var pks = table.columns.Where(c => c.isPk);
             var zipped = pks.Zip(pks, (a, b) => "a." + a + " = b." + b);
             string whereCondition = string.Join(" AND ", zipped);
-            
+
             string delete = string.Format(
-                            @"DELETE a FROM {0} a 
+                            @"DELETE a FROM [{0}] a 
                               WHERE EXISTS (
-                                SELECT 1 FROM {0} b WHERE {1} AND a.sys_change_version < b.sys_change_version
+                                SELECT 1 FROM [{0}] b WHERE {1} AND a.sys_change_version < b.sys_change_version
                               ) ",
-                              consolidatedTableName, whereCondition);
+                              ctTableName, whereCondition);
+            logger.Log(delete, LogLevel.Trace);
             SqlCommand cmd = new SqlCommand(delete);
             SqlNonQuery(dbName, cmd);
         }
@@ -856,7 +854,6 @@ namespace TeslaSQL.DataUtils {
                             	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE syncBitWise = 255
                             )";
             SqlCommand cmd = new SqlCommand(query);
-
             return SqlQuery(dbName, cmd);
         }
     }

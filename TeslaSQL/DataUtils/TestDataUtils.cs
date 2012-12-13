@@ -493,5 +493,14 @@ namespace TeslaSQL.DataUtils {
         public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string consolidatedTableName, string dbName) {
             throw new NotImplementedException();
         }
+
+
+        public void CreateConsolidatedTable(string originalName, string schemaName, string dbName, string consolidatedName) {
+            throw new NotImplementedException();
+        }
+
+        public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName) {
+            throw new NotImplementedException();
+        }
     }
 }
