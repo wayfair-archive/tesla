@@ -44,7 +44,7 @@ namespace TeslaSQL.Agents {
              * If you run a batch as Multi, and that batch fails, and before the next run,
              * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
              */
-            if (batches.Count < config.batchConsolidationThreshold) {
+            if (config.batchConsolidationThreshold == 0 || batches.Count < config.batchConsolidationThreshold) {
                 foreach (var batch in batches) {
                     RunSingleBatch(batch);
                 }
@@ -195,7 +195,6 @@ namespace TeslaSQL.Agents {
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
             //TODO add logger statements
             List<string> existingCTTables = new List<string>();
-            sourceDataUtils.CreateSlaveCTVersion(config.relayDB, ctb, config.slave);
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 existingCTTables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
@@ -232,13 +231,13 @@ namespace TeslaSQL.Agents {
             SetFieldLists(slaveDB, tableConf, destDataUtils);
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var table in tableConf) {
-                if (tables.Contains(table.Name)) {
+                if (tables.Contains(CTTableName(table.Name, CTID))) {
                     if (hasArchive.ContainsKey(table)) {
                         //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
                         continue;
                     }
                     if (table.Name.EndsWith("Archive")) {
-                        string nonArchiveTableName = table.Name.Substring(0, table.Name.Length - table.Name.LastIndexOf("Archive"));
+                        string nonArchiveTableName = CTTableName(table.Name.Substring(0, table.Name.Length - table.Name.LastIndexOf("Archive")), CTID);
                         if (tables.Contains(nonArchiveTableName)) {
                             var nonArchiveTable = tableConf.First(t => t.Name == nonArchiveTableName);
                             hasArchive[nonArchiveTable] = table;
