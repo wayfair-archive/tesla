@@ -293,7 +293,7 @@ namespace TeslaSQL.DataUtils {
 
         void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows);
 
-        void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid);
+        void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid, string CTDBName);
 
         //void CreateConsolidatedTable(string originalName, string schemaName, string dbName, string consolidatedName);
 

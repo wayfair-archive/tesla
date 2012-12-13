@@ -701,24 +701,26 @@ namespace TeslaSQL.DataUtils {
         public void BulkCopy(SqlDataReader reader, string dbName, string schema, string table, int timeout) {
             SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);
             bulkCopy.BulkCopyTimeout = timeout;
-            bulkCopy.DestinationTableName = schema + ".[" + table+"]";
+            bulkCopy.DestinationTableName = schema + ".[" + table + "]";
             bulkCopy.WriteToServer(reader);
         }
 
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID) {
-            var tableSql = BuildMergeQuery(table, dbName, CTID);
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName) {
+            var tableSql = new List<SqlCommand>();
+            tableSql.Add(BuildMergeQuery(table, dbName, CTID, CTDBName));
             if (archiveTable != null) {
-                tableSql.Concat(BuildMergeQuery(archiveTable, dbName, CTID));
+                tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName));
             }
             Transaction(tableSql, dbName);
         }
 
-        private IList<SqlCommand> BuildMergeQuery(TableConf table, string dbName, Int64 ctid) {
-            var commands = new List<SqlCommand>();
-            commands.Add(new SqlCommand("DECLARE @rowcounts TABLE (mergeaction nvarchar(10);"));
+        private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 ctid, string CTDBName) {
+            //TODO: set up logging tables 
             string sql = string.Format(
-                @"MERGE {0}.{1} WITH (ROWLOCK) AS P
-                  USING (SELECT * FROM {2}) AS CT
+                @"DECLARE @rowcounts TABLE (mergeaction nvarchar(10));
+                  DECLARE @insertcount int, @deletecount int;
+                  MERGE [{0}].[{7}].[{1}] WITH (ROWLOCK) AS P
+                  USING (SELECT * FROM [{8}].{2}) AS CT
                   ON ({3})
                   WHEN MATCHED AND CT.SYS_CHANGE_OPERATION = 'D'
                       THEN DELETE
@@ -726,25 +728,26 @@ namespace TeslaSQL.DataUtils {
                       THEN UPDATE SET {4}
                   WHEN NOT MATCHED BY TARGET AND CT.SYS_CHANGE_OPERATION IN ('I', 'U') THEN
                       INSERT ({5}) VALUES ({6})
-                  OUTPUT $action INTO @rowcounts;",
-                                  dbName,
-                                  table.Name,
-                                  table.ToCTName(ctid),
-                                  table.pkList,
-                                  table.mergeUpdateList.Length > 2 ? table.mergeUpdateList : table.pkList.Replace("AND", ","),
-                                  table.masterColumnList.Replace("CT.", "").Replace("P.", ""),
-                                  table.masterColumnList.Replace("P.", "CT.")
-                                  );
-            commands.Add(new SqlCommand(sql));
-            sql = string.Format("INSERT INTO tblCTLog SELECT {0}, '    DELETE p COUNT:{1}, {2}, GETDATE(), SELECT COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE')",
-                                 ctid, sql, table.Name);
-            commands.Add(new SqlCommand(sql));
-            sql = string.Format("INSERT INTO tblCTLog SELECT {0}, '    INSERT COUNT:{1}, {2}, GETDATE(), SELECT COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE')",
-                                 ctid, sql, table.Name);
-            commands.Add(new SqlCommand(sql));
-            commands.Add(new SqlCommand("DELETE @rowcounts"));
-
-            return commands;
+                  OUTPUT $action INTO @rowcounts;
+                  SELECT @insertcount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE');
+                  SELECT @deletecount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE');",
+                          dbName,
+                          table.Name,
+                          table.ToFullCTName(ctid),
+                          table.pkList,
+                          table.mergeUpdateList.Length > 2 ? table.mergeUpdateList : table.pkList.Replace("AND", ","),
+                          table.masterColumnList.Replace("P.", "").Replace("CT.", ""),
+                          table.masterColumnList.Replace("P.", "CT."),
+                          table.schemaName,
+                          CTDBName
+                          );
+            string baseSql = sql.Replace("'","''");
+            //sql += string.Format("\nINSERT INTO tblCTLog SELECT {0}, '    DELETE p COUNT:{1}', '{2}', GETDATE(), @deletecount, NULL;",
+            //                     ctid, baseSql, table.Name);
+            //sql += string.Format("\nINSERT INTO tblCTLog SELECT {0}, '    INSERT COUNT:{1}', '{2}', GETDATE(), @insertcount, NULL;",
+            //                     ctid, baseSql, table.Name);
+            sql += "\nDELETE @rowcounts;\n";
+            return new SqlCommand(sql);
         }
 
 
@@ -757,6 +760,7 @@ namespace TeslaSQL.DataUtils {
                 conn.Open();
                 var trans = conn.BeginTransaction();
                 foreach (var cmd in commands) {
+                    logger.Log(cmd.CommandText, LogLevel.Trace);
                     cmd.Transaction = trans;
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
@@ -829,7 +833,7 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string ctTableName, string dbName) {
-            
+
             var pks = table.columns.Where(c => c.isPk);
             var zipped = pks.Zip(pks, (a, b) => "a." + a + " = b." + b);
             string whereCondition = string.Join(" AND ", zipped);

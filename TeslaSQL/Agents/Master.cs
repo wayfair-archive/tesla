@@ -323,7 +323,7 @@ namespace TeslaSQL.Agents {
             bool tExisted = sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, t.schemaName);
 
             logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
-            Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, t.masterColumnList, ctTableName,
+            Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, t.modifiedMasterColumnList, ctTableName,
                 sourceDB, t.schemaName, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, 1200);
 
             logger.Log("Rows affected for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);

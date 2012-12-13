@@ -454,6 +454,11 @@ namespace TeslaSQL.DataUtils {
         public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName) {
             throw new NotImplementedException();
         }
+
+
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
+            throw new NotImplementedException();
+        }
     }
 }
 

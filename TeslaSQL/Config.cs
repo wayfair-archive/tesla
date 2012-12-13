@@ -650,14 +650,25 @@ namespace TeslaSQL {
             get {
                 return string.Join(",",
                     columns.Select(col => {
-                        if (parsedColumnModifiers.ContainsKey(col.name)) {
-                            return parsedColumnModifiers[col.name];
-                        } else {
-                            return col.isPk ? "CT." + col.name : "P." + col.name;
-                        }
+                        return col.isPk ? "CT." + col.name : "P." + col.name;
                     }
                 ));
 
+            }
+        }
+
+        [XmlIgnore]
+        public string modifiedMasterColumnList {
+            get {
+                return string.Join(",",
+                        columns.Select(col => {
+                            if (parsedColumnModifiers.ContainsKey(col.name)) {
+                                return parsedColumnModifiers[col.name];
+                            } else {
+                                return col.isPk ? "CT." + col.name : "P." + col.name;
+                            }
+                        }
+                    ));
             }
         }
 
@@ -707,6 +718,9 @@ namespace TeslaSQL {
 
         public string ToCTName(Int64 CTID) {
             return "tblCT" + Name + "_" + CTID;
+        }
+        public string ToFullCTName(Int64 CTID) {
+            return string.Format("[{0}].[{1}]", schemaName, ToCTName(CTID));
         }
     }
 
