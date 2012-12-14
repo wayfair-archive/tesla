@@ -40,3 +40,6 @@ obj/
 
 #Unix temporary files
 *~
+
+#vim swaps
+*.swp
