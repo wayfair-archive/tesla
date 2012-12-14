@@ -95,7 +95,6 @@ namespace TeslaSQL.Agents {
                 }
                 return batches;
             }
-            //get the last CT version this slave worked on in tblCTSlaveVersion
             logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
 
             DataRow lastBatch = sourceDataUtils.GetLastCTBatch(config.relayDB, AgentType.Slave, config.slave);
@@ -105,7 +104,6 @@ namespace TeslaSQL.Agents {
                 return batches;
             }
 
-            //compare bitwise to the bit for last step of slave agent
             if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) > 0) {
                 logger.Log("Last batch was successful, checking for new batches.", LogLevel.Debug);
 
