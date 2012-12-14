@@ -24,7 +24,6 @@ namespace TeslaSQL.Agents {
         }
         public string consolidatedName {
             get {
-                //return string.Format("[{0}].[tblCT{1}_{2}]", schemaName, name, slaveName);
                 return string.Format("tblCT{1}_{2}", schemaName, name, slaveName);
             }
         }
@@ -38,10 +37,7 @@ namespace TeslaSQL.Agents {
     }
 
     //TODO throughout this class add error handling for tables that shouldn't stop on error
-    //TODO we need to set up field lists somewhere in here...
-    //TODO figure out where to put check for MSSQL vs. netezza and where to branch the code paths
     public class Slave : Agent {
-
         public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
             this.config = config;
             this.sourceDataUtils = sourceDataUtils;
