@@ -765,6 +765,7 @@ namespace TeslaSQL.DataUtils {
                     cmd.Connection = conn;
                     cmd.ExecuteNonQuery();
                 }
+                trans.Commit();
             }
         }
 
@@ -797,30 +798,6 @@ namespace TeslaSQL.DataUtils {
                 }
             }
             return "";
-        }
-
-        /// <summary>
-        /// Copies the schema of a table from one server to another, dropping it first if it exists at the destination.
-        /// </summary>
-        /// <param name="sourceDB">Source database name</param>
-        /// <param name="sourceTableName">Table name</param>
-        /// <param name="schema">Table's schema</param>
-        /// <param name="destDB">Destination database name</param>
-        private void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
-            //script out the table at the source
-            string createScript = ScriptTable(sourceDB, sourceTableName, schema);
-            createScript = createScript.Replace(sourceTableName, destTableName);
-            SqlCommand cmd = new SqlCommand(createScript);
-
-            //drop it if it exists at the destination
-            bool didExist = DropTableIfExists(destDB, destTableName, schema);
-
-            //create it at the destination
-            int result = SqlNonQuery(destDB, cmd);
-        }
-
-        public void CreateConsolidatedTable(string originalName, string schemaName, string dbName, string consolidatedName) {
-            CopyTableDefinition(dbName, originalName, schemaName, dbName, consolidatedName);
         }
 
         public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName) {

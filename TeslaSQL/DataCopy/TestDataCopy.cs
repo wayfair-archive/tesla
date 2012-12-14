@@ -26,5 +26,10 @@ namespace TeslaSQL.DataCopy {
             //add it to the dataset
             destDataUtils.testData.Tables.Add(copy);
         }
+
+
+        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
+            throw new NotImplementedException();
+        }
     }
 }

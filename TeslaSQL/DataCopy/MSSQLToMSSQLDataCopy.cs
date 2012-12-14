@@ -51,7 +51,7 @@ namespace TeslaSQL.DataCopy {
         /// <param name="sourceTableName">Table name</param>
         /// <param name="schema">Table's schema</param>
         /// <param name="destDB">Destination database name</param>
-        private void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
+        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
             //script out the table at the source
             string createScript = ScriptTable(sourceDB, sourceTableName, schema);
             createScript = createScript.Replace(sourceTableName, destTableName);

@@ -14,5 +14,7 @@ namespace TeslaSQL.DataCopy {
         /// <param name="destDB">Destination database name</param>
         /// <param name="timeout">Used as timeout for both the query and the bulk copy</param>
         void CopyTable(string sourceDB, string table, string schema, string destDB, int timeout, string destTableName = null);
+
+        void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName);
     }
 }

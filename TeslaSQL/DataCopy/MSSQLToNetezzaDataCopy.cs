@@ -21,5 +21,10 @@ namespace TeslaSQL.DataCopy {
             throw new NotImplementedException();
         }
 
+
+
+        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
+            throw new NotImplementedException();
+        }
     }
 }
