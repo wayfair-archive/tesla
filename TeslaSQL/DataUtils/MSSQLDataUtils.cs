@@ -711,7 +711,11 @@ namespace TeslaSQL.DataUtils {
             if (archiveTable != null) {
                 tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName));
             }
-            Transaction(tableSql, dbName);
+            var s = TransactionQuery(tableSql, dbName);
+            logger.Log("table " + table.Name + ": insert: " + s[0].Rows[0].Field<int>("insertcount") + " | delete: " + s[0].Rows[0].Field<int>("deletecount"), LogLevel.Info);
+            if (archiveTable != null) {
+                logger.Log("table " + table.Name + ": insert: " + s[1].Rows[0].Field<int>("insertcount") + " | delete: " + s[1].Rows[0].Field<int>("deletecount"), LogLevel.Info);
+            }
         }
 
         private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 ctid, string CTDBName) {
@@ -729,7 +733,7 @@ namespace TeslaSQL.DataUtils {
                   WHEN NOT MATCHED BY TARGET AND CT.SYS_CHANGE_OPERATION IN ('I', 'U') THEN
                       INSERT ({5}) VALUES ({6})
                   OUTPUT $action INTO @rowcounts;
-                  SELECT @insertcount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE');
+                  SELECT @insertcount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE'); 
                   SELECT @deletecount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE');",
                           dbName,
                           table.Name,
@@ -741,12 +745,9 @@ namespace TeslaSQL.DataUtils {
                           table.schemaName,
                           CTDBName
                           );
-            string baseSql = sql.Replace("'","''");
-            //sql += string.Format("\nINSERT INTO tblCTLog SELECT {0}, '    DELETE p COUNT:{1}', '{2}', GETDATE(), @deletecount, NULL;",
-            //                     ctid, baseSql, table.Name);
-            //sql += string.Format("\nINSERT INTO tblCTLog SELECT {0}, '    INSERT COUNT:{1}', '{2}', GETDATE(), @insertcount, NULL;",
-            //                     ctid, baseSql, table.Name);
+            string baseSql = sql.Replace("'", "''");
             sql += "\nDELETE @rowcounts;\n";
+            sql += "SELECT @insertcount AS insertcount, @deletecount AS deletecount\n";
             return new SqlCommand(sql);
         }
 
@@ -763,10 +764,30 @@ namespace TeslaSQL.DataUtils {
                     logger.Log(cmd.CommandText, LogLevel.Trace);
                     cmd.Transaction = trans;
                     cmd.Connection = conn;
-                    cmd.ExecuteNonQuery();
+                    var reader = cmd.ExecuteReader();
                 }
                 trans.Commit();
             }
+        }
+
+        private IList<DataTable> TransactionQuery(IList<SqlCommand> commands, string dbName) {
+            var connStr = buildConnString(dbName);
+            var tables = new List<DataTable>();
+            using (var conn = new SqlConnection(connStr)) {
+                conn.Open();
+                var trans = conn.BeginTransaction();
+                foreach (var cmd in commands) {
+                    logger.Log(cmd.CommandText, LogLevel.Trace);
+                    cmd.Transaction = trans;
+                    cmd.Connection = conn;
+                    DataSet ds = new DataSet();
+                    SqlDataAdapter da = new SqlDataAdapter(cmd);
+                    da.Fill(ds);
+                    tables.Add(ds.Tables[0]);
+                }
+                trans.Commit();
+            }
+            return tables;
         }
 
 
