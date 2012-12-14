@@ -125,6 +125,12 @@
     <Compile Include="SchemaChange.cs" />
     <Compile Include="SimpleEmailClient.cs" />
     <Compile Include="DataUtils\TestDataUtils.cs" />
+    <Compile Include="Tests\Agents\TestAgent.cs" />
+    <Compile Include="Tests\Agents\TestMaster.cs" />
+    <Compile Include="Tests\Agents\TestSlave.cs" />
+    <Compile Include="Tests\TestConfig.cs" />
+    <Compile Include="Tests\TestDDLEvent.cs" />
+    <Compile Include="Tests\TestProgram.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">
