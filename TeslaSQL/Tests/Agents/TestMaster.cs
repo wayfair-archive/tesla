@@ -13,12 +13,12 @@ using TeslaSQL.Agents;
 
 namespace TeslaSQL.Tests.Agents {
     public class TestMaster : Master, IUseFixture<MasterTestFixture> {
-        public void SetFixture(MasterTestFixture fixture) {
+        public void SetFixture(MasterTestFixture fixture) {           
             this.sourceDataUtils = fixture.sourceDataUtils;
             this.destDataUtils = fixture.destDataUtils;
             this.config = fixture.config;
             ((TestDataUtils)sourceDataUtils).ReloadData("test1");
-            ((TestDataUtils)destDataUtils).ReloadData("test1");
+            ((TestDataUtils)destDataUtils).ReloadData("test1");            
             SetFieldLists("testdb", config.tables, sourceDataUtils);
         }
 
@@ -103,28 +103,28 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestPublishTableInfo() {
+            
+            
             //undo changes
             ((TestDataUtils)destDataUtils).ReloadData("test1");
-            Console.WriteLine("wtf");
             ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);
             Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64> {
                 {"dbo.test1", 1},
                 {"dbo.test2", 0}
-            };
-            
+            };          
             PublishTableInfo(config.tables, changesCaptured);
             DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[0];
             Assert.True(actual.Field<string>("CtiTableName") == "test1"
                 && actual.Field<string>("CtiSchemaName") == "dbo"
                 && actual.Field<string>("CtiPKList") == "column1"
                 && actual.Field<int>("CtiExpectedRows") == 1);
+            
             actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[1];
             Assert.True(actual.Field<string>("CtiTableName") == "test2"
                 && actual.Field<string>("CtiSchemaName") == "dbo"
                 && actual.Field<string>("CtiPKList") == "column1"
                 && actual.Field<int>("CtiExpectedRows") == 0); 
-            
-        }
+        }         
        
         [Fact]
         public void TestGetRowCounts_NonZero() {

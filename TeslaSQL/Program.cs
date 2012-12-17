@@ -37,10 +37,6 @@ using TeslaSQL.DataUtils;
 namespace TeslaSQL {
     public class Program {
         static void Main(string[] args) {
-            var tmf = new TeslaSQL.Tests.Agents.MasterTestFixture();
-            var tm = new TeslaSQL.Tests.Agents.TestMaster();
-            tm.SetFixture(tmf);
-            tm.TestPublishTableInfo();
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);

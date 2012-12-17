@@ -66,7 +66,8 @@ namespace TeslaSQL.Agents {
         public void SetFieldList(TableConf t, Dictionary<string, bool> fields) {
             Stopwatch st = new Stopwatch();
             st.Start();
-            foreach (KeyValuePair<string, bool> c in fields) {
+            t.columns.Clear();
+            foreach (KeyValuePair<string, bool> c in fields) {                
                 if (t.columnList == null || t.columnList.Contains(c.Key, StringComparer.OrdinalIgnoreCase)) {
                     t.columns.Add(new TColumn(c.Key, c.Value));
                 }
