@@ -360,6 +360,7 @@ namespace TeslaSQL.DataUtils {
                 } else {
                     throw new DoesNotExistException("Table " + table + " does not exist");
                 }
+                serverconn.C
             }
         }
 

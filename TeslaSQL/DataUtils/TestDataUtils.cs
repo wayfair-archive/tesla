@@ -30,6 +30,7 @@ namespace TeslaSQL.DataUtils {
             this.config = config;
             this.logger = logger;
             this.server = Convert.ToString(server);
+            testData = new DataSet();
         }
 
         /// <summary>
@@ -37,6 +38,22 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         public TestDataUtils(TServer server) {
             this.server = Convert.ToString(server);
+            testData = new DataSet();
+        }
+
+        /// <summary>
+        /// Reloads test data from files
+        /// </summary>
+        /// <param name="testName">Name of the test set to load</param>
+        public void ReloadData(string testName) {
+            //baseDir resolves to something like "C:\tesla\TeslaSQL\bin\Release"
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            DataSet ds = new DataSet();
+
+            //test xml/xsd files are copied during build to bin\Release\Tests
+            string filePath = baseDir + @"\Tests\" + testName + @"\input_data_" + server + ".xml";
+            ds.ReadXml(filePath, XmlReadMode.ReadSchema);
+            testData = ds;
         }
 
         /// <summary>
@@ -191,9 +208,9 @@ namespace TeslaSQL.DataUtils {
             row["CscColumnName"] = schemaChange.columnName;
             row["CscNewColumnName"] = schemaChange.newColumnName;
             row["CscBaseDataType"] = schemaChange.dataType.baseType;
-            row["CscCharacterMaximumLength"] = schemaChange.dataType.characterMaximumLength;
-            row["CscNumericPrecision"] = schemaChange.dataType.numericPrecision;
-            row["CscNumericScale"] = schemaChange.dataType.numericScale;
+            row["CscCharacterMaximumLength"] = (object)schemaChange.dataType.characterMaximumLength ?? DBNull.Value;
+            row["CscNumericPrecision"] = (object)schemaChange.dataType.numericPrecision ?? DBNull.Value;
+            row["CscNumericScale"] = (object)schemaChange.dataType.numericScale ?? DBNull.Value;
             //add it to the datatable
             testData.Tables[schemaChangeTableName, GetTableSpace(dbName)].Rows.Add(row);
             //commit the change
@@ -257,6 +274,10 @@ namespace TeslaSQL.DataUtils {
         }
 
         public bool DropTableIfExists(string dbName, string table, string schema) {
+            if (table.Contains("tblCT") && server == "MASTER") {
+                //workaround for tests to prevent dropping of preloaded CT tables
+                return true;
+            }
             if (testData.Tables.Contains(schema + "." + table, GetTableSpace(dbName))) {
                 testData.Tables.Remove(schema + "." + table, GetTableSpace(dbName));
                 //testData.AcceptChanges();
@@ -415,26 +436,18 @@ namespace TeslaSQL.DataUtils {
             dt.Columns[columnName].ColumnName = newColumnName;
         }
 
-        public void ModifyColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+        public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             //can't change the datatype of a column in a datatable but since this is just for unit testing, we can just drop and recreate it
             //instead since there is no data to worry about losing       
             DropColumn(t, dbName, schema, table, columnName);
-            AddColumn(t, dbName, schema, table, columnName, baseType, characterMaximumLength, numericPrecision, numericScale);
+            AddColumn(t, dbName, schema, table, columnName, dataType);
         }
 
-        public void AddColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {                 
+        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {                 
             DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(dbName)];
             Type type;
             //since this is just for unit testing we only need to support a subset of data types     
-            switch (baseType) {
-                case "varchar":
-                case "nvarchar":
-                case "char":
-                case "nchar":
-                    type = typeof(string);
-                    break;
+            switch (dataType) {
                 case "int":
                     type = typeof(Int32);
                     break;
@@ -445,7 +458,7 @@ namespace TeslaSQL.DataUtils {
                     type = typeof(DateTime);
                     break;
                 default:
-                    throw new NotImplementedException("Data type " + baseType + " not supported for testing");
+                    throw new NotImplementedException("Data type " + dataType + " not supported for testing");
             }
             dt.Columns.Add(columnName, type);
         }
@@ -456,11 +469,29 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void CreateTableInfoTable(string p, long p_2) {
-            throw new NotImplementedException();
+            DataTable tblCTTableInfo = new DataTable("dbo.tblCTTableInfo_" + Convert.ToString(p_2), GetTableSpace(p));
+
+            DataColumn CscID = tblCTTableInfo.Columns.Add("CtiID", typeof(Int32));
+            CscID.AutoIncrement = true;
+            CscID.AutoIncrementSeed = 100;
+            CscID.AutoIncrementStep = 1;
+            tblCTTableInfo.PrimaryKey = new DataColumn[] { CscID };
+
+            tblCTTableInfo.Columns.Add("CtiTableName", typeof(string));
+            tblCTTableInfo.Columns.Add("CtiSchemaName", typeof(string));
+            tblCTTableInfo.Columns.Add("CtiPKList", typeof(string));
+            tblCTTableInfo.Columns.Add("CtiExpectedRows", typeof(int));
+            testData.Tables.Add(tblCTTableInfo);            
         }
 
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
-            throw new NotImplementedException();
+            DataTable table = testData.Tables["dbo.tblCTTableInfo_" + Convert.ToString(CTID), GetTableSpace(dbName)];
+            DataRow row = table.NewRow();
+            row["CtiTableName"] = t.Name;
+            row["CtiSchemaName"] = t.schemaName;
+            row["CtiPKList"] = string.Join(",", t.columns.Where(c => c.isPk));
+            row["CtiExpectedRows"] = expectedRows;
+            table.Rows.Add(row);
         }
 
 

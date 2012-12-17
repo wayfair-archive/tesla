@@ -1,0 +1,95 @@
+<?xml version="1.0" standalone="yes"?>
+<NewDataSet>
+  <xs:schema id="NewDataSet" xmlns="" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:app1="MASTER.testdb" xmlns:app2="MASTER.CT_testdb">
+    <xs:import namespace="MASTER.testdb" schemaLocation="input_data_MASTER_app1.xsd" />
+    <xs:import namespace="MASTER.CT_testdb" schemaLocation="input_data_MASTER_app2.xsd" />
+    <xs:element name="NewDataSet" msdata:IsDataSet="true" msdata:UseCurrentLocale="true">
+      <xs:complexType>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element ref="app1:dbo.test1" />
+          <xs:element ref="app2:dbo.tblCTtest1_101" />
+          <xs:element ref="app1:dbo.test2" />
+          <xs:element ref="app2:dbo.tblCTtest2_101" />
+          <xs:element ref="app1:INFORMATION_SCHEMA.COLUMNS" />
+          <xs:element ref="app1:dbo.tblDDLEvent" />
+          <xs:element ref="app1:minValidVersions" />
+        </xs:choice>
+      </xs:complexType>
+      <xs:unique name="Constraint1" msdata:PrimaryKey="true">
+        <xs:selector xpath=".//app1:dbo.test1" />
+        <xs:field xpath="app1:column1" />
+      </xs:unique>
+      <xs:unique name="dbo.tblCTtest1_101_Constraint1" msdata:ConstraintName="Constraint1" msdata:PrimaryKey="true">
+        <xs:selector xpath=".//app2:dbo.tblCTtest1_101" />
+        <xs:field xpath="app2:column1" />
+      </xs:unique>
+      <xs:unique name="dbo.test2_Constraint1" msdata:ConstraintName="Constraint1" msdata:PrimaryKey="true">
+        <xs:selector xpath=".//app1:dbo.test2" />
+        <xs:field xpath="app1:column1" />
+      </xs:unique>
+      <xs:unique name="dbo.tblCTtest2_101_Constraint1" msdata:ConstraintName="Constraint1" msdata:PrimaryKey="true">
+        <xs:selector xpath=".//app2:dbo.tblCTtest2_101" />
+        <xs:field xpath="app2:column1" />
+      </xs:unique>
+    </xs:element>
+  </xs:schema>
+  <dbo.test1 xmlns="MASTER.testdb">
+    <column1>100</column1>
+    <column2>test</column2>
+    <RowCreationDate>2012-11-01T12:00:00-04:00</RowCreationDate>
+  </dbo.test1>
+  <dbo.tblCTtest1_101 xmlns="MASTER.CT_testdb">
+    <column1>100</column1>
+    <column2>test</column2>
+    <RowCreationDate>2012-11-01T12:00:00-04:00</RowCreationDate>
+    <SYS_CHANGE_OPERATION>I</SYS_CHANGE_OPERATION>
+    <SYS_CHANGE_VERSION>1500</SYS_CHANGE_VERSION>
+  </dbo.tblCTtest1_101>
+  <INFORMATION_SCHEMA.COLUMNS xmlns="MASTER.testdb">
+    <TABLE_SCHEMA>dbo</TABLE_SCHEMA>
+    <TABLE_CATALOG>testdb</TABLE_CATALOG>
+    <TABLE_NAME>test1</TABLE_NAME>
+    <COLUMN_NAME>column1</COLUMN_NAME>
+    <DATA_TYPE>int</DATA_TYPE>
+    <NUMERIC_PRECISION>10</NUMERIC_PRECISION>
+    <NUMERIC_SCALE>0</NUMERIC_SCALE>
+  </INFORMATION_SCHEMA.COLUMNS>
+  <INFORMATION_SCHEMA.COLUMNS xmlns="MASTER.testdb">
+    <TABLE_SCHEMA>dbo</TABLE_SCHEMA>
+    <TABLE_CATALOG>testdb</TABLE_CATALOG>
+    <TABLE_NAME>test1</TABLE_NAME>
+    <COLUMN_NAME>column2</COLUMN_NAME>
+    <DATA_TYPE>varchar</DATA_TYPE>
+    <CHARACTER_MAXIMUM_LENGTH>100</CHARACTER_MAXIMUM_LENGTH>
+  </INFORMATION_SCHEMA.COLUMNS>
+  <INFORMATION_SCHEMA.COLUMNS xmlns="MASTER.testdb">
+    <TABLE_SCHEMA>dbo</TABLE_SCHEMA>
+    <TABLE_CATALOG>testdb</TABLE_CATALOG>
+    <TABLE_NAME>test2</TABLE_NAME>
+    <COLUMN_NAME>column1</COLUMN_NAME>
+    <DATA_TYPE>nchar</DATA_TYPE>
+    <CHARACTER_MAXIMUM_LENGTH>8</CHARACTER_MAXIMUM_LENGTH>
+  </INFORMATION_SCHEMA.COLUMNS>
+  <INFORMATION_SCHEMA.COLUMNS xmlns="MASTER.testdb">
+    <TABLE_SCHEMA>dbo</TABLE_SCHEMA>
+    <TABLE_CATALOG>testdb</TABLE_CATALOG>
+    <TABLE_NAME>test2</TABLE_NAME>
+    <COLUMN_NAME>column2</COLUMN_NAME>
+    <DATA_TYPE>datetime</DATA_TYPE>
+  </INFORMATION_SCHEMA.COLUMNS>
+  <dbo.tblDDLEvent xmlns="MASTER.testdb">
+    <DdeID>10</DdeID>
+    <DdeEventData>&lt;EVENT_INSTANCE&gt;&lt;EventType&gt;ALTER_TABLE&lt;/EventType&gt;&lt;SchemaName&gt;dbo&lt;/SchemaName&gt;
+&lt;ObjectName&gt;test1&lt;/ObjectName&gt;&lt;ObjectType&gt;TABLE&lt;/ObjectType&gt;&lt;AlterTableActionList&gt;
+&lt;Create&gt;&lt;Columns&gt;&lt;Name&gt;column2&lt;/Name&gt;&lt;/Columns&gt;&lt;/Create&gt;&lt;/AlterTableActionList&gt;&lt;/EVENT_INSTANCE&gt;</DdeEventData>
+    <DdeTime>2012-01-01T12:00:00-05:00</DdeTime>
+  </dbo.tblDDLEvent>
+  <minValidVersions xmlns="MASTER.testdb">
+    <table>dbo.test1</table>
+    <version>1</version>
+  </minValidVersions>
+  <minValidVersions xmlns="MASTER.testdb">
+    <table>dbo.test2</table>
+    <version>1</version>
+  </minValidVersions>
+</NewDataSet>

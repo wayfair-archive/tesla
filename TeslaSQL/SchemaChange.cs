@@ -72,7 +72,7 @@ namespace TeslaSQL {
                 || tableName != toCompare.tableName
                 || columnName != toCompare.columnName
                 || newColumnName != toCompare.newColumnName
-                || !DataType.Compare(dataType, toCompare.dataType)
+                || !DataType.Equals(dataType, toCompare.dataType)
                ) {
                 return false;
             } else {

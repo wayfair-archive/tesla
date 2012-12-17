@@ -263,7 +263,6 @@ namespace TeslaSQL.Tests {
         /// This class is invoked by xunit.net and passed to SetFixture in the DDLEventTest class
         /// </summary>
         public class DDLEventTestData {
-            public DataSet testData;
             public TableConf[] tables;
             public TestDataUtils dataUtils;
 
@@ -278,66 +277,8 @@ namespace TeslaSQL.Tests {
                 tables[1].Name = "test2";
                 tables[1].columnList = new string[2] { "column1", "column2" };
 
-                dataUtils = new TestDataUtils(TServer.MASTER);
-                testData = new DataSet();
-                var dt = new DataTable("INFORMATION_SCHEMA.COLUMNS", dataUtils.GetTableSpace("testdb"));
-                dt.Columns.Add("TABLE_SCHEMA", typeof(string));
-                dt.Columns.Add("TABLE_CATALOG", typeof(string));
-                dt.Columns.Add("TABLE_NAME", typeof(string));
-                dt.Columns.Add("COLUMN_NAME", typeof(string));
-                dt.Columns.Add("DATA_TYPE", typeof(string));
-                dt.Columns.Add("CHARACTER_MAXIMUM_LENGTH", typeof(int));
-                dt.Columns.Add("NUMERIC_PRECISION", typeof(byte));
-                dt.Columns.Add("NUMERIC_SCALE", typeof(int));
-
-                DataRow row = dt.NewRow();
-                row["TABLE_SCHEMA"] = "dbo";
-                row["TABLE_CATALOG"] = "testdb";
-                row["TABLE_NAME"] = "test1";
-                row["COLUMN_NAME"] = "column1";
-                row["DATA_TYPE"] = "int";
-                row["CHARACTER_MAXIMUM_LENGTH"] = DBNull.Value;
-                row["NUMERIC_PRECISION"] = (byte)10;
-                row["NUMERIC_SCALE"] = 0;
-                dt.Rows.Add(row);
-
-                row = dt.NewRow();
-                row["TABLE_SCHEMA"] = "dbo";
-                row["TABLE_CATALOG"] = "testdb";
-                row["TABLE_NAME"] = "test1";
-                row["COLUMN_NAME"] = "column2";
-                row["DATA_TYPE"] = "varchar";
-                row["CHARACTER_MAXIMUM_LENGTH"] = 100;
-                row["NUMERIC_PRECISION"] = DBNull.Value;
-                row["NUMERIC_SCALE"] = DBNull.Value;
-                dt.Rows.Add(row);
-
-                row = dt.NewRow();
-                row["TABLE_SCHEMA"] = "dbo";
-                row["TABLE_CATALOG"] = "testdb";
-                row["TABLE_NAME"] = "test1";
-                row["COLUMN_NAME"] = "column1";
-                row["DATA_TYPE"] = "nchar";
-                row["CHARACTER_MAXIMUM_LENGTH"] = 8;
-                row["NUMERIC_PRECISION"] = DBNull.Value;
-                row["NUMERIC_SCALE"] = DBNull.Value;
-                dt.Rows.Add(row);
-
-                row = dt.NewRow();
-                row["TABLE_SCHEMA"] = "dbo";
-                row["TABLE_CATALOG"] = "testdb";
-                row["TABLE_NAME"] = "test2";
-                row["COLUMN_NAME"] = "column2";
-                row["DATA_TYPE"] = "datetime";
-                row["CHARACTER_MAXIMUM_LENGTH"] = DBNull.Value;
-                row["NUMERIC_PRECISION"] = DBNull.Value;
-                row["NUMERIC_SCALE"] = DBNull.Value;
-                dt.Rows.Add(row);
-
-                //add the datatable to the data set
-                testData.Tables.Add(dt);
-                //add the dataset to the TestDataUtils instance
-                dataUtils.testData = testData;
+                dataUtils = new TestDataUtils(TServer.MASTER);                
+                dataUtils.ReloadData("test1");
             }
         }
     }

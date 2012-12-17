@@ -1,0 +1,25 @@
+<?xml version="1.0" standalone="yes"?>
+<xs:schema targetNamespace="MASTER.CT_testdb" xmlns:mstns="MASTER.CT_testdb" xmlns="MASTER.CT_testdb" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:app2="MASTER.CT_testdb" xmlns:app1="MASTER.testdb">
+  <xs:import namespace="MASTER.testdb" schemaLocation="input_data_MASTER_app1.xsd" />
+  <xs:element name="dbo.tblCTtest1_101">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="column1" type="xs:int" />
+        <xs:element name="column2" type="xs:string" minOccurs="0" />
+        <xs:element name="RowCreationDate" type="xs:dateTime" minOccurs="0" />
+        <xs:element name="SYS_CHANGE_OPERATION" type="xs:string" minOccurs="0" />
+        <xs:element name="SYS_CHANGE_VERSION" type="xs:long" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="dbo.tblCTtest2_101">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="column1" type="xs:string" />
+        <xs:element name="column2" type="xs:dateTime" minOccurs="0" />
+        <xs:element name="SYS_CHANGE_OPERATION" type="xs:string" minOccurs="0" />
+        <xs:element name="SYS_CHANGE_VERSION" type="xs:long" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

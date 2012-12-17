@@ -353,8 +353,7 @@ namespace TeslaSQL.DataUtils {
              * */
         }
 
-        public void ModifyColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+        public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
 
             throw new NotImplementedException("Still need to implement");
             /*
@@ -380,8 +379,7 @@ namespace TeslaSQL.DataUtils {
              * */
         }
 
-        public void AddColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
+        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             
             throw new NotImplementedException("Still need to implement");
             /*

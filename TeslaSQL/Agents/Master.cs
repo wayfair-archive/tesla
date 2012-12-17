@@ -14,7 +14,7 @@ using TeslaSQL.DataCopy;
 
 namespace TeslaSQL.Agents {
     public class Master : Agent {
-        ChangeTrackingBatch ctb;
+        protected ChangeTrackingBatch ctb;
 
         public Master(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
             this.config = config;
@@ -113,7 +113,7 @@ namespace TeslaSQL.Agents {
             return;
         }
 
-        private void PublishTableInfo(TableConf[] tableConf, Dictionary<string, long> changesCaptured) {
+        protected void PublishTableInfo(TableConf[] tableConf, Dictionary<string, long> changesCaptured) {
             logger.Log("creating tableinfo table for ctid=" + ctb.CTID, LogLevel.Info);
             destDataUtils.CreateTableInfoTable(config.relayDB, ctb.CTID);
             foreach (var t in tableConf) {
@@ -128,7 +128,7 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="currentVersion">current change tracking version on the master</param>
         /// <returns>boolean, which lets the agent know whether or not it should continue creating changetables</returns>
-        private ChangeTrackingBatch InitializeBatch(Int64 currentVersion) {
+        protected ChangeTrackingBatch InitializeBatch(Int64 currentVersion) {
             logger.Log("Retrieving information about the most recently worked on batch from tblCTVersion", LogLevel.Trace);
             DataRow lastbatch = destDataUtils.GetLastCTBatch(config.relayDB, AgentType.Master);
 
@@ -247,7 +247,7 @@ namespace TeslaSQL.Agents {
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
         /// <param name="CTID">CT batch ID this is being run for</param>
-        private Dictionary<string, Int64> CreateChangeTables(TableConf[] tables, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
+        protected Dictionary<string, Int64> CreateChangeTables(TableConf[] tables, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
             Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64>();
             KeyValuePair<string, Int64> result;
             foreach (TableConf t in tables) {
@@ -267,7 +267,7 @@ namespace TeslaSQL.Agents {
         /// <param name="startVersion">Start version to compare to min_valid_version</param>
         /// <param name="reason">Outputs a reason for why the table isn't valid, if it isn't valid.</param>
         /// <returns>Bool indicating whether it's safe to pull changes for this table</returns>
-        private bool ValidateSourceTable(string dbName, string table, string schemaName, Int64 startVersion, out string reason) {
+        protected bool ValidateSourceTable(string dbName, string table, string schemaName, Int64 startVersion, out string reason) {
             if (!sourceDataUtils.CheckTableExists(dbName, table, schemaName)) {
                 reason = "Table " + table + " does not exist in the source database";
                 logger.Log(reason, LogLevel.Trace);
@@ -300,7 +300,7 @@ namespace TeslaSQL.Agents {
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
         /// <param name="CTID">CT batch ID this is being run for</param>
-        private KeyValuePair<string, Int64> CreateChangeTable(TableConf t, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
+        protected KeyValuePair<string, Int64> CreateChangeTable(TableConf t, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
             //TODO check tblCTInitialize and change startVersion if necessary? need to decide if we are keeping tblCTInitialize at all
             //alternative to keeping it is to have it live only on a slave which then keeps track of which batches it has applied for that table separately from the CT runs
 
@@ -339,7 +339,7 @@ namespace TeslaSQL.Agents {
         /// <param name="sourceCTDB">Source CT database</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
-        private void PublishChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
+        protected void PublishChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
             IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.masterType, (SqlFlavor)config.relayType, sourceDataUtils, destDataUtils);
             foreach (TableConf t in tables) {
                 if (changesCaptured[t.schemaName + "." + t.Name] > 0) {

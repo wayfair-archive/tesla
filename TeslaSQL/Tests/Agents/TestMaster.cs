@@ -17,45 +17,168 @@ namespace TeslaSQL.Tests.Agents {
             this.sourceDataUtils = fixture.sourceDataUtils;
             this.destDataUtils = fixture.destDataUtils;
             this.config = fixture.config;
-            //svar table = ((TestDataUtils)sourceDataUtils).testData.Tables[1];
+            ((TestDataUtils)sourceDataUtils).ReloadData("test1");
+            ((TestDataUtils)destDataUtils).ReloadData("test1");
+            SetFieldLists("testdb", config.tables, sourceDataUtils);
         }
 
         [Fact]
+        public void TestInitializeBatch_LastBatchSuccessful() {                      
+            DataTable tblCTVersion = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTVersion", "RELAY.CT_testdb"];
+            DataRow row = tblCTVersion.Rows[tblCTVersion.Rows.Count - 1];
+            
+            Int64 CTID = row.Field<Int64>("CTID");
+            row["syncBitWise"] = SyncBitWise.UploadChanges;
+            row["syncStartVersion"] = 1000;
+            row["syncStopVersion"] = 2000;
+
+            ChangeTrackingBatch expected = new ChangeTrackingBatch(CTID + 1, 2000, 2500, 0);
+            ChangeTrackingBatch actual = InitializeBatch(2500);
+            Assert.True(actual.Equals(expected));
+            //undo any writes
+            ((TestDataUtils)destDataUtils).ReloadData("test1"); 
+        }
+
+        [Fact]
+        public void TestInitializeBatch_LastBatchFailed() {
+            DataTable tblCTVersion = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTVersion", "RELAY.CT_testdb"];
+            DataRow row = tblCTVersion.Rows[tblCTVersion.Rows.Count - 1];
+
+            Int64 CTID = row.Field<Int64>("CTID");
+            row["syncBitWise"] = 0;
+            row["syncStartVersion"] = 1000;
+            row["syncStopVersion"] = 2000;
+
+            //in this case we expect syncStopVersion to get updated from 2000 to 2500 but the rest of the batch to stay the same
+            ChangeTrackingBatch expected = new ChangeTrackingBatch(CTID, 1000, 2500, 0);
+            ChangeTrackingBatch actual = InitializeBatch(2500);
+
+            Assert.True(actual.Equals(expected));
+            //undo any writes
+            ((TestDataUtils)destDataUtils).ReloadData("test1");
+        }
+
+        [Fact]
+        public void TestInitializeBatch_LastBatchPartial() {
+            DataTable tblCTVersion = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTVersion", "RELAY.CT_testdb"];
+            DataRow row = tblCTVersion.Rows[tblCTVersion.Rows.Count - 1];
+
+            Int64 CTID = row.Field<Int64>("CTID");
+            Int32 syncBitWise = Convert.ToInt32(SyncBitWise.CaptureChanges) + Convert.ToInt32(SyncBitWise.PublishSchemaChanges);
+            row["syncBitWise"] = syncBitWise;
+            row["syncStartVersion"] = 1000;
+            row["syncStopVersion"] = 2000;
+
+            //in this case we expect to just continue working on the same batch with no changes
+            ChangeTrackingBatch expected = new ChangeTrackingBatch(CTID, 1000, 2000, syncBitWise);
+            ChangeTrackingBatch actual = InitializeBatch(2500);
+
+            Assert.True(actual.Equals(expected));
+        }
+
+        [Fact]
+        public void TestPublishSchemaChanges() {
+            //create tblCTSchemaChange_100
+            destDataUtils.CreateSchemaChangeTable("CT_testdb", 101);
+            //publish schema changes from tblDDLevent
+            PublishSchemaChanges(config.tables, "testdb", "CT_testdb", 101, new DateTime(2000, 1, 1));
+            //retrieve results from tblCTSchemaChange_101
+            DataTable results = destDataUtils.GetSchemaChanges("CT_testdb", 101);
+            //parse schema change object for the resulting row
+            SchemaChange actual = new SchemaChange(results.Rows[0]);
+            //it should be equal to this
+            SchemaChange expected = new SchemaChange(10, SchemaChangeType.Add, "dbo", "test1", "column2", null, new DataType("varchar", 100, null, null));
+
+            Assert.True(actual.Equals(expected));
+            //undo changes
+            ((TestDataUtils)destDataUtils).ReloadData("test1");
+        }
+
+        [Fact]
+        public void TestCreateChangeTables() {
+            Dictionary<string, Int64> result = CreateChangeTables(config.tables, "testdb", "CT_testdb", 1000, 2000, 101);
+            Assert.Equal(1, result["dbo.test1"]);
+            Assert.Equal(0, result["dbo.test2"]);            
+        }
+
+        [Fact]
+        public void TestPublishTableInfo() {
+            //undo changes
+            ((TestDataUtils)destDataUtils).ReloadData("test1");
+            Console.WriteLine("wtf");
+            ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);
+            Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64> {
+                {"dbo.test1", 1},
+                {"dbo.test2", 0}
+            };
+            
+            PublishTableInfo(config.tables, changesCaptured);
+            DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[0];
+            Assert.True(actual.Field<string>("CtiTableName") == "test1"
+                && actual.Field<string>("CtiSchemaName") == "dbo"
+                && actual.Field<string>("CtiPKList") == "column1"
+                && actual.Field<int>("CtiExpectedRows") == 1);
+            actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[1];
+            Assert.True(actual.Field<string>("CtiTableName") == "test2"
+                && actual.Field<string>("CtiSchemaName") == "dbo"
+                && actual.Field<string>("CtiPKList") == "column1"
+                && actual.Field<int>("CtiExpectedRows") == 0); 
+            Assert.
+        }
+       
+        [Fact]
         public void TestGetRowCounts_NonZero() {
-            var rowCounts = GetRowCounts(config.tables, "CT_testdb", 1);
+            var rowCounts = GetRowCounts(config.tables, "CT_testdb", 101);
             Assert.Equal(1, rowCounts["dbo.test1"]);
         }
 
         [Fact]
         public void TestGetRowCounts_Zero() {
-            var rowCounts = GetRowCounts(config.tables, "CT_testdb", 1);
+            var rowCounts = GetRowCounts(config.tables, "CT_testdb", 101);
             Assert.Equal(0, rowCounts["dbo.test2"]);
         }
 
-        //unit tests for ResizeBatch method
         [Fact]
-        public void TestResizeBatch() {
+        public void TestResizeBatch_MaxBatchZero() {
             //test that it doesn't mess with batch size when maxBatchSize is 0
             Assert.Equal(1000, ResizeBatch(500, 1000, 1000, 0, null, null, new DateTime(2000, 1, 1, 12, 0, 0)));
+        }
 
+        [Fact]
+        public void TestResizeBatch_NoThreshold() {
             //test the basic case with threshold times not set
             Assert.Equal(1000, ResizeBatch(500, 1500, 1500, 500, null, null, new DateTime(2000, 1, 1, 12, 0, 0)));
+        }
 
+        [Fact]
+        public void TestResizeBatch_ThresholdNoMidnight_NotInThreshold() {
             //same case with threshold times set (not wrapping around midnight), when we are not in the ignore window
             Assert.Equal(1000, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(1, 0, 0), new TimeSpan(3, 0, 0), new DateTime(2000, 1, 1, 12, 0, 0)));
+        }
 
+        [Fact]
+        public void TestResizeBatch_ThresholdNoMidnight_InThreshold() {
             //threshold times set (not wrapping around midnight) and we are currently in the ignore window
             Assert.Equal(1500, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(1, 0, 0), new TimeSpan(3, 0, 0), new DateTime(2000, 1, 1, 2, 0, 0)));
+        }
 
+        [Fact]
+        public void TestResizeBatch_ThresholdMidnight_NotInThreshold() {
             //threshold time wraps around midnight and we are not in the ignore window
             Assert.Equal(1000, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(23, 45, 0), new TimeSpan(1, 30, 0), new DateTime(2000, 1, 1, 12, 0, 0)));
+        }
 
+        [Fact]
+        public void TestResizeBatch_ThresholdMidnight_InThresholdBeforeMidnight() {
             //threshold time wraps around midnight and we are in the ignore window (before midnight)
             Assert.Equal(1500, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(23, 45, 0), new TimeSpan(1, 30, 0), new DateTime(2000, 1, 1, 23, 55, 0)));
+        }
 
+        [Fact]
+        public void TestResizeBatch_ThresholdMidnight_InThresholdAfterMidnight() {
             //threshold time wraps around midnight and we are in the ignore window (after midnight)
             Assert.Equal(1500, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(23, 45, 0), new TimeSpan(1, 30, 0), new DateTime(2000, 1, 1, 0, 30, 0)));
-        }        
+        }      
     }
 
     public class MasterTestFixture {
@@ -77,25 +200,13 @@ namespace TeslaSQL.Tests.Agents {
             sourceDataUtils.testData = new DataSet();
             destDataUtils = new TestDataUtils(TServer.RELAY);
             destDataUtils.testData = new DataSet();
-
+          
             config = new Config();
             config.masterDB = "testdb";
+            config.masterCTDB = "CT_testdb";
+            config.relayDB = "CT_testdb";
             config.logLevel = LogLevel.Critical;
             config.tables = tables;
-
-            sourceDataUtils.DropTableIfExists("CT_testdb", "tblCTtest1_1", "dbo");
-            DataTable test1 = new DataTable("dbo.tblCTtest1_1", "MASTER.CT_testdb");
-            test1.Columns.Add("column1", typeof(Int32));
-            DataRow row = test1.NewRow();
-            row["column1"] = 1;
-            test1.Rows.Add(row);
-
-            sourceDataUtils.DropTableIfExists("CT_testdb", "tblCTtest2_1", "dbo");
-            DataTable test2 = new DataTable("dbo.tblCTtest2_1", "MASTER.CT_testdb");
-            test2.Columns.Add("column1", typeof(Int32));
-
-            sourceDataUtils.testData.Tables.Add(test1);
-            sourceDataUtils.testData.Tables.Add(test2);
         }
 
         //TODO move this somewhere else

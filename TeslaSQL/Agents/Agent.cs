@@ -71,7 +71,6 @@ namespace TeslaSQL.Agents {
                     t.columns.Add(new TColumn(c.Key, c.Value));
                 }
             }
-
             st.Stop();
             logger.Log("SetFieldList Elapsed time for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
         }

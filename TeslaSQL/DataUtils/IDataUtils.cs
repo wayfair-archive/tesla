@@ -257,12 +257,8 @@ namespace TeslaSQL.DataUtils {
         /// <param name="schema">Schema the table is part of</param>
         /// <param name="table">Table name</param>
         /// <param name="columnName">Column name to modify</param>
-        /// <param name="baseType">Base data type (i.e. varchar, int)</param>
-        /// <param name="characterMaximumLength">Max length for *char data types</param>
-        /// <param name="numericPrecision">Numeric precision for numeric/decimal types</param>
-        /// <param name="numericScale">Numeric scale for numeric/decimal types</param>
-        void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string baseType,
-            int? characterMaximumLength, int? numericPrecision, int? numericScale);
+        /// <param name="dataType">String representation of the column's new data type</param>
+        void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType);
 
         /// <summary>
         /// Adds a column to a table
@@ -272,12 +268,8 @@ namespace TeslaSQL.DataUtils {
         /// <param name="schema">Schema the table is part of</param>
         /// <param name="table">Table name</param>
         /// <param name="columnName">Column name to add</param>
-        /// <param name="baseType">Base data type (i.e. varchar, int)</param>
-        /// <param name="characterMaximumLength">Max length for *char data types</param>
-        /// <param name="numericPrecision">Numeric precision for numeric/decimal types</param>
-        /// <param name="numericScale">Numeric scale for numeric/decimal types</param>
-        void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string baseType,
-            int? characterMaximumLength, int? numericPrecision, int? numericScale);
+        /// <param name="dataType">String representation of the column's data type</param>
+        void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType);
 
         /// <summary>
         /// Drops a column from a table

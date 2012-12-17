@@ -1,0 +1,52 @@
+<?xml version="1.0" standalone="yes"?>
+<xs:schema targetNamespace="MASTER.testdb" xmlns:mstns="MASTER.testdb" xmlns="MASTER.testdb" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:app1="MASTER.testdb" xmlns:app2="MASTER.CT_testdb">
+  <xs:import namespace="MASTER.CT_testdb" schemaLocation="input_data_MASTER_app2.xsd" />
+  <xs:element name="dbo.test1">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="column1" type="xs:int" />
+        <xs:element name="column2" type="xs:string" minOccurs="0" />
+        <xs:element name="RowCreationDate" type="xs:dateTime" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="dbo.test2">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="column1" type="xs:string" />
+        <xs:element name="column2" type="xs:dateTime" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="INFORMATION_SCHEMA.COLUMNS">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="TABLE_SCHEMA" type="xs:string" minOccurs="0" />
+        <xs:element name="TABLE_CATALOG" type="xs:string" minOccurs="0" />
+        <xs:element name="TABLE_NAME" type="xs:string" minOccurs="0" />
+        <xs:element name="COLUMN_NAME" type="xs:string" minOccurs="0" />
+        <xs:element name="DATA_TYPE" type="xs:string" minOccurs="0" />
+        <xs:element name="CHARACTER_MAXIMUM_LENGTH" type="xs:int" minOccurs="0" />
+        <xs:element name="NUMERIC_PRECISION" type="xs:unsignedByte" minOccurs="0" />
+        <xs:element name="NUMERIC_SCALE" type="xs:int" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="dbo.tblDDLEvent">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="DdeID" type="xs:int" minOccurs="0" />
+        <xs:element name="DdeEventData" type="xs:string" minOccurs="0" />
+        <xs:element name="DdeTime" type="xs:dateTime" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="minValidVersions">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="table" type="xs:string" minOccurs="0" />
+        <xs:element name="version" type="xs:long" minOccurs="0" />
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

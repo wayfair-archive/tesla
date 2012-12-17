@@ -42,5 +42,20 @@ namespace TeslaSQL {
             }
         }
 
+        /// <summary>
+        /// Compare two ChangeTrackingBatch objects. Used for unit tests.
+        /// </summary>
+        public bool Equals(ChangeTrackingBatch expected) {
+            if (CTID != expected.CTID
+                || syncStartVersion != expected.syncStartVersion
+                || syncStopVersion != expected.syncStopVersion
+                || syncBitWise != expected.syncBitWise
+               ) {
+                return false;
+            } else {
+                return true;
+            }
+        }
+
     }
 }

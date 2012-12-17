@@ -378,15 +378,11 @@ namespace TeslaSQL.Agents {
                             break;
                         case SchemaChangeType.Modify:
                             logger.Log("Changing data type on column " + schemaChange.columnName, LogLevel.Info);
-                            destDataUtils.ModifyColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
-                                 schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
-                                 schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);
+                            destDataUtils.ModifyColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName, schemaChange.dataType.ToString());
                             break;
                         case SchemaChangeType.Add:
                             logger.Log("Adding column " + schemaChange.columnName, LogLevel.Info);
-                            destDataUtils.AddColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
-                                 schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
-                                 schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);
+                            destDataUtils.AddColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName, schemaChange.dataType.ToString());
                             break;
                         case SchemaChangeType.Drop:
                             logger.Log("Dropping column " + schemaChange.columnName, LogLevel.Info);

@@ -31,7 +31,7 @@ namespace TeslaSQL {
         /// <param name="expected">Expected data type</param>
         /// <param name="actual">Actual data type</param>
         /// <returns>True if the objects are equal or both null</returns>
-        public static bool Compare(DataType expected, DataType actual) {
+        public static bool Equals(DataType expected, DataType actual) {
             if (expected == null && actual == null) {
                 return true;
             }
@@ -41,13 +41,14 @@ namespace TeslaSQL {
                 || expected.numericScale != actual.numericScale
                 ) {
                 return false;
-            }
-            
+            }            
             return true;
-
         }
 
-
+        /// <summary>
+        /// Convert data type to string
+        /// </summary>
+        /// <returns>String expression representing the data type</returns>
         public override string ToString() {
             var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
             var typesUsingScale = new string[2] { "numeric", "decimal" };
@@ -60,7 +61,7 @@ namespace TeslaSQL {
                 suffix = "(" + numericPrecision + ", " + numericScale + ")";
             }
 
-            return "test";
+            return baseType + suffix;
         }
     }
 }

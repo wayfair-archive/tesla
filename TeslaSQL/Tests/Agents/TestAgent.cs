@@ -27,7 +27,6 @@ namespace TeslaSQL.Tests.Agents {
                 {"col1", true},
                 {"col2", false},
                 {"col3", false},
-
                 {"col4", true}
             };
             var cm = new ColumnModifier();
@@ -36,7 +35,7 @@ namespace TeslaSQL.Tests.Agents {
             cm.columnName = "col1";
             t.columnModifiers = new ColumnModifier[] { cm };
             SetFieldList(t, fields);
-            Assert.Equal("LEFT(CAST(P.col1 AS NVARCHAR(MAX)),100) as col1,P.col2,P.col3,CT.col4", t.masterColumnList);
+            Assert.Equal("LEFT(CAST(P.col1 AS NVARCHAR(MAX)),100) as col1,P.col2,P.col3,CT.col4", t.modifiedMasterColumnList);
             Assert.Equal("col1,col2,col3,col4", t.slaveColumnList);
             Assert.Equal("P.col1 = CT.col1 AND P.col4 = CT.col4", t.pkList);
             Assert.Equal("P.col1 IS NOT NULL AND P.col4 IS NOT NULL", t.notNullPKList);
