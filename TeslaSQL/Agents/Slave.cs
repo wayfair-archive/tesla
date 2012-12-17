@@ -8,33 +8,12 @@ using System.Xml;
 using Xunit;
 using TeslaSQL.DataUtils;
 using TeslaSQL.DataCopy;
+using Microsoft.SqlServer.Management.Smo;
 #endregion
 
 namespace TeslaSQL.Agents {
 
-    class ChangeTable {
-        public readonly string name;
-        public readonly Int64? ctid;
-        public readonly string slaveName;
-        public readonly string schemaName;
-        public string ctName {
-            get {
-                return string.Format("tblCT{1}_{2}", schemaName, name, ctid);
-            }
-        }
-        public string consolidatedName {
-            get {
-                return string.Format("tblCT{1}_{2}", schemaName, name, slaveName);
-            }
-        }
 
-        public ChangeTable(string name, Int64? ctid, String schema, string slaveName) {
-            this.name = name;
-            this.ctid = ctid;
-            this.schemaName = schema;
-            this.slaveName = slaveName;
-        }
-    }
 
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     public class Slave : Agent {
@@ -167,15 +146,21 @@ namespace TeslaSQL.Agents {
                 ApplyChanges(config.tables, config.slaveCTDB, existingCTTables, endBatch.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
-
-            //SyncBatchedHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, tables);
+            var lastChangedTables = new List<ChangeTable>();
+            foreach (var group in existingCTTables.GroupBy(c => c.name)) {
+                lastChangedTables.Add(group.OrderByDescending(c => c.ctid).First());
+            }
+            if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) == 0) {
+                SyncHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, lastChangedTables);
+                sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), AgentType.Slave);
+            }
             //success! go through and mark all the batches as complete in the db
             foreach (ChangeTrackingBatch batch in batches) {
                 sourceDataUtils.MarkBatchComplete(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
             }
         }
 
-        private void ConsolidateBatches(List<ChangeTable> tables, List<ChangeTrackingBatch> batches) {
+        private IEnumerable<ChangeTable> ConsolidateBatches(List<ChangeTable> tables, List<ChangeTrackingBatch> batches) {
             IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, sourceDataUtils);
             var lu = new Dictionary<string, List<ChangeTable>>();
             foreach (var changeTable in tables) {
@@ -184,18 +169,20 @@ namespace TeslaSQL.Agents {
                 }
                 lu[changeTable.name].Add(changeTable);
             }
+            var consolidatedTables = new List<ChangeTable>();
             foreach (var table in config.tables) {
                 if (!lu.ContainsKey(table.Name)) {
                     continue;
                 }
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
+                consolidatedTables.Add(lastChangeTable);
                 dataCopy.CopyTable(config.relayDB, lastChangeTable.ctName, table.schemaName, config.relayDB, 36000, lastChangeTable.consolidatedName);
-                dataCopy.CopyTableDefinition(config.relayDB, lastChangeTable.ctName, table.schemaName, config.relayDB, lastChangeTable.consolidatedName);
                 foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid)) {
                     sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, config.relayDB, table.schemaName);
                 }
                 sourceDataUtils.RemoveDuplicatePrimaryKeyChangeRows(table, lastChangeTable.consolidatedName, config.relayDB);
             }
+            return consolidatedTables;
         }
 
         /// <summary>
@@ -215,25 +202,33 @@ namespace TeslaSQL.Agents {
                 existingCTTables = PopulateTableList(config.tables, config.slaveCTDB, ctb.CTID);
             }
 
-            //apply schema changes if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                 ApplySchemaChanges(config.tables, config.slaveDB, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 //marking this field so that all completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
-            //apply changes to destination tables if not already done
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 ApplyChanges(config.tables, config.slaveDB, existingCTTables, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
-            //update the history tables
-            //TODO implement
-            //SyncBatchedHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, tables);
+            SyncHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, existingCTTables);
 
             //success! mark the batch as complete
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
+        }
+
+        private void SyncHistoryTables(TableConf[] tableConf, string slaveCTDB, string slaveDB, List<ChangeTable> existingCTTables) {
+            foreach (var t in existingCTTables) {
+                var s = tableConf.First(tc => tc.Name.Equals(t.name, StringComparison.InvariantCultureIgnoreCase));
+                if (!s.recordHistoryTable) {
+                    logger.Log("Skipping writing history table for " + t.name + " because it is not configured", LogLevel.Debug);
+                    continue;
+                }
+                logger.Log("Writing history table for " + t.name, LogLevel.Debug);
+                destDataUtils.CopyIntoHistoryTable(t, slaveCTDB);
+            }
         }
 
         private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<ChangeTable> tables, Int64 CTID) {
@@ -271,7 +266,6 @@ namespace TeslaSQL.Agents {
         /// <param name="dbName">Database name</param>
         /// <param name="tables">List of table names to populate</param>
         private List<ChangeTable> PopulateTableList(TableConf[] tables, string dbName, Int64 CTID) {
-            //TODO add logger statements
             var tableList = new List<ChangeTable>();
             foreach (TableConf t in tables) {
                 var ct = new ChangeTable(t.Name, CTID, t.schemaName, config.slave);
@@ -349,42 +343,42 @@ namespace TeslaSQL.Agents {
                 return;
             }
 
-            TableConf t;
+            TableConf table;
             foreach (DataRow row in result.Rows) {
                 var schemaChange = new SchemaChange(row);
-                //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
-                t = tables.SingleOrDefault(item => String.Compare(item.Name, schemaChange.tableName, ignoreCase: true) == 0);
+                //String.Compare method returns 0 if the strings are equal
+                table = tables.SingleOrDefault(item => String.Compare(item.Name, schemaChange.tableName, ignoreCase: true) == 0);
 
-                if (t == null) {
+                if (table == null) {
                     logger.Log("Ignoring schema change for table " + row.Field<string>("CscTableName") + " because it isn't in config", LogLevel.Debug);
                     continue;
                 }
                 logger.Log("Processing schema change (CscID: " + row.Field<int>("CscID") +
-                    ") of type " + schemaChange.eventType + " for table " + t.Name, LogLevel.Info);
+                    ") of type " + schemaChange.eventType + " for table " + table.Name, LogLevel.Info);
 
-                if (t.columnList == null || t.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
+                if (table.columnList == null || table.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
                     logger.Log("Schema change applies to a valid column, so we will apply it", LogLevel.Info);
                     switch (schemaChange.eventType) {
                         case SchemaChangeType.Rename:
                             logger.Log("Renaming column " + schemaChange.columnName + " to " + schemaChange.newColumnName, LogLevel.Info);
-                            destDataUtils.RenameColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName,
+                            destDataUtils.RenameColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName,
                                 schemaChange.columnName, schemaChange.newColumnName);
                             break;
                         case SchemaChangeType.Modify:
                             logger.Log("Changing data type on column " + schemaChange.columnName, LogLevel.Info);
-                            destDataUtils.ModifyColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
+                            destDataUtils.ModifyColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
                                  schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
                                  schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);
                             break;
                         case SchemaChangeType.Add:
                             logger.Log("Adding column " + schemaChange.columnName, LogLevel.Info);
-                            destDataUtils.AddColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
+                            destDataUtils.AddColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName,
                                  schemaChange.dataType.baseType, schemaChange.dataType.characterMaximumLength,
                                  schemaChange.dataType.numericPrecision, schemaChange.dataType.numericScale);
                             break;
                         case SchemaChangeType.Drop:
                             logger.Log("Dropping column " + schemaChange.columnName, LogLevel.Info);
-                            destDataUtils.DropColumn(t, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);
+                            destDataUtils.DropColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);
                             break;
                     }
 
