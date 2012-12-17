@@ -871,12 +871,11 @@ namespace TeslaSQL.DataUtils {
             string sql;
             if (CheckTableExists(dbName, t.historyName, t.schemaName)) {
                 logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
-                sql = string.Format("SELECT {0} AS CTHistID, * INTO {1} FROM {2}", t.ctid, t.historyName, t.ctName);
+                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
-
             } else {
                 logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
-                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
+                sql = string.Format("SELECT {0} AS CTHistID, * INTO {1} FROM {2}", t.ctid, t.historyName, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
             }
             var cmd = new SqlCommand(sql);
