@@ -43,10 +43,13 @@ namespace TeslaSQL {
                 var frame = new StackFrame(1);
                 var method = frame.GetMethod();
                 var obj = method.DeclaringType.ToString();
-                var newMessage = DateTime.Now + ": " + logLevel + ": " + obj + " " + method + "\r\n\t" + message;
-                Console.WriteLine(newMessage);
+                var firstLine = DateTime.Now + ": " + obj + " " + method.Name;
+                var secondLine = logLevel + ": " + message;
+                Console.WriteLine(firstLine);
+                Console.WriteLine(secondLine);
                 using (var writer = new StreamWriter(fileName, true)) {
-                    writer.WriteLine(newMessage);
+                    writer.WriteLine(firstLine);
+                    writer.WriteLine(secondLine);
                 }
             }
 

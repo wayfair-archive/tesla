@@ -101,6 +101,7 @@
     <Compile Include="Agents\ShardCoordinator.cs" />
     <Compile Include="Agents\Slave.cs" />
     <Compile Include="Agents\SlaveMaintenance.cs" />
+    <Compile Include="ChangeTable.cs" />
     <Compile Include="ChangeTrackingBatch.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="DataCopy\TestDataCopy.cs" />

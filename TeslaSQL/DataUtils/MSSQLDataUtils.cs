@@ -359,8 +359,7 @@ namespace TeslaSQL.DataUtils {
                     return db.Tables[table, schema];
                 } else {
                     throw new DoesNotExistException("Table " + table + " does not exist");
-                }
-                serverconn.C
+                }                
             }
         }
 
@@ -427,7 +426,7 @@ namespace TeslaSQL.DataUtils {
                 t_smo = GetSmoTable(dbName, table, schema);
             } catch (DoesNotExistException) {
                 //TODO figure out if we also want to throw here
-                logger.Log("Unable to get field list for table " + table + " because it does not exist", LogLevel.Error);
+                logger.Log("Unable to get field list for " + dbName + "." + schema + "." + table + " because it does not exist", LogLevel.Error);
                 return dict;
             }
 
@@ -557,7 +556,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //check for history table, if it is configured and contains the column we need to modify that too
-            if (t.recordHistoryTable && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckTableExists(dbName, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
                 cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
@@ -566,62 +565,33 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
-        public void ModifyColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
-
-            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
-            var typesUsingScale = new string[2] { "numeric", "decimal" };
-            string suffix = "";
-            string query;
+        public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             SqlCommand cmd;
-            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
-                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
-                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
-            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
-                suffix = "(" + numericPrecision + ", " + numericScale + ")";
-            }
-
             //Modify the column if it exists
             if (CheckColumnExists(dbName, schema, table, columnName)) {
-                query = "ALTER TABLE " + schema + "." + table + " ALTER COLUMN " + columnName + " " + baseType;
-                cmd = new SqlCommand(query + suffix);
+                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " ALTER COLUMN " + columnName + " " + dataType);
                 logger.Log("Altering table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
             }
             //modify on history table if that exists too
             if (t.recordHistoryTable && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
-                query = "ALTER TABLE " + schema + "." + table + "_History ALTER COLUMN " + columnName + " " + baseType;
-                cmd = new SqlCommand(query + suffix);
+                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History ALTER COLUMN " + columnName + " " + dataType);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
             }
         }
 
-        public void AddColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string baseType, int? characterMaximumLength, int? numericPrecision, int? numericScale) {
-            string query;
+        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             SqlCommand cmd;
-            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
-            var typesUsingScale = new string[2] { "numeric", "decimal" };
-
-            string suffix = "";
-            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
-                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
-                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
-            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
-                suffix = "(" + numericPrecision + ", " + numericScale + ")";
-            }
             //add column if it doesn't exist
             if (!CheckColumnExists(dbName, schema, table, columnName)) {
-                query = "ALTER TABLE " + schema + "." + table + " ADD " + columnName + " " + baseType;
-                cmd = new SqlCommand(query + suffix);
+                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " ADD " + columnName + " " + dataType);
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
             }
             //add column to history table if the table exists and the column doesn't
             if (t.recordHistoryTable && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
-                query = "ALTER TABLE " + schema + "." + table + "_History ADD " + columnName + " " + baseType;
-                cmd = new SqlCommand(query + suffix);
+                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History ADD " + columnName + " " + dataType);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
             }
@@ -636,7 +606,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //if history table exists and column exists, drop it there too
-            if (t.recordHistoryTable && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckTableExists(dbName, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History DROP COLUMN " + columnName);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
@@ -712,7 +682,11 @@ namespace TeslaSQL.DataUtils {
             if (archiveTable != null) {
                 tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName));
             }
-            Transaction(tableSql, dbName);
+            var s = TransactionQuery(tableSql, dbName);
+            logger.Log("table " + table.Name + ": insert: " + s[0].Rows[0].Field<int>("insertcount") + " | delete: " + s[0].Rows[0].Field<int>("deletecount"), LogLevel.Info);
+            if (archiveTable != null) {
+                logger.Log("table " + table.Name + ": insert: " + s[1].Rows[0].Field<int>("insertcount") + " | delete: " + s[1].Rows[0].Field<int>("deletecount"), LogLevel.Info);
+            }
         }
 
         private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 ctid, string CTDBName) {
@@ -730,7 +704,7 @@ namespace TeslaSQL.DataUtils {
                   WHEN NOT MATCHED BY TARGET AND CT.SYS_CHANGE_OPERATION IN ('I', 'U') THEN
                       INSERT ({5}) VALUES ({6})
                   OUTPUT $action INTO @rowcounts;
-                  SELECT @insertcount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE');
+                  SELECT @insertcount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE'); 
                   SELECT @deletecount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE');",
                           dbName,
                           table.Name,
@@ -742,12 +716,9 @@ namespace TeslaSQL.DataUtils {
                           table.schemaName,
                           CTDBName
                           );
-            string baseSql = sql.Replace("'","''");
-            //sql += string.Format("\nINSERT INTO tblCTLog SELECT {0}, '    DELETE p COUNT:{1}', '{2}', GETDATE(), @deletecount, NULL;",
-            //                     ctid, baseSql, table.Name);
-            //sql += string.Format("\nINSERT INTO tblCTLog SELECT {0}, '    INSERT COUNT:{1}', '{2}', GETDATE(), @insertcount, NULL;",
-            //                     ctid, baseSql, table.Name);
+            string baseSql = sql.Replace("'", "''");
             sql += "\nDELETE @rowcounts;\n";
+            sql += "SELECT @insertcount AS insertcount, @deletecount AS deletecount\n";
             return new SqlCommand(sql);
         }
 
@@ -764,10 +735,30 @@ namespace TeslaSQL.DataUtils {
                     logger.Log(cmd.CommandText, LogLevel.Trace);
                     cmd.Transaction = trans;
                     cmd.Connection = conn;
-                    cmd.ExecuteNonQuery();
+                    var reader = cmd.ExecuteReader();
                 }
                 trans.Commit();
             }
+        }
+
+        private IList<DataTable> TransactionQuery(IList<SqlCommand> commands, string dbName) {
+            var connStr = buildConnString(dbName);
+            var tables = new List<DataTable>();
+            using (var conn = new SqlConnection(connStr)) {
+                conn.Open();
+                var trans = conn.BeginTransaction();
+                foreach (var cmd in commands) {
+                    logger.Log(cmd.CommandText, LogLevel.Trace);
+                    cmd.Transaction = trans;
+                    cmd.Connection = conn;
+                    DataSet ds = new DataSet();
+                    SqlDataAdapter da = new SqlDataAdapter(cmd);
+                    da.Fill(ds);
+                    tables.Add(ds.Tables[0]);
+                }
+                trans.Commit();
+            }
+            return tables;
         }
 
 
@@ -837,6 +828,29 @@ namespace TeslaSQL.DataUtils {
                             )";
             SqlCommand cmd = new SqlCommand(query);
             return SqlQuery(dbName, cmd);
+        }
+
+
+        public void CreateHistoryTable(ChangeTable t, string slaveCTDB) {
+            if (CheckTableExists(slaveCTDB, t.historyName, t.schemaName)) {
+                return;
+            }
+            string create = ScriptTable(slaveCTDB, t.ctName, t.schemaName);
+        }
+
+        public void CopyIntoHistoryTable(ChangeTable t, string dbName) {
+            string sql;
+            if (CheckTableExists(dbName, t.historyName, t.schemaName)) {
+                logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
+                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
+                logger.Log(sql, LogLevel.Debug);
+            } else {
+                logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
+                sql = string.Format("SELECT {0} AS CTHistID, * INTO {1} FROM {2}", t.ctid, t.historyName, t.ctName);
+                logger.Log(sql, LogLevel.Debug);
+            }
+            var cmd = new SqlCommand(sql);
+            SqlNonQuery(dbName, cmd);
         }
     }
 }

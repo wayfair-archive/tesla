@@ -538,5 +538,14 @@ namespace TeslaSQL.DataUtils {
         public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
             throw new NotImplementedException();
         }
+
+
+        public void CreateHistoryTable(ChangeTable t, string slaveCTDB) {
+            throw new NotImplementedException();
+        }
+
+        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -123,7 +123,7 @@ namespace TeslaSQL.Tests.Agents {
                 && actual.Field<string>("CtiSchemaName") == "dbo"
                 && actual.Field<string>("CtiPKList") == "column1"
                 && actual.Field<int>("CtiExpectedRows") == 0); 
-            Assert.
+            
         }
        
         [Fact]
