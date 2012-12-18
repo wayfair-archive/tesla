@@ -76,7 +76,7 @@ namespace TeslaSQL {
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
             try {
-                Agent a = createAgent(config.agentType, config, logger);
+                Agent a = CreateAgent(config.agentType, config, logger);
                 logger.Log("Running agent of type " + Convert.ToString(config.agentType), LogLevel.Info);
                 a.Run();
                 logger.Log("Agent completed successfully", LogLevel.Info);
@@ -89,7 +89,7 @@ namespace TeslaSQL {
             Environment.Exit(responseCode);
         }
 
-        private static Agent createAgent(AgentType agentType, Config config, Logger logger) {
+        private static Agent CreateAgent(AgentType agentType, Config config, Logger logger) {
             IDataUtils sourceDataUtils;
             IDataUtils destDataUtils;
             switch (agentType) {

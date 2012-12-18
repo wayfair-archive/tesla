@@ -853,5 +853,34 @@ namespace TeslaSQL.DataUtils {
             DataTable result = SqlQuery(dbName, cmd);
             return result.Rows.Count > 0 ? new ChangeTrackingBatch(result.Rows[0]) : null;
         }
+
+        public void RevertCTBatch(string dbName, Int64 ctid) {
+            SqlCommand cmd;
+            cmd = new SqlCommand("UPDATE dbo.tblCTVersion SET SyncBitWise = 0 WHERE ctid = @ctid");
+            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ctid;
+            SqlNonQuery(dbName, cmd);
+        }
+
+
+        public void MergeCTTable(TableConf table, string destDB, string sourceDB, long CTID) {
+            
+
+            //TODO this is probably unnecessary; maybe just use full column list in all conditions.
+            var mergeList = table.columns.Any(c => !c.isPk) ? table.mergeUpdateList : string.Join(",", table.columns.Select(c => String.Format("P.{0} = CT.{0}", c.name)));
+            var columnList = string.Join(",", table.columns.Select(c => c.name));
+            var insertList = string.Join(",", table.columns.Select(c => "CT." + c.name));
+
+            string sql =
+                string.Format(@"MERGE dbo.{0} WITH(ROWLOCK) AS P
+	               USING (SELECT * FROM {1}.dbo.{0}) AS CT
+	               ON ({2})
+	               WHEN MATCHED AND P.SYS_CHANGE_OPERATION = 'D' AND CT.SYS_CHANGE_OPERATION IN ('I', 'U')
+	                 THEN UPDATE SET {3}, P.SYS_CHANGE_OPERATION = CT.SYS_CHANGE_OPERATION, P.SYS_CHANGE_VERSION = CT.SYS_CHANGE_VERSION
+	               WHEN NOT MATCHED
+	                 THEN INSERT ({4}),SYS_CHANGE_VERSION, SYS_CHANGE_OPERATION) VALUES ({5}, CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION);",
+                   table.ToCTName(CTID), sourceDB, table.pkList, mergeList, columnList, insertList);
+            SqlCommand cmd = new SqlCommand(sql);
+            SqlNonQuery(destDB, cmd);
+        }
     }
 }

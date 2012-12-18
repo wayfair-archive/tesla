@@ -126,7 +126,7 @@ namespace TeslaSQL.Tests.Agents {
             //undo changes
             ((TestDataUtils)destDataUtils).ReloadData("test1");
             ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);                     
-            PublishTableInfo(config.tables, changesCaptured);
+            PublishTableInfo(config.tables, "CT_testdb", changesCaptured, ctb.CTID);
             DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[0];
             Assert.True(actual.Field<string>("CtiTableName") == "test1"
                 && actual.Field<string>("CtiSchemaName") == "dbo"

@@ -652,7 +652,7 @@ namespace TeslaSQL {
         }
     }
 
-    public class TColumn {
+    public class TColumn : IEquatable<TColumn> {
         public readonly string name;
         public readonly bool isPk;
         public TColumn(string name, bool isPk) {
@@ -661,6 +661,13 @@ namespace TeslaSQL {
         }
         public override string ToString() {
             return name;
+        }
+
+        public bool Equals(TColumn other) {
+            return name == other.name && isPk == other.isPk;
+        }
+        public override int GetHashCode() {
+            return name.GetHashCode() ^ isPk.GetHashCode();
         }
     }
 

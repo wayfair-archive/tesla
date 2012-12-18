@@ -175,7 +175,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table name</param>
         /// <param name="schema">Table's schema</param>
-        /// <returns>Dictionary with column name as key and a bool representing whether it's part of the primary key as value</returns>
+        /// <returns>Dictionary with column name as key and a bool representing whether it's part of the primary key as value.</returns>
         Dictionary<string, bool> GetFieldList(string dbName, string table, string schema);
 
         /// <summary>
@@ -294,5 +294,9 @@ namespace TeslaSQL.DataUtils {
         void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB);
 
         ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid);
+
+        void RevertCTBatch(string dbName, Int64 ctid);
+
+        void MergeCTTable(TableConf table, string destDB, string sourceDB, Int64 CTID);
     }
 }

@@ -150,5 +150,38 @@ namespace TeslaSQL.Agents {
         public string CTTableName(string table, Int64 CTID) {
             return "tblCT" + table + "_" + Convert.ToString(CTID);
         }
+
+
+
+        /// <summary>
+        /// Gets ChangesCaptured object based on row counts in CT tables
+        /// </summary>
+        /// <param name="tables">Array of table config objects</param>
+        /// <param name="sourceCTDB">CT database name</param>
+        /// <param name="CTID">CT batch id</param>
+        public Dictionary<string, Int64> GetRowCounts(TableConf[] tables, string sourceCTDB, Int64 CTID) {
+            Dictionary<string, Int64> rowCounts = new Dictionary<string, Int64>();
+
+            foreach (TableConf t in tables) {
+                logger.Log("Getting rowcount for table " + t.schemaName + "." + CTTableName(t.Name, CTID), LogLevel.Trace);
+                try {
+                    rowCounts.Add(t.fullName, sourceDataUtils.GetTableRowCount(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName));
+                    logger.Log("Successfully retrieved rowcount of " + Convert.ToString(rowCounts[t.fullName]), LogLevel.Trace);
+                } catch (DoesNotExistException) {
+                    logger.Log("CT table does not exist, using rowcount of 0", LogLevel.Trace);
+                    rowCounts.Add(t.fullName, 0);
+                }
+            }
+            return rowCounts;
+        }
+
+        protected void PublishTableInfo(TableConf[] tableConf, string relayDB, Dictionary<string, long> changesCaptured, Int64 CTID) {
+            logger.Log("creating tableinfo table for ctid=" + CTID, LogLevel.Info);
+            destDataUtils.CreateTableInfoTable(relayDB, CTID);
+            foreach (var t in tableConf) {
+                logger.Log("Publishing info for " + t.Name, LogLevel.Trace);
+                destDataUtils.PublishTableInfo(relayDB, t, CTID, changesCaptured[t.fullName]);
+            }
+        }
     }
 }

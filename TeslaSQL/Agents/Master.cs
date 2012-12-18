@@ -102,7 +102,7 @@ namespace TeslaSQL.Agents {
             logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Info);
             PublishChangeTables(config.tables, config.masterCTDB, config.relayDB, ctb.CTID, changesCaptured);
 
-            PublishTableInfo(config.tables, changesCaptured);
+            PublishTableInfo(config.tables, config.relayDB, changesCaptured, ctb.CTID);
             logger.Log("Successfully published changetables, persisting bitwise now", LogLevel.Debug);
 
             //this signifies the end of the master's responsibility for this batch
@@ -113,14 +113,6 @@ namespace TeslaSQL.Agents {
             return;
         }
 
-        protected void PublishTableInfo(TableConf[] tableConf, Dictionary<string, long> changesCaptured) {
-            logger.Log("creating tableinfo table for ctid=" + ctb.CTID, LogLevel.Info);
-            destDataUtils.CreateTableInfoTable(config.relayDB, ctb.CTID);
-            foreach (var t in tableConf) {
-                logger.Log("Publishing info for " + t.Name, LogLevel.Trace);
-                destDataUtils.PublishTableInfo(config.relayDB, t, ctb.CTID, changesCaptured[t.fullName]);
-            }
-        }
 
 
         /// <summary>
@@ -359,27 +351,5 @@ namespace TeslaSQL.Agents {
             }
         }
 
-
-        /// <summary>
-        /// Gets ChangesCaptured object based on row counts in CT tables
-        /// </summary>
-        /// <param name="tables">Array of table config objects</param>
-        /// <param name="sourceCTDB">CT database name</param>
-        /// <param name="CTID">CT batch id</param>
-        public Dictionary<string, Int64> GetRowCounts(TableConf[] tables, string sourceCTDB, Int64 CTID) {
-            Dictionary<string, Int64> rowCounts = new Dictionary<string, Int64>();
-
-            foreach (TableConf t in tables) {
-                logger.Log("Getting rowcount for table " + t.schemaName + "." + CTTableName(t.Name, CTID), LogLevel.Trace);
-                try {
-                    rowCounts.Add(t.fullName, sourceDataUtils.GetTableRowCount(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName));
-                    logger.Log("Successfully retrieved rowcount of " + Convert.ToString(rowCounts[t.fullName]), LogLevel.Trace);
-                } catch (DoesNotExistException) {
-                    logger.Log("CT table does not exist, using rowcount of 0", LogLevel.Trace);
-                    rowCounts.Add(t.fullName, 0);
-                }
-            }
-            return rowCounts;
-        }
     }
 }
