@@ -32,9 +32,8 @@ namespace TeslaSQL.Tests.Agents {
             public void TestApply_AddSingleColumn_WithoutColumnList() {
                 //add a column and make sure it is published
                 DataTable dt = sourceDataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
-                //gets rid of all the rows
+
                 dt.Clear();
-                //create a row                
                 DataRow row = dt.NewRow();
                 row["CscDdeID"] = 1;
                 row["CscTableName"] = "test1";
@@ -54,7 +53,7 @@ namespace TeslaSQL.Tests.Agents {
                 test1.Columns.Add("column2", typeof(Int32));
                 destDataUtils.testData.Tables.Add(test1);
 
-                slave.ApplySchemaChanges(tables, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", "testdb", 1);
 
                 var expected = new DataColumn("testadd", typeof(Int32));
                 var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["testadd"];
@@ -66,9 +65,8 @@ namespace TeslaSQL.Tests.Agents {
             public void TestApply_AddSingleColumn_WithColumnInList() {
                 //add a column and make sure it is published
                 DataTable dt = sourceDataUtils.testData.Tables["dbo.tblCTSchemaChange_1", "RELAY.CT_testdb"];
-                //gets rid of all the rows
+
                 dt.Clear();
-                //create a row                
                 DataRow row = dt.NewRow();
                 row["CscDdeID"] = 1;
                 row["CscTableName"] = "test2";
@@ -88,7 +86,7 @@ namespace TeslaSQL.Tests.Agents {
                 test2.Columns.Add("column3", typeof(string));
                 destDataUtils.testData.Tables.Add(test2);
 
-                slave.ApplySchemaChanges(tables, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", "testdb", 1);
 
                 var expected = new DataColumn("column2", typeof(Int32));
                 var actual = destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns["column2"];
@@ -121,7 +119,7 @@ namespace TeslaSQL.Tests.Agents {
                 test2.Columns.Add("column3", typeof(string));
                 destDataUtils.testData.Tables.Add(test2);
 
-                slave.ApplySchemaChanges(tables, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", "testdb", 1);
 
                 Assert.False(destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns.Contains("testadd"));
             }
@@ -152,7 +150,7 @@ namespace TeslaSQL.Tests.Agents {
                 test1.Columns.Add("column2", typeof(Int32));
                 destDataUtils.testData.Tables.Add(test1);
 
-                slave.ApplySchemaChanges(tables, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", "testdb", 1);
 
                 Assert.True(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2_new"));
                 destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].RejectChanges();
@@ -186,7 +184,7 @@ namespace TeslaSQL.Tests.Agents {
 
                 //if this assert fails it means the test setup got borked
                 Assert.True(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
-                slave.ApplySchemaChanges(tables, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", "testdb", 1);
                 Assert.False(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
             }
 
@@ -219,7 +217,7 @@ namespace TeslaSQL.Tests.Agents {
                 //if this assert fails it means the test setup got borked
                 var expected = new DataColumn("column2", typeof(DateTime));
 
-                slave.ApplySchemaChanges(tables, "testdb", 1);
+                slave.ApplySchemaChanges(tables, "testdb", "testdb", 1);
                 var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["column2"];
 
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
@@ -258,9 +256,10 @@ namespace TeslaSQL.Tests.Agents {
                 sourceDataUtils.CreateSchemaChangeTable("CT_testdb", 1);
 
                 var config = new Config();
+                config.tables = tables;
                 config.relayDB = "CT_testdb";
                 config.logLevel = LogLevel.Critical;
-                slave = new Slave(config, (IDataUtils)sourceDataUtils, (IDataUtils)destDataUtils);
+                slave = new Slave(config, sourceDataUtils, destDataUtils);
             }
         }
     }

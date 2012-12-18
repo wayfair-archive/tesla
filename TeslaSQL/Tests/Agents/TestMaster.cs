@@ -103,8 +103,6 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestPublishTableInfo() {
-            
-            
             //undo changes
             ((TestDataUtils)destDataUtils).ReloadData("test1");
             ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);

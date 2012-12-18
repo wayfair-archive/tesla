@@ -359,7 +359,7 @@ namespace TeslaSQL.DataUtils {
                     return db.Tables[table, schema];
                 } else {
                     throw new DoesNotExistException("Table " + table + " does not exist");
-                }                
+                }
             }
         }
 
@@ -851,6 +851,15 @@ namespace TeslaSQL.DataUtils {
             }
             var cmd = new SqlCommand(sql);
             SqlNonQuery(dbName, cmd);
+        }
+
+
+        public ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid) {
+            SqlCommand cmd;
+            cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise FROM dbo.tblCTVersion WHERE ctid = @ctid");
+            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ctid;
+            DataTable result = SqlQuery(dbName, cmd);
+            return result.Rows.Count > 0 ? new ChangeTrackingBatch(result.Rows[0]) : null;
         }
     }
 }

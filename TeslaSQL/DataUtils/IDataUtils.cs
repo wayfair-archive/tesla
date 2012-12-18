@@ -294,5 +294,7 @@ namespace TeslaSQL.DataUtils {
         void CreateHistoryTable(ChangeTable t, string slaveCTDB);
 
         void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB);
+
+        ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid);
     }
 }

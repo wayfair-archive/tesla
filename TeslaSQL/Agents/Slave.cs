@@ -41,7 +41,6 @@ namespace TeslaSQL.Agents {
         public override void Run() {
             logger.Log("Initializing CT batch", LogLevel.Trace);
             List<ChangeTrackingBatch> batches = InitializeBatch();
-
             /**
              * If you run a batch as Multi, and that batch fails, and before the next run,
              * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
@@ -67,6 +66,7 @@ namespace TeslaSQL.Agents {
             var batches = new List<ChangeTrackingBatch>();
             ChangeTrackingBatch ctb;
 
+            logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
             var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(config.relayDB);
             if (incompleteBatches.Rows.Count > 0) {
                 foreach (DataRow row in incompleteBatches.Rows) {
@@ -74,7 +74,6 @@ namespace TeslaSQL.Agents {
                 }
                 return batches;
             }
-            logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
 
             DataRow lastBatch = sourceDataUtils.GetLastCTBatch(config.relayDB, AgentType.Slave, config.slave);
             if (lastBatch == null) {
@@ -135,7 +134,7 @@ namespace TeslaSQL.Agents {
             foreach (ChangeTrackingBatch batch in batches) {
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                     logger.Log("Applying schema changes", LogLevel.Debug);
-                    ApplySchemaChanges(config.tables, config.slaveDB, batch.CTID);
+                    ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, batch.CTID);
                     sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 }
             }
@@ -187,12 +186,6 @@ namespace TeslaSQL.Agents {
             return consolidatedTables;
         }
 
-        private void HandleException(Exception e, TableConf table, string message = "") {
-            if (table.stopOnError) {
-                throw e;
-            }
-            logger.Log(e, message);
-        }
 
         /// <summary>
         /// Runs a single change tracking batch
@@ -212,7 +205,7 @@ namespace TeslaSQL.Agents {
             }
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                ApplySchemaChanges(config.tables, config.slaveDB, ctb.CTID);
+                ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 //marking this field so that all completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
@@ -350,62 +343,5 @@ namespace TeslaSQL.Agents {
             return tableList;
         }
 
-        public void ApplySchemaChanges(TableConf[] tables, string destDB, Int64 CTID) {
-            //get list of schema changes from tblCTSChemaChange_ctid on the relay server/db
-            DataTable result = sourceDataUtils.GetSchemaChanges(config.relayDB, CTID);
-
-            if (result == null) {
-                return;
-            }
-
-            TableConf table;
-            foreach (DataRow row in result.Rows) {
-                var schemaChange = new SchemaChange(row);
-                //String.Compare method returns 0 if the strings are equal
-                table = tables.SingleOrDefault(item => String.Compare(item.Name, schemaChange.tableName, ignoreCase: true) == 0);
-
-                if (table == null) {
-                    logger.Log("Ignoring schema change for table " + row.Field<string>("CscTableName") + " because it isn't in config", LogLevel.Debug);
-                    continue;
-                }
-                logger.Log("Processing schema change (CscID: " + row.Field<int>("CscID") +
-                    ") of type " + schemaChange.eventType + " for table " + table.Name, LogLevel.Info);
-
-                if (table.columnList == null || table.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
-                    logger.Log("Schema change applies to a valid column, so we will apply it", LogLevel.Info);
-                    try {
-                        ApplySchemaChange(destDB, table, schemaChange);
-                    } catch (Exception e) {
-                        HandleException(e, table);
-                    }
-
-                } else {
-                    logger.Log("Skipped schema change because the column it impacts is not in our list", LogLevel.Info);
-                }
-
-            }
-        }
-
-        private void ApplySchemaChange(string destDB, TableConf table, SchemaChange schemaChange) {
-            switch (schemaChange.eventType) {
-                case SchemaChangeType.Rename:
-                    logger.Log("Renaming column " + schemaChange.columnName + " to " + schemaChange.newColumnName, LogLevel.Info);
-                    destDataUtils.RenameColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName,
-                        schemaChange.columnName, schemaChange.newColumnName);
-                    break;
-                case SchemaChangeType.Modify:
-                    logger.Log("Changing data type on column " + schemaChange.columnName, LogLevel.Info);
-                    destDataUtils.ModifyColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName, schemaChange.dataType.ToString());
-                    break;
-                case SchemaChangeType.Add:
-                    logger.Log("Adding column " + schemaChange.columnName, LogLevel.Info);
-                    destDataUtils.AddColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName, schemaChange.dataType.ToString());
-                    break;
-                case SchemaChangeType.Drop:
-                    logger.Log("Dropping column " + schemaChange.columnName, LogLevel.Info);
-                    destDataUtils.DropColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);
-                    break;
-            }
-        }
     }
 }
