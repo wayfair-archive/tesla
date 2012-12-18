@@ -211,13 +211,13 @@ namespace TeslaSQL.Agents {
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
+                SetFieldLists(config.slaveDB, config.tables, destDataUtils);
                 ApplyChanges(config.tables, config.slaveDB, existingCTTables, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
 
             SyncHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, existingCTTables);
 
-            //success! mark the batch as complete
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
         }
 
@@ -238,7 +238,6 @@ namespace TeslaSQL.Agents {
         }
 
         private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<ChangeTable> tables, Int64 CTID) {
-            SetFieldLists(slaveDB, tableConf, destDataUtils);
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var table in tableConf) {
                 if (tables.Any(s => s.name == table.Name)) {
