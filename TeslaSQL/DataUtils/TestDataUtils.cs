@@ -345,28 +345,15 @@ namespace TeslaSQL.DataUtils {
             return row.Field<int>("syncBitWise");
         }
 
-        public void MarkBatchComplete(string dbName, Int64 CTID, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "") {
-            DataTable table;
-            DataRow row;
-            if (agentType.Equals(AgentType.Slave)) {
-                //find the table
-                table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
-                //find the row
-                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + slaveIdentifier + "'")[0];
-            } else {
-                //find the table
-                table = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
-                //find the row
-                row = table.Select("CTID = " + Convert.ToString(CTID))[0];
-            }
+        public void MarkBatchComplete(string dbName, Int64 CTID, DateTime syncStopTime, string slaveIdentifier) {
+            //find the table
+            DataTable table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
+            //find the row
+            DataRow row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + slaveIdentifier + "'")[0];
 
-            //update the row if it doesn't contain the specified bit
-            if ((row.Field<int>("syncBitWise") & syncBitWise) == 0) {
-                row["syncBitWise"] = row.Field<int>("syncBitWise") + syncBitWise;
-                row["syncStopTime"] = syncStopTime;
-                //commit the changes
-                //table.AcceptChanges();
-            }
+            //update the row 
+            row["syncBitWise"] = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            row["syncStopTime"] = syncStopTime;            
         }
 
         public DataTable GetSchemaChanges(string dbName, Int64 CTID) {

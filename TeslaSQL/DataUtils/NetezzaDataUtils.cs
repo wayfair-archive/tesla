@@ -287,7 +287,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void MarkBatchComplete(string dbName, Int64 CTID, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "") {
+        public void MarkBatchComplete(string dbName, Int64 CTID, DateTime syncStopTime, string slaveIdentifier) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 

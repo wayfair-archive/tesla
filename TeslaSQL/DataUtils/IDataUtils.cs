@@ -200,11 +200,9 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         /// <param name="dbName">Database name</param>
         /// <param name="CTID">CT batch ID</param>
-        /// <param name="syncBitWise">Final bitwise value to write</param>
         /// <param name="syncStopTime">Stop time to write</param>
-        /// <param name="agentType">config.AgentType calling this</param>
         /// <param name="slaveIdentifier">For slave agents, the slave hostname or ip</param>
-        void MarkBatchComplete(string dbName, Int64 CTID, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "");
+        void MarkBatchComplete(string dbName, Int64 CTID, DateTime syncStopTime, string slaveIdentifier);
 
         /// <summary>
         /// Pulls the list of schema changes for a CTID

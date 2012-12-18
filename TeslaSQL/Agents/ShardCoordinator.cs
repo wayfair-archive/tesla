@@ -38,8 +38,8 @@ namespace TeslaSQL.Agents {
                 }
                 if (shardDatabases.All(dbName => (sourceDataUtils.GetCTBatch(dbName, batch.CTID).CTID & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0)) {
                     Consolidate(batch);
-                    sourceDataUtils.MarkBatchComplete(config.relayDB, batch.CTID,
-                        Convert.ToInt32(SyncBitWise.CaptureChanges) | Convert.ToInt32(SyncBitWise.UploadChanges), DateTime.Now, AgentType.ShardCoordinator);
+                    //sourceDataUtils.MarkBatchComplete(config.relayDB, batch.CTID,
+                    //    Convert.ToInt32(SyncBitWise.CaptureChanges) | Convert.ToInt32(SyncBitWise.UploadChanges), DateTime.Now, AgentType.ShardCoordinator);
                 }
             }
         }
