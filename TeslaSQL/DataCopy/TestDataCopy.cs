@@ -21,7 +21,7 @@ namespace TeslaSQL.DataCopy {
             //create a copy of the source table (data and schema)
             DataTable copy = sourceDataUtils.testData.Tables[schema + "." + table, sourceDataUtils.GetTableSpace(sourceDB)].Copy();
             //change the namespace to be the dest server
-            copy.TableName = destTableName;
+            copy.TableName = schema + "." + destTableName;
             copy.Namespace = destDataUtils.GetTableSpace(destDB);
             //add it to the dataset
             destDataUtils.testData.Tables.Add(copy);

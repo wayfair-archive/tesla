@@ -13,6 +13,12 @@ using TeslaSQL.Agents;
 
 namespace TeslaSQL.Tests.Agents {
     public class TestMaster : Master, IUseFixture<MasterTestFixture> {
+
+        Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64> {
+                {"dbo.test1", 1},
+                {"dbo.test2", 0}
+            }; 
+
         public void SetFixture(MasterTestFixture fixture) {           
             this.sourceDataUtils = fixture.sourceDataUtils;
             this.destDataUtils = fixture.destDataUtils;
@@ -102,16 +108,24 @@ namespace TeslaSQL.Tests.Agents {
         }
 
         [Fact]
-        public void TestPublishTableInfo() {
-            
-            
+        public void TestPublishChangeTables() {
+            PublishChangeTables(config.tables, "CT_testdb", "CT_testdb", 101, changesCaptured);
+            DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTtest1_101", "RELAY.CT_testdb"].Rows[0];
+            Assert.True(actual.Field<int>("column1") == 100
+                && actual.Field<string>("column2") == "test"
+                && actual.Field<DateTime>("RowCreationDate") == new DateTime(2012, 11, 1, 12, 0, 0)
+                && actual.Field<string>("SYS_CHANGE_OPERATION") == "I"
+                && actual.Field<Int64>("SYS_CHANGE_VERSION") == 1500
+                );
+
+            Assert.False(((TestDataUtils)destDataUtils).testData.Tables.Contains("dbo.tblCTtest2_101", "RELAY.CT_testdb"));
+        }
+
+        [Fact]
+        public void TestPublishTableInfo() {                       
             //undo changes
             ((TestDataUtils)destDataUtils).ReloadData("test1");
-            ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);
-            Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64> {
-                {"dbo.test1", 1},
-                {"dbo.test2", 0}
-            };          
+            ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);                     
             PublishTableInfo(config.tables, changesCaptured);
             DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[0];
             Assert.True(actual.Field<string>("CtiTableName") == "test1"
@@ -207,6 +221,8 @@ namespace TeslaSQL.Tests.Agents {
             config.relayDB = "CT_testdb";
             config.logLevel = LogLevel.Critical;
             config.tables = tables;
+            config.masterType = SqlFlavor.MSSQL;
+            config.relayType = SqlFlavor.MSSQL;
         }
 
         //TODO move this somewhere else

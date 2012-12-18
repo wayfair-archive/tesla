@@ -74,14 +74,14 @@ namespace TeslaSQL {
             }
             if (!String.IsNullOrEmpty(c.relayType)) {
                 try {
-                    relayType_m = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.relayType);
+                    relayType = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.relayType);
                 } catch {
                     throw new InvalidDataException("Invalid SQL type: " + c.relayType);
                 }
             }
             if (!String.IsNullOrEmpty(c.masterType)) {
                 try {
-                    masterType_m = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.masterType);
+                    masterType = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.masterType);
                 } catch {
                     throw new InvalidDataException("Invalid SQL type: " + c.masterType);
                 }
@@ -89,7 +89,7 @@ namespace TeslaSQL {
 
             if (!String.IsNullOrEmpty(c.slaveType)) {
                 try {
-                    slaveType_m = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.slaveType);
+                    slaveType = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.slaveType);
                 } catch {
                     throw new InvalidDataException("Invalid SQL type: " + c.slaveType);
                 }
@@ -315,16 +315,13 @@ namespace TeslaSQL {
         public string relayServer { get { return relayServer_m; } }
 
         //type of relay server (i.e. MSSQL, MySQL, PostgreSQL)
-        private SqlFlavor? relayType_m;
-        public SqlFlavor? relayType { get { return relayType_m; } }
+        public SqlFlavor? relayType { get; set; }
 
         //type of master server (i.e. MSSQL, MySQL, PostgreSQL)
-        private SqlFlavor? masterType_m;
-        public SqlFlavor? masterType { get { return masterType_m; } }
+        public SqlFlavor? masterType { get; set; }
 
         //type of slave server (i.e. MSSQL, MySQL, PostgreSQL)
-        private SqlFlavor? slaveType_m;
-        public SqlFlavor? slaveType { get { return slaveType_m; } }
+        public SqlFlavor? slaveType { get; set; }
 
         //master database name
         public string masterDB { get; set; }
