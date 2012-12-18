@@ -108,10 +108,8 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="ctidTable">DataTable object listing all the batches</param>
         private void RunMultiBatch(List<ChangeTrackingBatch> batches) {
-            //TODO add logger statements
             var existingCTTables = new List<ChangeTable>();
 
-            //get last batch in hte list
             ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
 
             //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
@@ -176,13 +174,24 @@ namespace TeslaSQL.Agents {
                 }
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
                 consolidatedTables.Add(lastChangeTable);
-                dataCopy.CopyTable(config.relayDB, lastChangeTable.ctName, table.schemaName, config.relayDB, 36000, lastChangeTable.consolidatedName);
-                foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid)) {
-                    sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, config.relayDB, table.schemaName);
+                try {
+                    dataCopy.CopyTable(config.relayDB, lastChangeTable.ctName, table.schemaName, config.relayDB, 36000, lastChangeTable.consolidatedName);
+                    foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid)) {
+                        sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, config.relayDB, table.schemaName);
+                    }
+                    sourceDataUtils.RemoveDuplicatePrimaryKeyChangeRows(table, lastChangeTable.consolidatedName, config.relayDB);
+                } catch (Exception e) {
+                    HandleException(e, table);
                 }
-                sourceDataUtils.RemoveDuplicatePrimaryKeyChangeRows(table, lastChangeTable.consolidatedName, config.relayDB);
             }
             return consolidatedTables;
+        }
+
+        private void HandleException(Exception e, TableConf table, string message = "") {
+            if (table.stopOnError) {
+                throw e;
+            }
+            logger.Log(e, message);
         }
 
         /// <summary>
@@ -227,7 +236,11 @@ namespace TeslaSQL.Agents {
                     continue;
                 }
                 logger.Log("Writing history table for " + t.name, LogLevel.Debug);
-                destDataUtils.CopyIntoHistoryTable(t, slaveCTDB);
+                try {
+                    destDataUtils.CopyIntoHistoryTable(t, slaveCTDB);
+                } catch (Exception e) {
+                    HandleException(e, s);
+                }
             }
         }
 
@@ -254,7 +267,11 @@ namespace TeslaSQL.Agents {
                 }
             }
             foreach (var tableArchive in hasArchive) {
-                destDataUtils.ApplyTableChanges(tableArchive.Key, tableArchive.Value, config.slaveDB, CTID, config.slaveCTDB);
+                try {
+                    destDataUtils.ApplyTableChanges(tableArchive.Key, tableArchive.Value, config.slaveDB, CTID, config.slaveCTDB);
+                } catch (Exception e) {
+                    HandleException(e, tableArchive.Key);
+                }
             }
         }
 
@@ -269,10 +286,14 @@ namespace TeslaSQL.Agents {
             var tableList = new List<ChangeTable>();
             foreach (TableConf t in tables) {
                 var ct = new ChangeTable(t.Name, CTID, t.schemaName, config.slave);
-                if (sourceDataUtils.CheckTableExists(dbName, ct.ctName, t.schemaName)) {
-                    tableList.Add(ct);
-                } else {
-                    logger.Log("Did not find table " + ct.ctName, LogLevel.Debug);
+                try {
+                    if (sourceDataUtils.CheckTableExists(dbName, ct.ctName, t.schemaName)) {
+                        tableList.Add(ct);
+                    } else {
+                        logger.Log("Did not find table " + ct.ctName, LogLevel.Debug);
+                    }
+                } catch (Exception e) {
+                    HandleException(e, t);
                 }
             }
             return tableList;
@@ -301,8 +322,6 @@ namespace TeslaSQL.Agents {
         /// <param name="sourceCTDB">Source CT database</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
-        /// <param name="tables">Reference variable, list of tables that have >0 changes. Passed by ref instead of output
-        ///     because in multi batch mode it is built up over several calls to this method.</param>
         private List<ChangeTable> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
             bool found = false;
             var tableList = new List<ChangeTable>();
@@ -322,11 +341,7 @@ namespace TeslaSQL.Agents {
                     //this is a totally normal and expected case since we only publish changetables when data actually changed
                     logger.Log("No changes to pull for table " + t.schemaName + "." + sourceCTTable + " because it does not exist ", LogLevel.Debug);
                 } catch (Exception e) {
-                    if (t.stopOnError) {
-                        throw;
-                    } else {
-                        logger.Log("Copying change data for table " + t.schemaName + "." + sourceCTTable + " failed with error: " + e.Message, LogLevel.Error);
-                    }
+                    HandleException(e, t);
                 }
                 if (found) {
                     tableList.Add(ct);
@@ -358,30 +373,38 @@ namespace TeslaSQL.Agents {
 
                 if (table.columnList == null || table.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
                     logger.Log("Schema change applies to a valid column, so we will apply it", LogLevel.Info);
-                    switch (schemaChange.eventType) {
-                        case SchemaChangeType.Rename:
-                            logger.Log("Renaming column " + schemaChange.columnName + " to " + schemaChange.newColumnName, LogLevel.Info);
-                            destDataUtils.RenameColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName,
-                                schemaChange.columnName, schemaChange.newColumnName);
-                            break;
-                        case SchemaChangeType.Modify:
-                            logger.Log("Changing data type on column " + schemaChange.columnName, LogLevel.Info);
-                            destDataUtils.ModifyColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName, schemaChange.dataType.ToString());
-                            break;
-                        case SchemaChangeType.Add:
-                            logger.Log("Adding column " + schemaChange.columnName, LogLevel.Info);
-                            destDataUtils.AddColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName, schemaChange.dataType.ToString());
-                            break;
-                        case SchemaChangeType.Drop:
-                            logger.Log("Dropping column " + schemaChange.columnName, LogLevel.Info);
-                            destDataUtils.DropColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);
-                            break;
+                    try {
+                        ApplySchemaChange(destDB, table, schemaChange);
+                    } catch (Exception e) {
+                        HandleException(e, table);
                     }
 
                 } else {
                     logger.Log("Skipped schema change because the column it impacts is not in our list", LogLevel.Info);
                 }
 
+            }
+        }
+
+        private void ApplySchemaChange(string destDB, TableConf table, SchemaChange schemaChange) {
+            switch (schemaChange.eventType) {
+                case SchemaChangeType.Rename:
+                    logger.Log("Renaming column " + schemaChange.columnName + " to " + schemaChange.newColumnName, LogLevel.Info);
+                    destDataUtils.RenameColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName,
+                        schemaChange.columnName, schemaChange.newColumnName);
+                    break;
+                case SchemaChangeType.Modify:
+                    logger.Log("Changing data type on column " + schemaChange.columnName, LogLevel.Info);
+                    destDataUtils.ModifyColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName, schemaChange.dataType.ToString());
+                    break;
+                case SchemaChangeType.Add:
+                    logger.Log("Adding column " + schemaChange.columnName, LogLevel.Info);
+                    destDataUtils.AddColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName, schemaChange.dataType.ToString());
+                    break;
+                case SchemaChangeType.Drop:
+                    logger.Log("Dropping column " + schemaChange.columnName, LogLevel.Info);
+                    destDataUtils.DropColumn(table, destDB, schemaChange.schemaName, schemaChange.tableName, schemaChange.columnName);
+                    break;
             }
         }
     }

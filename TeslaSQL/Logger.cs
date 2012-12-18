@@ -59,6 +59,14 @@ namespace TeslaSQL {
                 dataUtils.LogError(message);
             }
         }
+        public void Log(Exception e, string message = null) {
+            if (message == null) {
+                message = e.StackTrace.ToString();
+            } else {
+                message = message + "\r\n" + e.ToString();
+            }
+            Log(message, LogLevel.Error);
+        }
 
         /// <summary>
         /// Subclass for logging statistics to statsd
