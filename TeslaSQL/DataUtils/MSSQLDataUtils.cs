@@ -479,25 +479,17 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void MarkBatchComplete(string dbName, Int64 CTID, Int32 syncBitWise, DateTime syncStopTime, AgentType agentType, string slaveIdentifier = "") {
+        public void MarkBatchComplete(string dbName, Int64 CTID, DateTime syncStopTime, string slaveIdentifier) {
             string query;
             SqlCommand cmd;
-            if (agentType.Equals(AgentType.Slave)) {
-                query = "UPDATE dbo.tblCTSlaveVersion SET syncBitWise += @syncbitwise, syncStopTime = @syncstoptime";
-                query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid AND SyncBitWise & @syncbitwise = 0";
-                cmd = new SqlCommand(query);
-                cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
-                cmd.Parameters.Add("@syncstoptime", SqlDbType.DateTime).Value = syncStopTime;
-                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = slaveIdentifier;
-                cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
-            } else {
-                query = "UPDATE dbo.tblCTVersion SET SyncBitWise += @syncbitwise";
-                query += " WHERE CTID = @ctid AND SyncBitWise & @syncbitwise = 0";
-                cmd = new SqlCommand(query);
-                cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
-                cmd.Parameters.Add("@syncstoptime", SqlDbType.DateTime).Value = syncStopTime;
-                cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
-            }
+            Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            query = "UPDATE dbo.tblCTSlaveVersion SET syncBitWise = @syncbitwise, syncStopTime = @syncstoptime";
+            query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
+            cmd = new SqlCommand(query);
+            cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            cmd.Parameters.Add("@syncstoptime", SqlDbType.DateTime).Value = syncStopTime;
+            cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = slaveIdentifier;
+            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             int result = SqlNonQuery(dbName, cmd);
         }
 

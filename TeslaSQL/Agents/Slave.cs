@@ -154,7 +154,7 @@ namespace TeslaSQL.Agents {
             }
             //success! go through and mark all the batches as complete in the db
             foreach (ChangeTrackingBatch batch in batches) {
-                sourceDataUtils.MarkBatchComplete(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
+                sourceDataUtils.MarkBatchComplete(config.relayDB, batch.CTID, DateTime.Now, config.slave);
             }
         }
 
@@ -225,7 +225,7 @@ namespace TeslaSQL.Agents {
             SyncHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, existingCTTables);
 
             //success! mark the batch as complete
-            sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), DateTime.Now, AgentType.Slave, config.slave);
+            sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, DateTime.Now, config.slave);
         }
 
         private void SyncHistoryTables(TableConf[] tableConf, string slaveCTDB, string slaveDB, List<ChangeTable> existingCTTables) {
