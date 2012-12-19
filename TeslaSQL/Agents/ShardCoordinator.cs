@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using TeslaSQL.DataUtils;
 using TeslaSQL.DataCopy;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TeslaSQL.Agents {
     /// <summary>
@@ -97,7 +99,7 @@ namespace TeslaSQL.Agents {
         }
 
         private void ConsolidateTables(ChangeTrackingBatch batch) {
-            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils);
+            var actions = new List<Action>();
             foreach (var tableDb in tableDBFieldLists) {
                 var table = tableDb.Key;
                 var firstDB = tableDb.Value.FirstOrDefault(t => t.Value.Count > 0).Key;
@@ -107,16 +109,26 @@ namespace TeslaSQL.Agents {
                 }
                 tablesWithChanges.Add(table);
                 SetFieldList(table, firstDB, batch);
-                dc.CopyTableDefinition(firstDB, table.ToCTName(batch.CTID), table.schemaName, config.relayDB, table.ToCTName(batch.CTID));
-                foreach (var dbNameFields in tableDb.Value) {
-                    var dbName = dbNameFields.Key;
-                    var columns = dbNameFields.Value;
-                    if (columns.Count == 0) {
-                        //no changes in this DB for this table
-                        continue;
-                    }
-                    sourceDataUtils.MergeCTTable(table, config.relayDB, dbName, batch.CTID);
+
+                Action act = () => MergeTable(batch, tableDb.Value, table, firstDB);
+                actions.Add(act);
+            }
+            logger.Log("Parallel invocation of " + actions.Count + " table merges", LogLevel.Trace);
+            //interestingly, Parallel.Invoke does in fact bubble up exceptions, but not until after all threads have completed.
+            Parallel.Invoke(actions.ToArray());
+        }
+
+        private void MergeTable(ChangeTrackingBatch batch, Dictionary<string, List<TColumn>> dbColumns, TableConf table, string firstDB) {
+            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils);
+            dc.CopyTableDefinition(firstDB, table.ToCTName(batch.CTID), table.schemaName, config.relayDB, table.ToCTName(batch.CTID));
+            foreach (var dbNameFields in dbColumns) {
+                var dbName = dbNameFields.Key;
+                var columns = dbNameFields.Value;
+                if (columns.Count == 0) {
+                    //no changes in this DB for this table
+                    continue;
                 }
+                sourceDataUtils.MergeCTTable(table, config.relayDB, dbName, batch.CTID);
             }
         }
 
