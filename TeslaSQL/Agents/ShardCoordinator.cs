@@ -24,6 +24,12 @@ namespace TeslaSQL.Agents {
             if (config.relayType == null) {
                 throw new Exception("ShardCoordinator agent requires a valid SQL flavor for relay");
             }
+            if (string.IsNullOrEmpty(config.masterShard)) {
+                throw new Exception("ShardCoordinator agent requires a master shard");
+            }
+            if (!config.shardDatabases.Contains(config.masterShard)) {
+                throw new Exception("ShardCoordinator agent requires that the masterShard element be one of the shards listed in shardDatabases");
+            }
         }
 
         public override void Run() {
@@ -78,11 +84,16 @@ namespace TeslaSQL.Agents {
 
         private void Consolidate(ChangeTrackingBatch batch) {
             if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
-                //TODO figure this out
-                //ApplySchemaChanges(config.tables, shardDatabases.First(), config.relayDB, batch.CTID);
+                PublishSchemaChanges(batch);
+                sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.ShardCoordinator);
             }
             ConsolidateTables(batch);
             ConsolidateInfoTables(batch);
+        }
+
+        private void PublishSchemaChanges(ChangeTrackingBatch batch) {
+            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils);
+            dc.CopyTable(config.masterShard, batch.schemaChangeTable, "dbo", config.relayDB, 3600);
         }
 
         private void ConsolidateTables(ChangeTrackingBatch batch) {

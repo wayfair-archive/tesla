@@ -63,6 +63,7 @@ namespace TeslaSQL {
             emailErrorRecipient_m = c.emailErrorRecipient;
             sharding_m = c.sharding;
             shardDatabases_m = c.shardDatabases;
+            masterShard_m = c.masterShard;
 
             if (c.thresholdIgnoreStartTime != null) {
                 thresholdIgnoreStartTime_m = TimeSpan.Parse(c.thresholdIgnoreStartTime);
@@ -415,6 +416,9 @@ namespace TeslaSQL {
         private readonly string[] shardDatabases_m;
         public IEnumerable<string> shardDatabases { get { return shardDatabases_m.ToList(); } }
 
+        private string masterShard_m;
+        public string masterShard { get { return masterShard_m; } }
+
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
@@ -507,6 +511,8 @@ namespace TeslaSQL {
 
             [XmlArrayItem("shardDatabase")]
             public string[] shardDatabases { get; set; }
+
+            public string masterShard { get; set; }
 
             public bool sharding { get; set; }
 

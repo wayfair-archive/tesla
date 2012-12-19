@@ -59,5 +59,7 @@ namespace TeslaSQL {
             }
         }
 
+
+        public string schemaChangeTable { get { return "tblCTSchemaChange_" + CTID; } }
     }
 }
