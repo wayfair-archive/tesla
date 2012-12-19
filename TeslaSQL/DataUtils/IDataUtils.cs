@@ -298,5 +298,9 @@ namespace TeslaSQL.DataUtils {
         void RevertCTBatch(string dbName, Int64 ctid);
 
         void MergeCTTable(TableConf table, string destDB, string sourceDB, Int64 CTID);
+
+        void CreateShardCTVersion(string db, long ctid, Int64 startVersion);
+
+        IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long ctid, string database);
     }
 }

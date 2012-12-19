@@ -466,6 +466,29 @@ namespace TeslaSQL.DataUtils {
         public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
             throw new NotImplementedException();
         }
+
+
+        public ChangeTrackingBatch GetCTBatch(string dbName, long ctid) {
+            throw new NotImplementedException();
+        }
+
+        public void RevertCTBatch(string dbName, long ctid) {
+            throw new NotImplementedException();
+        }
+
+        public void MergeCTTable(TableConf table, string destDB, string sourceDB, long CTID) {
+            throw new NotImplementedException();
+        }
+
+
+        public void CreateShardCTVersion(string db, long ctid, long startVersion) {
+            throw new NotImplementedException();
+        }
+
+
+        public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long ctid, string database) {
+            throw new NotImplementedException();
+        }
     }
 }
 

@@ -77,15 +77,13 @@ namespace TeslaSQL {
             int responseCode = 0;
             try {
                 Agent a = CreateAgent(config.agentType, config, logger);
-                logger.Log("Running agent of type " + Convert.ToString(config.agentType), LogLevel.Info);
+                logger.Log("Running agent of type " +config.agentType, LogLevel.Info);
                 a.Run();
                 logger.Log("Agent completed successfully", LogLevel.Info);
             } catch (Exception e) {
                 logger.Log("ERROR: " + e.Message + " - Stack Trace: " + e.StackTrace, LogLevel.Critical);
                 responseCode = 1;
             }
-            //TODO remove this            
-            Console.ReadLine();
             Environment.Exit(responseCode);
         }
 
@@ -108,7 +106,7 @@ namespace TeslaSQL {
                 case AgentType.ShardCoordinator:
                     sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
                     var shardCoordinator = new ShardCoordinator(config, sourceDataUtils);
-                    logger.dataUtils = sourceDataUtils;
+                    //logger.dataUtils = sourceDataUtils;
                     return shardCoordinator;
                 case AgentType.Notifier:
                     sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);

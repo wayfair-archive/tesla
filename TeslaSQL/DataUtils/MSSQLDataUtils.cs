@@ -223,6 +223,18 @@ namespace TeslaSQL.DataUtils {
             return SqlQueryToScalar<Int64>(dbName, cmd);
         }
 
+        public void CreateShardCTVersion(string dbName, long ctid, long startVersion) {
+            string query = "INSERT INTO dbo.tblCTVersion (ctid, syncStartVersion, syncBitWise)";
+            query += " VALUES (@ctid,@syncStartVersion, 0)";
+
+            SqlCommand cmd = new SqlCommand(query);
+
+            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ctid;
+            cmd.Parameters.Add("@syncStartVersion", SqlDbType.BigInt).Value = startVersion;
+
+            SqlNonQuery(dbName, cmd);
+        }
+
 
         public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
 
@@ -863,7 +875,7 @@ namespace TeslaSQL.DataUtils {
 
 
         public void MergeCTTable(TableConf table, string destDB, string sourceDB, long CTID) {
-            
+
 
             //TODO this is probably unnecessary; maybe just use full column list in all conditions.
             var mergeList = table.columns.Any(c => !c.isPk) ? table.mergeUpdateList : string.Join(",", table.columns.Select(c => String.Format("P.{0} = CT.{0}", c.name)));
@@ -877,10 +889,18 @@ namespace TeslaSQL.DataUtils {
 	               WHEN MATCHED AND P.SYS_CHANGE_OPERATION = 'D' AND CT.SYS_CHANGE_OPERATION IN ('I', 'U')
 	                 THEN UPDATE SET {3}, P.SYS_CHANGE_OPERATION = CT.SYS_CHANGE_OPERATION, P.SYS_CHANGE_VERSION = CT.SYS_CHANGE_VERSION
 	               WHEN NOT MATCHED
-	                 THEN INSERT ({4}),SYS_CHANGE_VERSION, SYS_CHANGE_OPERATION) VALUES ({5}, CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION);",
+	                 THEN INSERT ({4},SYS_CHANGE_VERSION, SYS_CHANGE_OPERATION) VALUES ({5}, CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION);",
                    table.ToCTName(CTID), sourceDB, table.pkList, mergeList, columnList, insertList);
             SqlCommand cmd = new SqlCommand(sql);
             SqlNonQuery(destDB, cmd);
+        }
+
+        public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long ctid, string database) {
+            string sql = string.Format(@"SELECT CtipkList FROM {0} WHERE CtiTableName = @tableName", TableConf.TableInfoName(ctid, table.schemaName));
+            SqlCommand cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 5000).Value = table.Name;
+            var res = SqlQueryToScalar<string>(database, cmd);
+            return res.Split(new char[] { ',' });
         }
     }
 }

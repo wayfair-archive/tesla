@@ -37,7 +37,7 @@ namespace TeslaSQL.Agents {
                 throw new Exception("Master agent requires a valid SQL flavor for relay and master");
             }
         }
-            
+
         public override void Run() {
             logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
             Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(config.masterDB);
@@ -45,6 +45,10 @@ namespace TeslaSQL.Agents {
             logger.Log("Initializing CT batch", LogLevel.Debug);
             //set up the variables and CT version info for this run
             ctb = InitializeBatch(currentVersion);
+            if (config.sharding && ctb == null) {
+                logger.Log("Last batch completed and there is no new batch to work on.", LogLevel.Info);
+                return;
+            }
             logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
             DateTime previousSyncStartTime;
             Dictionary<string, Int64> changesCaptured;
@@ -122,7 +126,7 @@ namespace TeslaSQL.Agents {
         /// <returns>boolean, which lets the agent know whether or not it should continue creating changetables</returns>
         protected ChangeTrackingBatch InitializeBatch(Int64 currentVersion) {
             logger.Log("Retrieving information about the most recently worked on batch from tblCTVersion", LogLevel.Trace);
-            DataRow lastbatch = destDataUtils.GetLastCTBatch(config.relayDB, AgentType.Master);
+            var lastbatch = destDataUtils.GetLastCTBatch(config.relayDB, AgentType.Master);
 
             if (lastbatch == null) {
                 logger.Log("No existing batches found, tblCTVersion was empty", LogLevel.Debug);
@@ -132,6 +136,9 @@ namespace TeslaSQL.Agents {
             }
 
             if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
+                if (config.sharding) {
+                    return null;
+                }
                 logger.Log("Last batch succeeded, creating a new one where that left off", LogLevel.Debug);
                 Int64 syncStartVersion = lastbatch.Field<Int64>("syncStopVersion");
                 Int64 CTID = destDataUtils.CreateCTVersion(config.relayDB, syncStartVersion, currentVersion);
@@ -273,7 +280,7 @@ namespace TeslaSQL.Agents {
                 logger.Log(reason, LogLevel.Trace);
                 return false;
             } else if (startVersion < sourceDataUtils.GetMinValidVersion(dbName, table, schemaName)) {
-                reason = "Start version of " + Convert.ToString(startVersion) + " is less than CHANGE_TRACKING_MIN_VALID_VERSION for table " + table;
+                reason = "Start version of " + startVersion + " is less than CHANGE_TRACKING_MIN_VALID_VERSION for table " + table;
                 logger.Log(reason, LogLevel.Trace);
                 return false;
             }

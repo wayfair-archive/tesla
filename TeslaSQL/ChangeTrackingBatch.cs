@@ -34,8 +34,10 @@ namespace TeslaSQL {
 
         public ChangeTrackingBatch(DataRow row) {
             CTID = row.Field<Int64>("CTID");
-            syncStartVersion = row.Field<Int64>("syncStartVersion");
-            syncStopVersion = row.Field<Int64>("syncStopVersion");
+            long? start = row.Field<Int64?>("syncStartVersion");
+            if (start.HasValue) { syncStartVersion = start.Value; }
+            long? stop = row.Field<Int64?>("syncStopVersion");
+            if (stop.HasValue) { syncStopVersion = stop.Value; }
             syncBitWise = row.Field<Int32>("syncBitWise");
             if (row.Table.Columns.Contains("syncStartTime")) {
                 syncStartTime = row.Field<DateTime>("syncStartTime");

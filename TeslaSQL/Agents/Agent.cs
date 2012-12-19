@@ -42,7 +42,7 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="Database">Database name to run on</param>
         /// <param name="tableConfArray">Array of tableconf objects to loop through and set field lists on</param>
-        public void SetFieldLists(string database, TableConf[] tableConfArray, IDataUtils dataUtils) {
+        public virtual void SetFieldLists(string database, TableConf[] tableConfArray, IDataUtils dataUtils) {
             Dictionary<string, bool> dict;
             foreach (TableConf t in tableConfArray) {
                 try {
@@ -67,7 +67,7 @@ namespace TeslaSQL.Agents {
             Stopwatch st = new Stopwatch();
             st.Start();
             t.columns.Clear();
-            foreach (KeyValuePair<string, bool> c in fields) {                
+            foreach (KeyValuePair<string, bool> c in fields) {
                 if (t.columnList == null || t.columnList.Contains(c.Key, StringComparer.OrdinalIgnoreCase)) {
                     t.columns.Add(new TColumn(c.Key, c.Value));
                 }
@@ -175,7 +175,7 @@ namespace TeslaSQL.Agents {
             return rowCounts;
         }
 
-        protected void PublishTableInfo(TableConf[] tableConf, string relayDB, Dictionary<string, long> changesCaptured, Int64 CTID) {
+        protected void PublishTableInfo(IEnumerable<TableConf> tableConf, string relayDB, Dictionary<string, long> changesCaptured, Int64 CTID) {
             logger.Log("creating tableinfo table for ctid=" + CTID, LogLevel.Info);
             destDataUtils.CreateTableInfoTable(relayDB, CTID);
             foreach (var t in tableConf) {

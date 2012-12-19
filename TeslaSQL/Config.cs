@@ -61,6 +61,8 @@ namespace TeslaSQL {
             emailServerPort_m = c.emailServerPort;
             emailFromAddress_m = c.emailFromAddress;
             emailErrorRecipient_m = c.emailErrorRecipient;
+            sharding_m = c.sharding;
+            shardDatabases_m = c.shardDatabases;
 
             if (c.thresholdIgnoreStartTime != null) {
                 thresholdIgnoreStartTime_m = TimeSpan.Parse(c.thresholdIgnoreStartTime);
@@ -407,6 +409,12 @@ namespace TeslaSQL {
         private readonly string emailErrorRecipient_m;
         public string emailErrorRecipient { get { return emailErrorRecipient_m; } }
 
+        private readonly bool sharding_m;
+        public bool sharding { get { return sharding_m; } }
+
+        private readonly string[] shardDatabases_m;
+        public IEnumerable<string> shardDatabases { get { return shardDatabases_m.ToList(); } }
+
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
@@ -496,6 +504,11 @@ namespace TeslaSQL {
 
             [XmlArray("tables")]
             public TableConf[] t { get; set; }
+
+            [XmlArrayItem("shardDatabase")]
+            public string[] shardDatabases { get; set; }
+
+            public bool sharding { get; set; }
 
             public string emailServerHost { get; set; }
             public int emailServerPort { get; set; }
@@ -649,6 +662,9 @@ namespace TeslaSQL {
         }
         public string ToFullCTName(Int64 CTID) {
             return string.Format("[{0}].[{1}]", schemaName, ToCTName(CTID));
+        }
+        public static string TableInfoName(Int64 CTID, string schemaName = "dbo") {
+            return string.Format("[{0}].[tblCTTableInfo_{1}]", schemaName, CTID);
         }
     }
 
