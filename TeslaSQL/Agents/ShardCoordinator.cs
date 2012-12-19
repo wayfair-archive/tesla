@@ -11,14 +11,19 @@ namespace TeslaSQL.Agents {
     /// <summary>
     /// This agent consolidates data from different shards so that slaves see a unified database
     /// </summary>
-    class ShardCoordinator : Agent {
-        IEnumerable<string> shardDatabases;
+    public class ShardCoordinator : Agent {
+        protected IEnumerable<string> shardDatabases;
         IList<TableConf> tablesWithChanges;
         Dictionary<TableConf, Dictionary<string, List<TColumn>>> tableDBFieldLists;
         public ShardCoordinator(Config config, IDataUtils dataUtils)
             : base(config, dataUtils, dataUtils) {
             shardDatabases = config.shardDatabases;
             tablesWithChanges = new List<TableConf>();
+        }
+
+        public ShardCoordinator() {
+            //this constructor is only used by for running unit tests
+            this.logger = new Logger(LogLevel.Critical, null, null, null);
         }
 
         public override void ValidateConfig() {
@@ -41,16 +46,8 @@ namespace TeslaSQL.Agents {
                 batch = CreateNewVersionsForShards(batch);
             } else {
                 tableDBFieldLists = GetFieldListsByDB(batch.CTID);
-                foreach (var dbFieldLists in tableDBFieldLists.Values) {
-                    var orderedFieldLists = dbFieldLists.Values.Select(lc => lc.OrderBy(c => c.name));
-                    bool schemaOutOfSync = orderedFieldLists.Any(ofc => !ofc.SequenceEqual(orderedFieldLists.First()));
-                    if (schemaOutOfSync) {
-                        foreach (var sd in shardDatabases) {
-                            sourceDataUtils.RevertCTBatch(sd, batch.CTID);
-                        }
-                        logger.Log("Schemas out of sync, quitting", LogLevel.Info);
-                        return;
-                    }
+                if (SchemasOutOfSync(batch, tableDBFieldLists.Values)) {
+                    return;
                 }
                 if (shardDatabases.All(dbName => (sourceDataUtils.GetCTBatch(dbName, batch.CTID).syncBitWise & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0)) {
                     Consolidate(batch);
@@ -61,8 +58,30 @@ namespace TeslaSQL.Agents {
                 }
             }
         }
+        /// <summary>
+        /// 
+        /// 
+        /// </summary>
+        /// <param name="batch"></param>
+        /// <param name="dbFieldLists">a list of maps from dbName to list of TColumns. 
+        /// This is a list (not just a dict) because there needs to be one dict per table. </param>
+        /// <returns></returns>
+        virtual internal bool SchemasOutOfSync(ChangeTrackingBatch batch, IEnumerable<Dictionary<string, List<TColumn>>> dbFieldLists) {
+            foreach (var dbFieldList in dbFieldLists) {
+                var orderedFieldLists = dbFieldList.Values.Select(lc => lc.OrderBy(c => c.name));
+                bool schemaOutOfSync = orderedFieldLists.Any(ofc => !ofc.SequenceEqual(orderedFieldLists.First()));
+                if (schemaOutOfSync) {
+                    foreach (var sd in shardDatabases) {
+                        sourceDataUtils.RevertCTBatch(sd, batch.CTID);
+                    }
+                    logger.Log("Schemas out of sync, quitting", LogLevel.Info);
+                    return true;
+                }
+            }
+            return false;
+        }
 
-        private Dictionary<TableConf, Dictionary<string, List<TColumn>>> GetFieldListsByDB(Int64 ctid) {
+        protected Dictionary<TableConf, Dictionary<string, List<TColumn>>> GetFieldListsByDB(Int64 ctid) {
             var fieldListByDB = new Dictionary<TableConf, Dictionary<string, List<TColumn>>>();
             foreach (var table in config.tables) {
                 var tDict = new Dictionary<string, List<TColumn>>();

@@ -128,6 +128,7 @@
     <Compile Include="DataUtils\TestDataUtils.cs" />
     <Compile Include="Tests\Agents\TestAgent.cs" />
     <Compile Include="Tests\Agents\TestMaster.cs" />
+    <Compile Include="Tests\Agents\TestShardCoordinator.cs" />
     <Compile Include="Tests\Agents\TestSlave.cs" />
     <Compile Include="Tests\TestConfig.cs" />
     <Compile Include="Tests\TestDDLEvent.cs" />

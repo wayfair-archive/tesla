@@ -286,11 +286,7 @@ namespace TeslaSQL.DataUtils {
             return false;
         }
 
-        public Dictionary<string, bool> GetFieldListReturn;
         public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
-            if (GetFieldListReturn != null) {
-                return GetFieldListReturn;
-            }
             Dictionary<string, bool> dict = new Dictionary<string, bool>();
 
             if (!testData.Tables.Contains(schema + "." + table, GetTableSpace(dbName))) {
@@ -539,12 +535,16 @@ namespace TeslaSQL.DataUtils {
         }
 
 
+        public Dictionary<string, Dictionary<long, ChangeTrackingBatch>> GetCTBatchMap = new Dictionary<string, Dictionary<long, ChangeTrackingBatch>>();
         public ChangeTrackingBatch GetCTBatch(string dbName, long ctid) {
-            throw new NotImplementedException();
+            if (GetCTBatchMap.ContainsKey(dbName) && GetCTBatchMap[dbName].ContainsKey(ctid)) {
+                return GetCTBatchMap[dbName][ctid];
+            }
+            return new ChangeTrackingBatch(0, 0, 0, 0);
         }
 
         public void RevertCTBatch(string dbName, long ctid) {
-            throw new NotImplementedException();
+            //no op we should do nothing for any side-effect only operation
         }
 
         public void MergeCTTable(TableConf table, string destDB, string sourceDB, long CTID) {

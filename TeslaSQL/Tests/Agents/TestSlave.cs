@@ -222,8 +222,10 @@ namespace TeslaSQL.Tests.Agents {
 
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
             }
-
+          
         }
+
+
 
         /// <summary>
         /// This class is instantiated by xunit.net and passed to SetFixture in the TestApplySchemaChanges class

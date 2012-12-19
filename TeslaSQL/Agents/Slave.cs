@@ -12,9 +12,6 @@ using Microsoft.SqlServer.Management.Smo;
 #endregion
 
 namespace TeslaSQL.Agents {
-
-
-
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     public class Slave : Agent {
         public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
