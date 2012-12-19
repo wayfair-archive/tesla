@@ -106,7 +106,7 @@ namespace TeslaSQL.Agents {
                     continue;
                 }
                 tablesWithChanges.Add(table);
-                SetFieldList(table, firstDB, batch.CTID);
+                SetFieldList(table, firstDB, batch);
                 dc.CopyTableDefinition(firstDB, table.ToCTName(batch.CTID), table.schemaName, config.relayDB, table.ToCTName(batch.CTID));
                 foreach (var dbNameFields in tableDb.Value) {
                     var dbName = dbNameFields.Key;
@@ -125,9 +125,9 @@ namespace TeslaSQL.Agents {
             PublishTableInfo(tablesWithChanges, config.relayDB, rowCounts, batch.CTID);
         }
 
-        private void SetFieldList(TableConf table, string database, Int64 ctid) {
-            var cols = sourceDataUtils.GetFieldList(database, table.ToCTName(ctid), table.schemaName);
-            var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, ctid, database);
+        private void SetFieldList(TableConf table, string database, ChangeTrackingBatch batch) {
+            var cols = sourceDataUtils.GetFieldList(database, table.ToCTName(batch.CTID), table.schemaName);
+            var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch, database);
             foreach (var pk in pks) {
                 cols[pk] = true;
             }

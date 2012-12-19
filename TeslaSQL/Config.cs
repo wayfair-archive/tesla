@@ -669,9 +669,7 @@ namespace TeslaSQL {
         public string ToFullCTName(Int64 CTID) {
             return string.Format("[{0}].[{1}]", schemaName, ToCTName(CTID));
         }
-        public static string TableInfoName(Int64 CTID, string schemaName = "dbo") {
-            return string.Format("[{0}].[tblCTTableInfo_{1}]", schemaName, CTID);
-        }
+
     }
 
     public class TColumn : IEquatable<TColumn> {

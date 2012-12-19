@@ -285,7 +285,7 @@ namespace TeslaSQL.DataUtils {
             }
             return false;
         }
-       
+
 
         public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
             Dictionary<string, bool> dict = new Dictionary<string, bool>();
@@ -353,7 +353,7 @@ namespace TeslaSQL.DataUtils {
 
             //update the row 
             row["syncBitWise"] = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
-            row["syncStopTime"] = syncStopTime;            
+            row["syncStopTime"] = syncStopTime;
         }
 
         public DataTable GetSchemaChanges(string dbName, Int64 CTID) {
@@ -430,7 +430,7 @@ namespace TeslaSQL.DataUtils {
             AddColumn(t, dbName, schema, table, columnName, dataType);
         }
 
-        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {                 
+        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             DataTable dt = testData.Tables[schema + "." + table, GetTableSpace(dbName)];
             Type type;
             //since this is just for unit testing we only need to support a subset of data types     
@@ -468,7 +468,7 @@ namespace TeslaSQL.DataUtils {
             tblCTTableInfo.Columns.Add("CtiSchemaName", typeof(string));
             tblCTTableInfo.Columns.Add("CtiPKList", typeof(string));
             tblCTTableInfo.Columns.Add("CtiExpectedRows", typeof(int));
-            testData.Tables.Add(tblCTTableInfo);            
+            testData.Tables.Add(tblCTTableInfo);
         }
 
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
@@ -554,7 +554,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long ctid, string database) {
+        public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database) {
             throw new NotImplementedException();
         }
     }

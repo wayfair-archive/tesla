@@ -486,7 +486,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long ctid, string database) {
+        public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database) {
             throw new NotImplementedException();
         }
     }

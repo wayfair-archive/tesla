@@ -301,6 +301,6 @@ namespace TeslaSQL.DataUtils {
 
         void CreateShardCTVersion(string db, long ctid, Int64 startVersion);
 
-        IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long ctid, string database);
+        IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database);
     }
 }
