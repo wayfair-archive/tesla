@@ -286,8 +286,11 @@ namespace TeslaSQL.DataUtils {
             return false;
         }
 
-
+        public Dictionary<string, bool> GetFieldListReturn;
         public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
+            if (GetFieldListReturn != null) {
+                return GetFieldListReturn;
+            }
             Dictionary<string, bool> dict = new Dictionary<string, bool>();
 
             if (!testData.Tables.Contains(schema + "." + table, GetTableSpace(dbName))) {
