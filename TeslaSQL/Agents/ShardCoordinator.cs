@@ -110,7 +110,16 @@ namespace TeslaSQL.Agents {
                 PublishSchemaChanges(batch);
                 sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.ShardCoordinator);
             }
-            ConsolidateTables(batch);
+            try {
+                ConsolidateTables(batch);
+            } catch (AggregateException e) {
+                string message = "Caught " + e.InnerExceptions.Count + " exceptions merging tables.";
+                foreach (var s in e.InnerExceptions) {
+                    message += s.Message + '\n';
+                    message += s.StackTrace;
+                }
+                logger.Log(message, LogLevel.Error);
+            }
             ConsolidateInfoTables(batch);
         }
 
