@@ -16,12 +16,12 @@ namespace TeslaSQL.Agents {
     public class Master : Agent {
         protected ChangeTrackingBatch ctb;
 
-        public Master(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
+        public Master(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
             this.config = config;
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
             //log server is dest since dest is relay for slave
-            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, destDataUtils);
+            this.logger = logger;
         }
 
         public Master() {
@@ -105,7 +105,7 @@ namespace TeslaSQL.Agents {
             //copy change tables from master to relay server
             logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Info);
             PublishChangeTables(config.tables, config.masterCTDB, config.relayDB, ctb.CTID, changesCaptured);
-
+            logger.Log("Publishing info table", LogLevel.Info);
             PublishTableInfo(config.tables, config.relayDB, changesCaptured, ctb.CTID);
             logger.Log("Successfully published changetables, persisting bitwise now", LogLevel.Debug);
 

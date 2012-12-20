@@ -26,11 +26,11 @@ namespace TeslaSQL.Agents {
             //parameterless constructor used only for unit tests
         }
 
-        public Agent(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
+        public Agent(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
             this.config = config;
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
-            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, sourceDataUtils);
+            this.logger = logger;
         }
 
         public abstract void Run();

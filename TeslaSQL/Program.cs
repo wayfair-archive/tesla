@@ -95,22 +95,22 @@ namespace TeslaSQL {
                     sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.MASTER, (SqlFlavor)config.masterType);
                     destDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
                     logger.dataUtils = destDataUtils;
-                    var master = new Master(config, sourceDataUtils, destDataUtils);
+                    var master = new Master(config, sourceDataUtils, destDataUtils, logger);
                     return master;
                 case AgentType.Slave:
                     sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
                     destDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.SLAVE, (SqlFlavor)config.slaveType);
                     logger.dataUtils = sourceDataUtils;
-                    var slave = new Slave(config, sourceDataUtils, destDataUtils);
+                    var slave = new Slave(config, sourceDataUtils, destDataUtils, logger);
                     return slave;
                 case AgentType.ShardCoordinator:
                     sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
-                    var shardCoordinator = new ShardCoordinator(config, sourceDataUtils);
-                    //logger.dataUtils = sourceDataUtils;
+                    logger.dataUtils = sourceDataUtils;
+                    var shardCoordinator = new ShardCoordinator(config, sourceDataUtils, logger);
                     return shardCoordinator;
                 case AgentType.Notifier:
                     sourceDataUtils = DataUtilsFactory.GetInstance(config, logger, TServer.RELAY, (SqlFlavor)config.relayType);
-                    var notifier = new Notifier(config, sourceDataUtils, new SimpleEmailClient(config.emailServerHost, config.emailFromAddress, config.emailServerPort));
+                    var notifier = new Notifier(config, sourceDataUtils, new SimpleEmailClient(config.emailServerHost, config.emailFromAddress, config.emailServerPort), logger);
                     logger.dataUtils = sourceDataUtils;
                     return notifier;
                 case AgentType.MasterMaintenance:

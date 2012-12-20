@@ -33,11 +33,8 @@ namespace TeslaSQL {
             }
         }
 
-        public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, IDataUtils dataUtils) {
-            this.logLevel = logLevel;
-            this.statsdHost = statsdHost;
-            this.statsdPort = statsdPort;
-            this.errorLogDB = errorLogDB;
+        public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile, IDataUtils dataUtils)
+            : this(logLevel, statsdHost, statsdPort, errorLogDB, logFile) {
             this.dataUtils = dataUtils;
         }
 
@@ -60,6 +57,7 @@ namespace TeslaSQL {
                     using (var writer = new StreamWriter(logFile, true)) {
                         writer.WriteLine(firstLine);
                         writer.WriteLine(secondLine);
+                        writer.Flush();
                     }
                 }
             }

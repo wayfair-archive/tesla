@@ -13,8 +13,8 @@ namespace TeslaSQL.Agents {
         private IEmailClient emailClient;
 
         //base keyword invokes the base class's constructor
-        public Notifier(Config config, IDataUtils dataUtils, IEmailClient emailClient)
-            : base(config, dataUtils, null) {
+        public Notifier(Config config, IDataUtils dataUtils, IEmailClient emailClient, Logger logger)
+            : base(config, dataUtils, null, logger) {
             this.emailClient = emailClient;
         }
 

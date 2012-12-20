@@ -261,7 +261,7 @@ namespace TeslaSQL.Tests.Agents {
                 config.tables = tables;
                 config.relayDB = "CT_testdb";
                 config.logLevel = LogLevel.Critical;
-                slave = new Slave(config, sourceDataUtils, destDataUtils);
+                slave = new Slave(config, sourceDataUtils, destDataUtils, null);
             }
         }
     }

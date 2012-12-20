@@ -14,12 +14,12 @@ using Microsoft.SqlServer.Management.Smo;
 namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     public class Slave : Agent {
-        public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
+        public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
             this.config = config;
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
             //log server is source since source is relay for slave
-            this.logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, sourceDataUtils);
+            this.logger = logger;
         }
 
         public Slave() {
@@ -192,27 +192,31 @@ namespace TeslaSQL.Agents {
             var existingCTTables = new List<ChangeTable>();
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
+                logger.Log("Downloading changes", LogLevel.Debug);
                 existingCTTables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 //marking this field so that completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             } else {
+                logger.Log("Changes downloaded, populating tables", LogLevel.Debug);
                 //since CopyChangeTables doesn't need to be called to fill in CT table list, get it from the slave instead
                 existingCTTables = PopulateTableList(config.tables, config.slaveCTDB, ctb.CTID);
             }
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
+                logger.Log("Applying schema changes", LogLevel.Debug);
                 ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 //marking this field so that all completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
+                logger.Log("Applying changes", LogLevel.Debug);
                 SetFieldLists(config.slaveDB, config.tables, destDataUtils);
                 ApplyChanges(config.tables, config.slaveDB, existingCTTables, ctb.CTID);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
-
+            logger.Log("Syncing history tables", LogLevel.Debug);
             SyncHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, existingCTTables);
 
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, DateTime.Now, config.slave);
@@ -257,6 +261,7 @@ namespace TeslaSQL.Agents {
             }
             foreach (var tableArchive in hasArchive) {
                 try {
+                    logger.Log("Applying changes for table " + tableArchive.Key.Name + (hasArchive == null ? "" : " (and archive)"), LogLevel.Debug);
                     destDataUtils.ApplyTableChanges(tableArchive.Key, tableArchive.Value, config.slaveDB, CTID, config.slaveCTDB);
                 } catch (Exception e) {
                     HandleException(e, tableArchive.Key);

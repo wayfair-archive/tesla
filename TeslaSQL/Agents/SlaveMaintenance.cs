@@ -13,7 +13,7 @@ namespace TeslaSQL.Agents
     {
         //base keyword invokes the base class's constructor
         public SlaveMaintenance(Config config, IDataUtils dataUtils)
-            : base(config, dataUtils, null) {
+            : base(config, dataUtils, null,null) {
 
         }
 

@@ -15,8 +15,8 @@ namespace TeslaSQL.Agents {
         protected IEnumerable<string> shardDatabases;
         IList<TableConf> tablesWithChanges;
         Dictionary<TableConf, Dictionary<string, List<TColumn>>> tableDBFieldLists;
-        public ShardCoordinator(Config config, IDataUtils dataUtils)
-            : base(config, dataUtils, dataUtils) {
+        public ShardCoordinator(Config config, IDataUtils dataUtils, Logger logger)
+            : base(config, dataUtils, dataUtils, logger) {
             shardDatabases = config.shardDatabases;
             tablesWithChanges = new List<TableConf>();
         }
