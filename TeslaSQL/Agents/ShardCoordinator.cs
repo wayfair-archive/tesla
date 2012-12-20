@@ -47,6 +47,10 @@ namespace TeslaSQL.Agents {
             } else {
                 tableDBFieldLists = GetFieldListsByDB(batch.CTID);
                 if (SchemasOutOfSync(batch, tableDBFieldLists.Values)) {
+                    foreach (var sd in shardDatabases) {
+                        sourceDataUtils.RevertCTBatch(sd, batch.CTID);
+                    }
+                    logger.Log("Schemas out of sync, quitting", LogLevel.Info);
                     return;
                 }
                 if (shardDatabases.All(dbName => (sourceDataUtils.GetCTBatch(dbName, batch.CTID).syncBitWise & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0)) {
@@ -58,23 +62,15 @@ namespace TeslaSQL.Agents {
                 }
             }
         }
-        /// <summary>
-        /// 
-        /// 
-        /// </summary>
-        /// <param name="batch"></param>
         /// <param name="dbFieldLists">a list of maps from dbName to list of TColumns. 
         /// This is a list (not just a dict) because there needs to be one dict per table. </param>
         /// <returns></returns>
+        // virtual so i can unit test it.
         virtual internal bool SchemasOutOfSync(ChangeTrackingBatch batch, IEnumerable<Dictionary<string, List<TColumn>>> dbFieldLists) {
             foreach (var dbFieldList in dbFieldLists) {
                 var orderedFieldLists = dbFieldList.Values.Select(lc => lc.OrderBy(c => c.name));
                 bool schemaOutOfSync = orderedFieldLists.Any(ofc => !ofc.SequenceEqual(orderedFieldLists.First()));
                 if (schemaOutOfSync) {
-                    foreach (var sd in shardDatabases) {
-                        sourceDataUtils.RevertCTBatch(sd, batch.CTID);
-                    }
-                    logger.Log("Schemas out of sync, quitting", LogLevel.Info);
                     return true;
                 }
             }
@@ -134,6 +130,7 @@ namespace TeslaSQL.Agents {
             }
             logger.Log("Parallel invocation of " + actions.Count + " table merges", LogLevel.Trace);
             //interestingly, Parallel.Invoke does in fact bubble up exceptions, but not until after all threads have completed.
+            //actually it looks like what it does is wrap its exceptions in an AggregateException.
             Parallel.Invoke(actions.ToArray());
         }
 
