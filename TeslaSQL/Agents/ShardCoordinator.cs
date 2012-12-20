@@ -42,25 +42,30 @@ namespace TeslaSQL.Agents {
         public override void Run() {
             var batch = new ChangeTrackingBatch(sourceDataUtils.GetLastCTBatch(config.relayDB, AgentType.ShardCoordinator));
             if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
-                logger.Log("Creating new CT versions for slaves", LogLevel.Info);
-                batch = CreateNewVersionsForShards(batch);
-            } else {
-                tableDBFieldLists = GetFieldListsByDB(batch.CTID);
-                if (SchemasOutOfSync(batch, tableDBFieldLists.Values)) {
-                    foreach (var sd in shardDatabases) {
-                        sourceDataUtils.RevertCTBatch(sd, batch.CTID);
-                    }
-                    logger.Log("Schemas out of sync, quitting", LogLevel.Info);
-                    return;
-                }
-                if (shardDatabases.All(dbName => (sourceDataUtils.GetCTBatch(dbName, batch.CTID).syncBitWise & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0)) {
-                    Consolidate(batch);
-                    sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID,
-                        Convert.ToInt32(SyncBitWise.CaptureChanges) | Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.ShardCoordinator);
-                } else {
-                    logger.Log("Not all shards are done yet, waiting until they catch up", LogLevel.Info);
-                }
+                CreateNewVersionsForShards(batch);
+                return;
             }
+
+            tableDBFieldLists = GetFieldListsByDB(batch.CTID);
+            if (SchemasOutOfSync(batch, tableDBFieldLists.Values)) {
+                foreach (var sd in shardDatabases) {
+                    sourceDataUtils.RevertCTBatch(sd, batch.CTID);
+                }
+                logger.Log("Schemas out of sync, quitting", LogLevel.Info);
+                return;
+            }
+            if (AllShardMastersDone(batch)) {
+                Consolidate(batch);
+                sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID,
+                    Convert.ToInt32(SyncBitWise.CaptureChanges) | Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.ShardCoordinator);
+            } else {
+                logger.Log("Not all shards are done yet, waiting until they catch up", LogLevel.Info);
+            }
+
+        }
+
+        private bool AllShardMastersDone(ChangeTrackingBatch batch) {
+            return shardDatabases.All(dbName => (sourceDataUtils.GetCTBatch(dbName, batch.CTID).syncBitWise & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0);
         }
         /// <param name="dbFieldLists">a list of maps from dbName to list of TColumns. 
         /// This is a list (not just a dict) because there needs to be one dict per table. </param>
@@ -90,6 +95,7 @@ namespace TeslaSQL.Agents {
         }
 
         private ChangeTrackingBatch CreateNewVersionsForShards(ChangeTrackingBatch batch) {
+            logger.Log("Creating new CT versions for slaves", LogLevel.Info);
             Int64 ctid = sourceDataUtils.CreateCTVersion(config.relayDB, 0, 0);
             foreach (var db in shardDatabases) {
                 var b = new ChangeTrackingBatch(sourceDataUtils.GetLastCTBatch(db, AgentType.ShardCoordinator));
