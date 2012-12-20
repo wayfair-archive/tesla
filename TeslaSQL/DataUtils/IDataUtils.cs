@@ -279,22 +279,46 @@ namespace TeslaSQL.DataUtils {
         /// <param name="columnName">Column name to drop</param>
         void DropColumn(TableConf t, string dbName, string schema, string table, string columnName);
 
-        void CreateTableInfoTable(string p, long p_2);
+        /// <summary>
+        /// Creates and does not populate TableInfo table for this CT batch in the appropriate DB
+        /// </summary>
+        void CreateTableInfoTable(string dbName, Int64 CTID);
+        /// <summary>
+        /// Publishes TableInfo to the appropriate TableInfo for this CT batch.
+        /// </summary>
+        /// <param name="table">Must have its field lists populated</param>
+        /// <param name="expectedRows">Number of rows the slaves should expect to insert from this batch</param>
+        void PublishTableInfo(string dbName, TableConf table, long CTID, long expectedRows);
 
-        void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows);
-
+        /// <summary>
+        /// Applies the actual table changes from the CT table in CTDBName to the table passed in, and, if given, the archive table as well.
+        /// </summary>
+        /// <param name="table">Table to apply changes to</param>
+        /// <param name="archiveTable">Archive table - if null, no archiving is done</param>
         void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid, string CTDBName);
 
+        /// <summary>
+        /// Consolidates batches. Used when a slave has too many batches to process one at a time.
+        /// </summary>
+        /// <param name="ctTableName">name of the original CT table</param>
+        /// <param name="consolidatedTableName">name of the new consolidated table</param>
         void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName);
 
+        /// <summary>
+        /// Used to de-dupe rows in consolidated CT tables
+        /// </summary>
         void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string consolidatedTableName, string dbName);
 
-        void CreateHistoryTable(ChangeTable t, string slaveCTDB);
-
+        /// <summary>
+        /// copies data from the table t into the appropriate History table, creating it if it does not exist.
+        /// </summary>
         void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB);
 
         ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid);
 
+        /// <summary>
+        /// Used to revert a CT batch to say that nothing has been done, if errors occurred that are solved best by restarting.
+        /// </summary>
         void RevertCTBatch(string dbName, Int64 ctid);
 
         void MergeCTTable(TableConf table, string destDB, string sourceDB, Int64 CTID);
