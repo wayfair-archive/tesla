@@ -46,10 +46,14 @@ namespace TeslaSQL {
             XmlNode node;
             var xml = new XmlDocument();
             xml.LoadXml(eventData);
-
+            if (xml == null) {
+                Console.WriteLine("XML failed to load");
+                Console.WriteLine(eventData);
+            }
+            
             string eventType = xml.SelectSingleNode("EVENT_INSTANCE/EventType").InnerText;
 
-            if (eventType == "ALTER_TABLE") {
+            if (eventType == "ALTER_TABLE" ) {
                 node = xml.SelectSingleNode("EVENT_INSTANCE/AlterTableActionList");
             } else if (eventType == "RENAME") {
                 node = xml.SelectSingleNode("EVENT_INSTANCE/Parameters");

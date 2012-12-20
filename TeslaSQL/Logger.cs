@@ -15,13 +15,22 @@ namespace TeslaSQL {
         private string statsdPort { get; set; }
         private string errorLogDB { get; set; }
         public IDataUtils dataUtils { private get; set; }
-        private readonly string fileName = "tesla.log";
+        private readonly string logFile;
 
-        public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB) {
+        public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile) {
             this.logLevel = logLevel;
             this.statsdHost = statsdHost;
             this.statsdPort = statsdPort;
             this.errorLogDB = errorLogDB;
+            try {
+                if (!File.Exists(logFile)) {
+                    //holds onto a file handle if you dont close it.
+                    File.Create(logFile).Close();
+                }
+                this.logFile = logFile;
+            } catch (Exception e) {
+                this.logFile = null;
+            }
         }
 
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, IDataUtils dataUtils) {
@@ -47,9 +56,11 @@ namespace TeslaSQL {
                 var secondLine = logLevel + ": " + message;
                 Console.WriteLine(firstLine);
                 Console.WriteLine(secondLine);
-                using (var writer = new StreamWriter(fileName, true)) {
-                    writer.WriteLine(firstLine);
-                    writer.WriteLine(secondLine);
+                if (logFile != null) {
+                    using (var writer = new StreamWriter(logFile, true)) {
+                        writer.WriteLine(firstLine);
+                        writer.WriteLine(secondLine);
+                    }
                 }
             }
 

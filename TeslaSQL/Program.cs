@@ -56,7 +56,7 @@ namespace TeslaSQL {
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
             var config = Config.Load(parameters.configFile);
-            var logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB);
+            var logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, parameters.logFile);
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
 
             if (parameters.validate) {
@@ -77,7 +77,7 @@ namespace TeslaSQL {
             int responseCode = 0;
             try {
                 Agent a = CreateAgent(config.agentType, config, logger);
-                logger.Log("Running agent of type " +config.agentType, LogLevel.Info);
+                logger.Log("Running agent of type " + config.agentType, LogLevel.Info);
                 a.Run();
                 logger.Log("Agent completed successfully", LogLevel.Info);
             } catch (Exception e) {
@@ -139,6 +139,7 @@ namespace TeslaSQL {
             public bool validate { get; set; }
             public int more { get; set; }
             public bool showHelp { get; set; }
+            public string logFile { get; set; }
             public OptionSet optionSet { get; set; }
         }
 
@@ -195,6 +196,8 @@ namespace TeslaSQL {
               ( int v) => parameters.more = v },
             { "h|help" ,  "show this message and exit" ,
               v => parameters.showHelp = v != null },
+              {"logfile=", "The log file {PATH}.",
+                  v => parameters.logFile = v }
             };
 
             //Save the option set object to the params struct. This is required to run ShowHelp if --help is passed in.
