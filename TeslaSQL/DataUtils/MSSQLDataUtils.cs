@@ -7,6 +7,8 @@ using System.Data.SqlClient;
 using System.Data;
 using Microsoft.SqlServer.Management.Smo;
 using Microsoft.SqlServer.Management.Common;
+using TeslaSQL.Agents;
+using System.Diagnostics;
 
 namespace TeslaSQL.DataUtils {
     public class MSSQLDataUtils : IDataUtils {
@@ -677,8 +679,12 @@ namespace TeslaSQL.DataUtils {
             SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);
             bulkCopy.BulkCopyTimeout = timeout;
             bulkCopy.DestinationTableName = schema + ".[" + table + "]";
+            bulkCopy.NotifyAfter = 1000;
+            var sw = Stopwatch.StartNew();
+            bulkCopy.SqlRowsCopied += new SqlRowsCopiedEventHandler((s, e) => logger.Log("Copied " + e.RowsCopied + " rows so far, in " + sw.Elapsed, LogLevel.Debug));
             bulkCopy.WriteToServer(reader);
         }
+
 
         public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName) {
             var tableSql = new List<SqlCommand>();

@@ -9,22 +9,21 @@ using Xunit;
 using TeslaSQL.DataUtils;
 using TeslaSQL.DataCopy;
 using Microsoft.SqlServer.Management.Smo;
+using System.Diagnostics;
 #endregion
 
 namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     public class Slave : Agent {
-        public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
-            this.config = config;
-            this.sourceDataUtils = sourceDataUtils;
-            this.destDataUtils = destDataUtils;
-            //log server is source since source is relay for slave
-            this.logger = logger;
+
+        public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger)
+            : base(config, sourceDataUtils, destDataUtils, logger) {
+
         }
 
         public Slave() {
             //this constructor is only used by for running unit tests
-            this.logger = new Logger(LogLevel.Critical, null, null, null,"");
+            this.logger = new Logger(LogLevel.Critical, null, null, null, "");
         }
 
         public override void ValidateConfig() {
@@ -37,17 +36,23 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             logger.Log("Initializing CT batch", LogLevel.Trace);
+            var sw = Stopwatch.StartNew();
             List<ChangeTrackingBatch> batches = InitializeBatch();
+            logger.Log("InitializeBatch: " + sw.Elapsed, LogLevel.Trace);
             /**
              * If you run a batch as Multi, and that batch fails, and before the next run,
              * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
              */
             if (config.batchConsolidationThreshold == 0 || batches.Count < config.batchConsolidationThreshold) {
                 foreach (var batch in batches) {
+                    sw = Stopwatch.StartNew();
                     RunSingleBatch(batch);
+                    logger.Log("RunSingleBatch: " + sw.Elapsed, LogLevel.Trace);
                 }
             } else {
+                sw = Stopwatch.StartNew();
                 RunMultiBatch(batches);
+                logger.Log("RunMutliBatch: " + sw.Elapsed, LogLevel.Trace);
             }
 
             logger.Log("Slave agent work complete", LogLevel.Info);
@@ -190,10 +195,12 @@ namespace TeslaSQL.Agents {
         /// <param name="CTID">Change tracking batch object to work on</param>
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
             var existingCTTables = new List<ChangeTable>();
-
+            Stopwatch sw;
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 logger.Log("Downloading changes", LogLevel.Debug);
+                sw = Stopwatch.StartNew();
                 existingCTTables = CopyChangeTables(config.tables, config.relayDB, config.slaveCTDB, ctb.CTID);
+                logger.Log("CopyChangeTables: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 //marking this field so that completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
@@ -205,7 +212,9 @@ namespace TeslaSQL.Agents {
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                 logger.Log("Applying schema changes", LogLevel.Debug);
+                sw = Stopwatch.StartNew();
                 ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, ctb.CTID);
+                logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 //marking this field so that all completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
@@ -213,12 +222,15 @@ namespace TeslaSQL.Agents {
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Debug);
                 SetFieldLists(config.slaveDB, config.tables, destDataUtils);
+                sw = Stopwatch.StartNew();
                 ApplyChanges(config.tables, config.slaveDB, existingCTTables, ctb.CTID);
+                logger.Log("ApplyChanges: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
             logger.Log("Syncing history tables", LogLevel.Debug);
+            sw = Stopwatch.StartNew();
             SyncHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, existingCTTables);
-
+            logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, DateTime.Now, config.slave);
         }
 
@@ -262,7 +274,9 @@ namespace TeslaSQL.Agents {
             foreach (var tableArchive in hasArchive) {
                 try {
                     logger.Log("Applying changes for table " + tableArchive.Key.Name + (hasArchive == null ? "" : " (and archive)"), LogLevel.Debug);
+                    var sw = Stopwatch.StartNew();
                     destDataUtils.ApplyTableChanges(tableArchive.Key, tableArchive.Value, config.slaveDB, CTID, config.slaveCTDB);
+                    logger.Log("ApplyTableChanges: " + sw.Elapsed, LogLevel.Trace);
                 } catch (Exception e) {
                     HandleException(e, tableArchive.Key);
                 }
@@ -325,11 +339,12 @@ namespace TeslaSQL.Agents {
                 var ct = new ChangeTable(t.Name, CTID, t.schemaName, config.slave);
                 string sourceCTTable = isConsolidated ? ct.consolidatedName : ct.ctName;
                 string destCTTable = ct.ctName;
-                //attempt to copy the change table locally
                 try {
                     //hard coding timeout at 1 hour for bulk copy
+                    logger.Log("Copying table " + t.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
+                    var sw = Stopwatch.StartNew();
                     dataCopy.CopyTable(sourceCTDB, sourceCTTable, t.schemaName, destCTDB, 36000, destCTTable);
-                    logger.Log("Copied table " + t.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
+                    logger.Log("CopyTable: " + sw.Elapsed, LogLevel.Trace);
                     found = true;
                 } catch (DoesNotExistException) {
                     //this is a totally normal and expected case since we only publish changetables when data actually changed

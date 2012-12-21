@@ -17,7 +17,6 @@ using Xunit;
 namespace TeslaSQL {
 
     public class Config {
-
         //method to initialize configuration by deserializing config file into objects
         public static Config Load(string configFile) {
             ConfigLoader c = null;
@@ -34,8 +33,6 @@ namespace TeslaSQL {
         }
 
         public Config(ConfigLoader c) {
-
-            //set global configuration properties
             masterDB = ValidateNullableIdentifier(c.masterDB);
             masterCTDB = ValidateNullableIdentifier(c.masterCTDB);
             slaveCTDB = ValidateNullableIdentifier(c.slaveCTDB);

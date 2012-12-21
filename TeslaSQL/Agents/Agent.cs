@@ -8,6 +8,7 @@ using System.Data;
 using System.Diagnostics;
 using Xunit;
 using TeslaSQL.DataUtils;
+using System.Data.SqlClient;
 #endregion
 
 

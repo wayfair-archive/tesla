@@ -25,10 +25,10 @@ namespace TeslaSQL.DataCopy {
         /// <param name="destinationTable">Table to write to on the destination (must already exist)</param>
         /// <param name="queryTimeout">How long the query on the source can run for</param>
         /// <param name="bulkCopyTimeout">How long writing to the destination can take</param>
-        private void CopyDataFromQuery(string sourceDB, string destDB, SqlCommand cmd, string destinationTable, string destinationSchema = "dbo", int queryTimeout = 36000, int bulkCopyTimeout = 36000) {            
+        private void CopyDataFromQuery(string sourceDB, string destDB, SqlCommand cmd, string destinationTable, string destinationSchema = "dbo", int queryTimeout = 36000, int bulkCopyTimeout = 36000) {
             using (SqlDataReader reader = sourceDataUtils.ExecuteReader(sourceDB, cmd, 1200)) {
                 destDataUtils.BulkCopy(reader, destDB, destinationSchema, destinationTable, bulkCopyTimeout);
-            }           
+            }
         }
 
         public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null) {
