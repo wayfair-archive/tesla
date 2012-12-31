@@ -19,12 +19,7 @@ namespace TeslaSQL {
     
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile) {
             this.logLevel = logLevel;
-            if (statsdHost != null && statsdPort != null) {
-                try {
-                    this.statsd = new StatsdPipe(statsdHost, int.Parse(statsdPort));
-                    Log(String.Format("Building statsdpipe: {0}:{1}", statsdHost, statsdPort), LogLevel.Trace);
-                } catch { }
-            }
+     
             this.errorLogDB = errorLogDB;
             try {
                 if (!File.Exists(logFile)) {
@@ -34,7 +29,15 @@ namespace TeslaSQL {
                 this.logFile = logFile;
             } catch (Exception e) {
                 this.logFile = null;
-            }
+            }      
+            
+                try {
+                    this.statsd = new StatsdPipe(statsdHost, int.Parse(statsdPort));
+                    Log(String.Format("Building statsdpipe: {0}:{1}", statsdHost, statsdPort), LogLevel.Trace);
+                } catch {
+                    Log("Invalid or empty config values for statsdHost and statsdPipe; not logging to StatsD this run", LogLevel.Warn);
+                }
+            
         }
 
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile, IDataUtils dataUtils)

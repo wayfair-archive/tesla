@@ -59,7 +59,7 @@ namespace TeslaSQL {
             Console.Title = config.agentType + " | TeslaSQL";
             var logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, parameters.logFile);
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
-
+          
             if (parameters.validate) {
                 config.DumpConfig(parameters.more, config);
                 return;
@@ -73,8 +73,6 @@ namespace TeslaSQL {
                     throw new Exception("Invalid log level!");
                 }
             }
-
-            return;
 
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
