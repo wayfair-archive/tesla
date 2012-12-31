@@ -11,16 +11,20 @@ namespace TeslaSQL {
     public class Logger {
 
         private LogLevel logLevel { get; set; }
-        private string statsdHost { get; set; }
-        private string statsdPort { get; set; }
         private string errorLogDB { get; set; }
         public IDataUtils dataUtils { private get; set; }
         private readonly string logFile;
 
+        private StatsdPipe statsd;
+    
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile) {
             this.logLevel = logLevel;
-            this.statsdHost = statsdHost;
-            this.statsdPort = statsdPort;
+            if (statsdHost != null && statsdPort != null) {
+                try {
+                    this.statsd = new StatsdPipe(statsdHost, int.Parse(statsdPort));
+                    Log(String.Format("Building statsdpipe: {0}:{1}", statsdHost, statsdPort), LogLevel.Trace);
+                } catch { }
+            }
             this.errorLogDB = errorLogDB;
             try {
                 if (!File.Exists(logFile)) {
@@ -36,6 +40,12 @@ namespace TeslaSQL {
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile, IDataUtils dataUtils)
             : this(logLevel, statsdHost, statsdPort, errorLogDB, logFile) {
             this.dataUtils = dataUtils;
+        }
+
+        public void Timing(string key, int value, double sampleRate = 1.0) {
+            if (statsd == null) { return; }
+            statsd.Timing(key, value, sampleRate);
+            Log(String.Format("Timing: {0}, {1} @{2}", key, value, sampleRate), LogLevel.Trace);
         }
 
         /// <summary>
@@ -212,20 +222,6 @@ namespace TeslaSQL {
             #endregion
         }
 
-        /// <summary>
-        /// A singleton to handle Statd messages.
-        /// ***Requires "statsdhost" and "statsdport" in Config***
-        /// </summary>
-        /// <example>
-        /// StatsdSingleton.Instance.Increment("hitcount");
-        /// </example>
-        /* TODO fix
-        public sealed class StatsdSingleton {
 
-            private static readonly Lazy<StatsdPipe> lazy = new Lazy<StatsdPipe>(() => new StatsdPipe(statsdHost, Int16.Parse(statsdPort)));
-
-            public static StatsdPipe Instance { get { return lazy.Value; } }
-        }
-         */
     }
 }

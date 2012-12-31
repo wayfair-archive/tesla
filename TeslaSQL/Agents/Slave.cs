@@ -49,6 +49,7 @@ namespace TeslaSQL.Agents {
                     RunSingleBatch(batch);
                     logger.Log("RunSingleBatch: " + sw.Elapsed, LogLevel.Trace);
                 }
+                logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
             } else {
                 sw = Stopwatch.StartNew();
                 RunMultiBatch(batches);
@@ -157,6 +158,7 @@ namespace TeslaSQL.Agents {
             foreach (ChangeTrackingBatch batch in batches) {
                 sourceDataUtils.MarkBatchComplete(config.relayDB, batch.CTID, DateTime.Now, config.slave);
             }
+            logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
         }
 
         private IEnumerable<ChangeTable> ConsolidateBatches(List<ChangeTable> tables, List<ChangeTrackingBatch> batches) {

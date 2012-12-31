@@ -74,6 +74,8 @@ namespace TeslaSQL {
                 }
             }
 
+            return;
+
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
             try {

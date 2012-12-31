@@ -685,7 +685,6 @@ namespace TeslaSQL.DataUtils {
             bulkCopy.WriteToServer(reader);
         }
 
-
         public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName) {
             var tableSql = new List<SqlCommand>();
             tableSql.Add(BuildMergeQuery(table, dbName, CTID, CTDBName));
