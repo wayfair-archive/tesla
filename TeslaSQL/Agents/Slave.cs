@@ -37,7 +37,14 @@ namespace TeslaSQL.Agents {
         public override void Run() {
             logger.Log("Initializing CT batch", LogLevel.Trace);
             var sw = Stopwatch.StartNew();
-            List<ChangeTrackingBatch> batches = InitializeBatch();
+            var batches = GetIncompleteBatches();
+            if (batches.Count == 0) {
+                batches = InitializeBatch();
+            } else if (HasMagicHour() && !FullRunTime() && batches.All(ctb => (ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) > 0)) {
+                //if it's 
+            }
+
+
             logger.Log("InitializeBatch: " + sw.Elapsed, LogLevel.Trace);
             /**
              * If you run a batch as Multi, and that batch fails, and before the next run,
@@ -60,23 +67,21 @@ namespace TeslaSQL.Agents {
             return;
         }
 
+        private bool HasMagicHour() {
+            throw new NotImplementedException();
+        }
 
+        private bool FullRunTime() {
+            throw new NotImplementedException();
+        }
+        
         /// <summary>
         /// Initializes version/batch info for a run
         /// </summary>
         /// <returns>List of change tracking batches to work on</returns>
-        private List<ChangeTrackingBatch> InitializeBatch() {
-            var batches = new List<ChangeTrackingBatch>();
+        private IList<ChangeTrackingBatch> InitializeBatch() {
             ChangeTrackingBatch ctb;
-
-            logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
-            var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(config.relayDB);
-            if (incompleteBatches.Rows.Count > 0) {
-                foreach (DataRow row in incompleteBatches.Rows) {
-                    batches.Add(new ChangeTrackingBatch(row));
-                }
-                return batches;
-            }
+            IList<ChangeTrackingBatch> batches = new List<ChangeTrackingBatch>();
 
             DataRow lastBatch = sourceDataUtils.GetLastCTBatch(config.relayDB, AgentType.Slave, config.slave);
             if (lastBatch == null) {
@@ -104,12 +109,24 @@ namespace TeslaSQL.Agents {
             return batches;
         }
 
+        private IList<ChangeTrackingBatch> GetIncompleteBatches() {
+            var batches = new List<ChangeTrackingBatch>();
+            logger.Log("Retrieving information on last run for slave " + config.slave, LogLevel.Debug);
+            var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(config.relayDB);
+            if (incompleteBatches.Rows.Count > 0) {
+                foreach (DataRow row in incompleteBatches.Rows) {
+                    batches.Add(new ChangeTrackingBatch(row));
+                }
+            }
+            return batches;
+        }
+
 
         /// <summary>
         /// Consolidates multiple batches and runs them as a group
         /// </summary>
         /// <param name="ctidTable">DataTable object listing all the batches</param>
-        private void RunMultiBatch(List<ChangeTrackingBatch> batches) {
+        private void RunMultiBatch(IList<ChangeTrackingBatch> batches) {
             var existingCTTables = new List<ChangeTable>();
 
             ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
@@ -121,6 +138,15 @@ namespace TeslaSQL.Agents {
                 existingCTTables = existingCTTables.Concat(PopulateTableList(config.tables, config.slaveCTDB, batch.CTID)).ToList();
             }
             SetFieldLists(config.slaveDB, config.tables, destDataUtils);
+
+            foreach (ChangeTrackingBatch batch in batches) {
+                if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
+                    logger.Log("Applying schema changes", LogLevel.Debug);
+                    ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, batch.CTID);
+                    sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
+                }
+            }
+
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
                 logger.Log("Consolidating batches", LogLevel.Trace);
                 ConsolidateBatches(existingCTTables, batches);
@@ -134,13 +160,6 @@ namespace TeslaSQL.Agents {
                 sourceDataUtils.WriteBitWise(config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
             }
 
-            foreach (ChangeTrackingBatch batch in batches) {
-                if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                    logger.Log("Applying schema changes", LogLevel.Debug);
-                    ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, batch.CTID);
-                    sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
-                }
-            }
 
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 ApplyChanges(config.tables, config.slaveCTDB, existingCTTables, endBatch.CTID);
@@ -161,7 +180,7 @@ namespace TeslaSQL.Agents {
             logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
         }
 
-        private IEnumerable<ChangeTable> ConsolidateBatches(List<ChangeTable> tables, List<ChangeTrackingBatch> batches) {
+        private IEnumerable<ChangeTable> ConsolidateBatches(IList<ChangeTable> tables, IList<ChangeTrackingBatch> batches) {
             IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, sourceDataUtils);
             var lu = new Dictionary<string, List<ChangeTable>>();
             foreach (var changeTable in tables) {
