@@ -29,13 +29,10 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
         private DataTable SqlQuery(string dbName, OleDbCommand cmd, int timeout = 30) {
-            //build connection string based on server/db info passed in
             string connStr = buildConnString(dbName);
 
-            //using block to avoid resource leaks
             using (OleDbConnection conn = new OleDbConnection(connStr)) {
-                //open database connection
-                conn.Open();
+                           conn.Open();
                 cmd.Connection = conn;
                 cmd.CommandTimeout = timeout;
 
@@ -145,7 +142,6 @@ namespace TeslaSQL.DataUtils {
 
         public int SelectIntoCTTable(string sourceCTDB, string masterColumnList, string ctTableName,
             string sourceDB, string schemaName, string tableName, Int64 startVersion, string pkList, Int64 stopVersion, string notNullPkList, int timeout) {
-            
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
@@ -187,48 +183,11 @@ namespace TeslaSQL.DataUtils {
 
         public bool CheckTableExists(string dbName, string table, string schema = "dbo") {
             throw new NotImplementedException("Still need to implement!");
-            /*
-            try {
-                Table t_smo = GetSmoTable(server, dbName, table, schema);
-
-                if (t_smo != null) {
-                    return true;
-                }
-                return false;
-            } catch (DoesNotExistException) {
-                return false;
-            }
-             */
         }
 
 
         public IEnumerable<string> GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
             throw new NotImplementedException("Not sure if we need this yet!");
-            /*
-            Table t_smo_1 = GetSmoTable(server, dbName, table1, schema1);
-            Table t_smo_2 = GetSmoTable(server, dbName, table2, schema2);
-            string columnList = "";
-
-            //list to hold lowercased column names
-            var columns_2 = new List<string>();
-
-            //create this so that casing changes to columns don't cause problems, just use the lowercase column name
-            foreach (Column c in t_smo_2.Columns) {
-                columns_2.Add(c.Name.ToLower());
-            }
-
-            foreach (Column c in t_smo_1.Columns) {
-                //case insensitive comparison using ToLower()
-                if (columns_2.Contains(c.Name.ToLower())) {
-                    if (columnList != "") {
-                        columnList += ",";
-                    }
-
-                    columnList += "[" + c.Name + "]";
-                }
-            }
-            return columnList;
-             */
         }
 
 
@@ -239,41 +198,10 @@ namespace TeslaSQL.DataUtils {
 
         public bool DropTableIfExists(string dbName, string table, string schema) {
             throw new NotImplementedException("Still need to implement this!");
-            /*
-            try {
-                Table t_smo = GetSmoTable(server, dbName, table, schema);
-                if (t_smo != null) {
-                    t_smo.Drop();
-                    return true;
-                }
-                return false;
-            } catch (DoesNotExistException) {
-                return false;
-            }
-             */
         }
 
         public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
             throw new NotImplementedException("This still needs to be implemented!");
-            /*Dictionary<string, bool> dict = new Dictionary<string, bool>();
-            Table t_smo;
-
-            //attempt to get smo table object
-            try {
-                t_smo = GetSmoTable(server, dbName, table, schema);
-            } catch (DoesNotExistException) {
-                //TODO figure out if we also want to throw here
-                logger.Log("Unable to get field list for table " + table + " because it does not exist", LogLevel.Error);
-                return dict;
-            }
-
-            //loop through columns and add them to the dictionary along with whether they are part of the primary key
-            foreach (Column c in t_smo.Columns) {
-                dict.Add(c.Name, c.InPrimaryKey);
-            }
-
-            return dict;
-             */
         }
 
 
@@ -313,112 +241,31 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void MarkErrorsSent(IEnumerable<int> celIds) {
-            throw new NotImplementedException("Netezza is only supported as a slave!"); ;
+            throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
         private bool CheckColumnExists(string dbName, string schema, string table, string column) {
             throw new NotImplementedException("Still need to implement");
-            //TODO change to something that queries system tables
-            /*
-            Table t_smo = GetSmoTable(server, dbName, table, schema);
-            if (t_smo.Columns.Contains(column)) {
-                return true;
-            }
-            return false;
-             */
         }
 
         public void RenameColumn(TableConf t, string dbName, string schema, string table,
             string columnName, string newColumnName) {
-
             throw new NotImplementedException("Still need to implement");
-            /*
-            SqlCommand cmd;
-            //rename the column if it exists
-            if (CheckColumnExists(dbName, schema, table, columnName)) {
-                cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "." + columnName;
-                cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
-                logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(dbName, cmd);
-            }
-            //check for history table, if it is configured and contains the column we need to modify that too
-            if (t.recordHistoryTable && CheckColumnExists(server, dbName, schema, table + "_History", columnName)) {
-                cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
-                cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
-                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(cmd);
-            }
-             * */
         }
 
         public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
 
             throw new NotImplementedException("Still need to implement");
-            /*
-            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
-            var typesUsingScale = new string[2] { "numeric", "decimal" };
-            string suffix = "";
-            string query;
-            SqlCommand cmd;
-            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
-                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
-                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
-            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
-                suffix = "(" + numericPrecision + ", " + numericScale + ")";
-            }
-
-            //Modify the column if it exists
-            if (CheckColumnExists(server, dbName, schema, table, columnName)) {
-                query = "ALTER TABLE " + schema + "." + table + " ALTER COLUMN " + columnName + " " + baseType;
-                cmd = new SqlCommand(query + suffix);
-                logger.Log("Altering table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(dbName, cmd);
-            }
-             * */
         }
 
         public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
-            
             throw new NotImplementedException("Still need to implement");
-            /*
-            string query;
-            SqlCommand cmd;
-            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
-            var typesUsingScale = new string[2] { "numeric", "decimal" };
 
-            string suffix = "";
-            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
-                //(n)varchar(max) types stored with a maxlen of -1, so change that to max
-                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
-            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
-                suffix = "(" + numericPrecision + ", " + numericScale + ")";
-            }
-            //add column if it doesn't exist
-            if (!CheckColumnExists(server, dbName, schema, table, columnName)) {
-                query = "ALTER TABLE " + schema + "." + table + " ADD " + columnName + " " + baseType;
-                cmd = new SqlCommand(query + suffix);
-                logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
-            }
-             */
         }
 
         public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
             throw new NotImplementedException("Still need to implement");
-            /*
-            SqlCommand cmd;
-            //drop column if it exists
-            if (CheckColumnExists(server, dbName, schema, table, columnName)) {
-                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " DROP COLUMN " + columnName);
-                logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(server, dbName, cmd);
-            }
-             */
         }
-
-
 
         public void CreateTableInfoTable(string p, long p_2) {
             throw new NotImplementedException();
