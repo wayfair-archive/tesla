@@ -61,6 +61,8 @@ namespace TeslaSQL {
             sharding_m = c.sharding;
             shardDatabases_m = c.shardDatabases;
             masterShard_m = c.masterShard;
+            dataCopyTimeout = c.dataCopyTimeout > 0 ? c.dataCopyTimeout : 36000;
+            queryTimeout = c.queryTimeout > 0 ? c.queryTimeout : 12000;
 
             if (c.thresholdIgnoreStartTime != null) {
                 thresholdIgnoreStartTime_m = TimeSpan.Parse(c.thresholdIgnoreStartTime);
@@ -232,11 +234,11 @@ namespace TeslaSQL {
                 //they can
                 if (!(type.IsPrimitive || type.Equals(typeof(string)) || type.BaseType.Equals(typeof(Enum)))) {
                     var getMethod = prop.GetGetMethod();
-                    if (getMethod.ReturnType.IsArray) {
+                    if (prop.GetValue(o, null) is IEnumerable) {
                         prefix = ((prefix != null) ? prefix : "") + "    ";
-                        Array arrayObject = (Array)getMethod.Invoke(o, null);
-                        if (arrayObject != null) {
-                            foreach (object element in arrayObject) {
+                        IEnumerable enumerableObject = (IEnumerable)getMethod.Invoke(o, null);
+                        if (enumerableObject != null) {
+                            foreach (object element in enumerableObject) {
                                 Type elemType = element.GetType();
                                 //if it's an array of primitives, just print each element. otherwise we need the recursive call
                                 if (elemType.IsPrimitive || elemType.Equals(typeof(string)) || elemType.BaseType.Equals(typeof(Enum))) {
@@ -411,7 +413,7 @@ namespace TeslaSQL {
         public bool sharding { get { return sharding_m; } }
 
         private readonly string[] shardDatabases_m;
-        public IEnumerable<string> shardDatabases { get { return shardDatabases_m.ToList(); } }
+        public IEnumerable<string> shardDatabases { get { return shardDatabases_m != null ? shardDatabases_m.ToList() :  new List<string>(); } }
 
         private string masterShard_m;
         public string masterShard { get { return masterShard_m; } }
@@ -419,108 +421,56 @@ namespace TeslaSQL {
         private readonly TimeSpan[] magicHours_m;
         public virtual TimeSpan[] magicHours { get { return magicHours_m; } }
 
+        public int dataCopyTimeout { get; set; }
+        public int queryTimeout { get; set; }
+
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
         [System.Xml.Serialization.XmlRoot("conf")]
         public class ConfigLoader {
-
-            [XmlElement("logLevel")]
             public string logLevel { get; set; }
-
-            [XmlElement("agentType")]
             public string agentType { get; set; }
-
-            [XmlElement("master")]
             public string master { get; set; }
-
-            [XmlElement("masterType")]
             public string masterType { get; set; }
-
-            [XmlElement("slave")]
             public string slave { get; set; }
-
-            [XmlElement("slaveType")]
             public string slaveType { get; set; }
-
-            [XmlElement("relayServer")]
             public string relayServer { get; set; }
-
-            [XmlElement("relayType")]
             public string relayType { get; set; }
-
-            [XmlElement("masterDB")]
             public string masterDB { get; set; }
-
-            [XmlElement("masterCTDB")]
             public string masterCTDB { get; set; }
-
-            [XmlElement("slaveDB")]
             public string slaveDB { get; set; }
-
-            [XmlElement("slaveCTDB")]
             public string slaveCTDB { get; set; }
-
-            [XmlElement("relayDB")]
             public string relayDB { get; set; }
-
-            [XmlElement("errorLogDB")]
             public string errorLogDB { get; set; }
-
-            [XmlElement("masterUser")]
             public string masterUser { get; set; }
-
-            [XmlElement("masterPassword")]
             public string masterPassword { get; set; }
-
-            [XmlElement("slaveUser")]
             public string slaveUser { get; set; }
-
-            [XmlElement("slavePassword")]
             public string slavePassword { get; set; }
-
-            [XmlElement("relayUser")]
             public string relayUser { get; set; }
-
-            [XmlElement("relayPassword")]
             public string relayPassword { get; set; }
-
-            [XmlElement("changeRetentionHours")]
             public int changeRetentionHours { get; set; }
-
-            [XmlElement("maxBatchSize")]
             public int maxBatchSize { get; set; }
-
-            [XmlElement("thresholdIgnoreStartTime")]
             public string thresholdIgnoreStartTime { get; set; }
-
-            [XmlElement("thresholdIgnoreEndTime")]
             public string thresholdIgnoreEndTime { get; set; }
-
-            [XmlElement("batchConsolidationThreshold")]
             public int batchConsolidationThreshold { get; set; }
-
-            [XmlElement("statsdHost")]
             public string statsdHost { get; set; }
-
-            [XmlElement("statsdPort")]
             public string statsdPort { get; set; }
+            public string masterShard { get; set; }
+            public bool sharding { get; set; }
+            public string emailServerHost { get; set; }
+            public int emailServerPort { get; set; }
+            public string emailFromAddress { get; set; }
+            public string emailErrorRecipient { get; set; }
+            public string errorTable { get; set; }
+            public int dataCopyTimeout { get; set; }
+            public int queryTimeout { get; set; }
 
             [XmlArray("tables")]
             public TableConf[] t { get; set; }
 
             [XmlArrayItem("shardDatabase")]
             public string[] shardDatabases { get; set; }
-
-            public string masterShard { get; set; }
-
-            public bool sharding { get; set; }
-
-            public string emailServerHost { get; set; }
-            public int emailServerPort { get; set; }
-            public string emailFromAddress { get; set; }
-            public string emailErrorRecipient { get; set; }
-            public string errorTable { get; set; }
         }
 
 

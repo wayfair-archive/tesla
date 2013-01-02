@@ -205,7 +205,7 @@ namespace TeslaSQL.Agents {
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
                 consolidatedTables.Add(lastChangeTable);
                 try {
-                    dataCopy.CopyTable(config.relayDB, lastChangeTable.ctName, table.schemaName, config.relayDB, 36000, lastChangeTable.consolidatedName);
+                    dataCopy.CopyTable(config.relayDB, lastChangeTable.ctName, table.schemaName, config.relayDB, config.dataCopyTimeout, lastChangeTable.consolidatedName);
                     foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid)) {
                         sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, config.relayDB, table.schemaName);
                     }

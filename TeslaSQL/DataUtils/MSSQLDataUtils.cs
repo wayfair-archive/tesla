@@ -693,7 +693,7 @@ namespace TeslaSQL.DataUtils {
             if (archiveTable != null) {
                 tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName));
             }
-            var s = TransactionQuery(tableSql, dbName);
+            var s = TransactionQuery(tableSql, dbName, config.queryTimeout);
             logger.Log("table " + table.Name + ": insert: " + s[0].Rows[0].Field<int>("insertcount") + " | delete: " + s[0].Rows[0].Field<int>("deletecount"), LogLevel.Info);
             if (archiveTable != null) {
                 logger.Log("table " + table.Name + ": insert: " + s[1].Rows[0].Field<int>("insertcount") + " | delete: " + s[1].Rows[0].Field<int>("deletecount"), LogLevel.Info);
@@ -701,7 +701,6 @@ namespace TeslaSQL.DataUtils {
         }
 
         private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 ctid, string CTDBName) {
-            //TODO: set up logging tables 
             string sql = string.Format(
                 @"DECLARE @rowcounts TABLE (mergeaction nvarchar(10));
                   DECLARE @insertcount int, @deletecount int;
@@ -733,26 +732,7 @@ namespace TeslaSQL.DataUtils {
             return new SqlCommand(sql);
         }
 
-
-        /// <summary>
-        /// executes a list of sql commands as a transaction. Untested.
-        /// </summary>
-        private void Transaction(IList<SqlCommand> commands, string dbName) {
-            var connStr = buildConnString(dbName);
-            using (var conn = new SqlConnection(connStr)) {
-                conn.Open();
-                var trans = conn.BeginTransaction();
-                foreach (var cmd in commands) {
-                    logger.Log(cmd.CommandText, LogLevel.Trace);
-                    cmd.Transaction = trans;
-                    cmd.Connection = conn;
-                    var reader = cmd.ExecuteReader();
-                }
-                trans.Commit();
-            }
-        }
-
-        private IList<DataTable> TransactionQuery(IList<SqlCommand> commands, string dbName) {
+        private IList<DataTable> TransactionQuery(IList<SqlCommand> commands, string dbName, int timeout) {
             var connStr = buildConnString(dbName);
             var tables = new List<DataTable>();
             using (var conn = new SqlConnection(connStr)) {
@@ -761,6 +741,7 @@ namespace TeslaSQL.DataUtils {
                 foreach (var cmd in commands) {
                     logger.Log(cmd.CommandText, LogLevel.Trace);
                     cmd.Transaction = trans;
+                    cmd.CommandTimeout = timeout;
                     cmd.Connection = conn;
                     DataSet ds = new DataSet();
                     SqlDataAdapter da = new SqlDataAdapter(cmd);

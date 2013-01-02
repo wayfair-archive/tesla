@@ -323,7 +323,7 @@ namespace TeslaSQL.Agents {
 
             logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
             Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, t.modifiedMasterColumnList, ctTableName,
-                sourceDB, t.schemaName, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, 1200);
+                sourceDB, t.schemaName, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, config.queryTimeout);
 
             logger.Log("Rows affected for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
             return new KeyValuePair<string, Int64>(t.schemaName + "." + t.Name, rowsAffected);
@@ -345,7 +345,7 @@ namespace TeslaSQL.Agents {
                     logger.Log("Publishing changes for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     try {
                         //hard coding timeout at 1 hour for bulk copy
-                        dataCopy.CopyTable(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destCTDB, 36000);
+                        dataCopy.CopyTable(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destCTDB, config.dataCopyTimeout);
                         logger.Log("Publishing changes succeeded for " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     } catch (Exception e) {
                         if (t.stopOnError) {
