@@ -61,7 +61,7 @@ namespace TeslaSQL.Agents {
 
                 //get the start time of the last batch where we successfully uploaded changes
                 logger.Log("Finding start time of the most recent successful batch on relay server", LogLevel.Trace);
-                previousSyncStartTime = destDataUtils.GetLastStartTime(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges));
+                previousSyncStartTime = destDataUtils.GetLastStartTime(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
                 logger.Log("Retrieved previousSyncStartTime of " + Convert.ToString(previousSyncStartTime) + " from relay server", LogLevel.Trace);
 
                 logger.Log("Publishing schema changes from master to relay server", LogLevel.Debug);

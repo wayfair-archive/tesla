@@ -15,7 +15,6 @@ using System.Diagnostics;
 namespace TeslaSQL.Agents {
     //TODO throughout this class add error handling for tables that shouldn't stop on error
     public class Slave : Agent {
-
         public Slave(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger)
             : base(config, sourceDataUtils, destDataUtils, logger) {
 
@@ -36,45 +35,54 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             logger.Log("Initializing CT batch", LogLevel.Trace);
-            var sw = Stopwatch.StartNew();
             var batches = GetIncompleteBatches();
             if (batches.Count == 0) {
                 batches = InitializeBatch();
-            } else if (HasMagicHour() && !FullRunTime() && batches.All(ctb => (ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) > 0)) {
+            } else if (HasMagicHour() && !FullRunTime(DateTime.Now) && batches.All(ctb => (ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) > 0)) {
                 //if it's 
             }
 
 
-            logger.Log("InitializeBatch: " + sw.Elapsed, LogLevel.Trace);
             /**
              * If you run a batch as Multi, and that batch fails, and before the next run,
              * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
              */
             if (config.batchConsolidationThreshold == 0 || batches.Count < config.batchConsolidationThreshold) {
                 foreach (var batch in batches) {
-                    sw = Stopwatch.StartNew();
                     RunSingleBatch(batch);
-                    logger.Log("RunSingleBatch: " + sw.Elapsed, LogLevel.Trace);
                 }
                 logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
             } else {
-                sw = Stopwatch.StartNew();
                 RunMultiBatch(batches);
-                logger.Log("RunMutliBatch: " + sw.Elapsed, LogLevel.Trace);
             }
 
             logger.Log("Slave agent work complete", LogLevel.Info);
             return;
         }
 
-        private bool HasMagicHour() {
-            throw new NotImplementedException();
+
+        protected bool FullRunTime(DateTime now) {
+            DateTime lastRun = GetLastRunTime();
+            if (lastRun > now) { throw new Exception("Time went backwards"); }
+            foreach (var magicHour in config.magicHours) {
+                if (now.TimeOfDay > magicHour) {
+                    //this time slot has passed for today
+                    if (lastRun.TimeOfDay < magicHour || lastRun.Date < now.Date) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
-        private bool FullRunTime() {
-            throw new NotImplementedException();
+        private bool HasMagicHour() {
+            return config.magicHours.Length > 0;
         }
-        
+
+        private DateTime GetLastRunTime() {
+            return sourceDataUtils.GetLastStartTime(config.relayDB, long.MaxValue, Convert.ToInt32(SyncBitWise.SyncHistoryTables), AgentType.Slave);
+        }
+
         /// <summary>
         /// Initializes version/batch info for a run
         /// </summary>

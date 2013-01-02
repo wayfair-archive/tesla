@@ -416,6 +416,9 @@ namespace TeslaSQL {
         private string masterShard_m;
         public string masterShard { get { return masterShard_m; } }
 
+        private readonly TimeSpan[] magicHours_m;
+        public virtual TimeSpan[] magicHours { get { return magicHours_m; } }
+
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
@@ -549,6 +552,7 @@ namespace TeslaSQL {
 
             return dictionary;
         }
+
 
     }
 

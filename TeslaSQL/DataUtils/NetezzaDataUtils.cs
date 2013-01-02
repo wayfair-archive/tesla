@@ -125,7 +125,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise) {
+        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 

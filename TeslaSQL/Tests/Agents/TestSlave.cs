@@ -7,8 +7,9 @@ using System.Data;
 using TeslaSQL.DataUtils;
 using TeslaSQL.DataCopy;
 using TeslaSQL.Agents;
+using Moq;
 namespace TeslaSQL.Tests.Agents {
-    public class TestSlave {
+    public class TestSlave : Slave{
         /// <summary>
         /// Subclass so that we can implement the IUseFixture feature
         /// </summary>
@@ -222,7 +223,7 @@ namespace TeslaSQL.Tests.Agents {
 
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
             }
-          
+
         }
 
 
@@ -262,6 +263,50 @@ namespace TeslaSQL.Tests.Agents {
                 config.relayDB = "CT_testdb";
                 config.logLevel = LogLevel.Critical;
                 slave = new Slave(config, sourceDataUtils, destDataUtils, null);
+            }
+        }
+
+        struct MagicHourTest {
+            public TimeSpan[] magicHours;
+            public DateTime lastRun;
+            public DateTime now;
+            public bool isFullRunTime;
+            public MagicHourTest(TimeSpan[] magicHours, DateTime lastRun, DateTime now, bool pass) {
+                this.magicHours = magicHours;
+                this.lastRun = lastRun;
+                this.now = now;
+                this.isFullRunTime = pass;
+            }
+        }
+
+        [Fact]
+        public void TestMagicHour() {
+            var now = DateTime.Now;
+            var testCases = new List<MagicHourTest>();
+            testCases.Add(
+                new MagicHourTest(
+                    new TimeSpan[] { new TimeSpan(3, 0, 0) },
+                    new DateTime(now.Year, now.Month, now.Day, 3, 1, 0),
+                    new DateTime(now.Year, now.Month, now.Day, 3, 2, 0),
+                    false
+                    ));
+            testCases.Add(
+                new MagicHourTest(
+                    new TimeSpan[] { new TimeSpan(3, 0, 0) },
+                    new DateTime(now.Year, now.Month, now.Day - 1, 3, 2, 0),
+                    new DateTime(now.Year, now.Month, now.Day, 3, 1, 0),
+                    true
+                    ));
+            var cfg = new Mock<Config>();
+            
+            foreach (var test in testCases) {
+                cfg.Setup(c => c.magicHours).Returns(test.magicHours);
+                config = cfg.Object;
+                var mockDataUtils = new Mock<IDataUtils>();
+                mockDataUtils.Setup(du => du.GetLastStartTime(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<AgentType>()))
+                    .Returns(test.lastRun);
+                sourceDataUtils = mockDataUtils.Object;
+                Assert.Equal(FullRunTime(test.now), test.isFullRunTime);
             }
         }
     }

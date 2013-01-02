@@ -161,8 +161,10 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise) {
-            SqlCommand cmd = new SqlCommand("select MAX(syncStartTime) as maxStart FROM dbo.tblCTVersion WITH(NOLOCK)"
+        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type) {
+            string tableName = type == AgentType.Slave ? "tblCTSlaveVersion" : "tblCTVersion";
+            SqlCommand cmd = new SqlCommand(
+                "select MAX(syncStartTime) as maxStart FROM dbo." + tableName + " WITH(NOLOCK)"
                 + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID");
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
             cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
