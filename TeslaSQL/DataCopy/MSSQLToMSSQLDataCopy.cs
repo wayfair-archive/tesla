@@ -53,7 +53,7 @@ namespace TeslaSQL.DataCopy {
         /// <param name="destDB">Destination database name</param>
         public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
             //script out the table at the source
-            string createScript = ScriptTable(sourceDB, sourceTableName, schema);
+            string createScript = sourceDataUtils.ScriptTable(sourceDB, sourceTableName, schema);
             createScript = createScript.Replace(sourceTableName, destTableName);
             SqlCommand cmd = new SqlCommand(createScript);
 
@@ -62,37 +62,6 @@ namespace TeslaSQL.DataCopy {
 
             //create it at the destination
             int result = destDataUtils.SqlNonQuery(destDB, cmd);
-        }
-
-
-        /// <summary>
-        /// Scripts out a table as CREATE TABLE
-        /// </summary>
-        /// <param name="server">Server identifier to connect to</param>
-        /// <param name="dbName">Database name</param>
-        /// <param name="table">Table name</param>
-        /// <param name="schema">Table's schema</param>
-        /// <returns>The CREATE TABLE script as a string</returns>
-        private string ScriptTable(string dbName, string table, string schema) {
-            //initialize scriptoptions variable
-            ScriptingOptions scriptOptions = new ScriptingOptions();
-            scriptOptions.ScriptBatchTerminator = true;
-            scriptOptions.NoCollation = true;
-
-            //get smo table object
-            Table t_smo = sourceDataUtils.GetSmoTable(dbName, table, schema);
-
-            //script out the table, it comes back as a StringCollection object with one string per query batch
-            StringCollection scriptResults = t_smo.Script(scriptOptions);
-
-            //ADO.NET does not allow multiple batches in one query, but we don't really need the
-            //SET ANSI_NULLS ON etc. statements, so just find the CREATE TABLE statement and return that
-            foreach (string s in scriptResults) {
-                if (s.StartsWith("CREATE")) {
-                    return s;
-                }
-            }
-            return "";
         }
     }
 }

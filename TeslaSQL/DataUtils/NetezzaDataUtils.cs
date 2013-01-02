@@ -110,7 +110,7 @@ namespace TeslaSQL.DataUtils {
                 default:
                     throw new NotImplementedException("Netezza is only supported as a slave!");
             }
-            return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass + "Provider=NZOLEDB;";
+            return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass + ";Provider=NZOLEDB;";
         }
 
 

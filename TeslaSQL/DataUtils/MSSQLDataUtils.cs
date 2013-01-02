@@ -779,7 +779,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="table">Table name</param>
         /// <param name="schema">Table's schema</param>
         /// <returns>The CREATE TABLE script as a string</returns>
-        private string ScriptTable(string dbName, string table, string schema) {
+        public string ScriptTable(string dbName, string table, string schema) {
             //initialize scriptoptions variable
             ScriptingOptions scriptOptions = new ScriptingOptions();
             scriptOptions.ScriptBatchTerminator = true;
