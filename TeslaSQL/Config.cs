@@ -63,6 +63,7 @@ namespace TeslaSQL {
             masterShard_m = c.masterShard;
             dataCopyTimeout = c.dataCopyTimeout > 0 ? c.dataCopyTimeout : 36000;
             queryTimeout = c.queryTimeout > 0 ? c.queryTimeout : 12000;
+            magicHours_m = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
 
             if (c.thresholdIgnoreStartTime != null) {
                 thresholdIgnoreStartTime_m = TimeSpan.Parse(c.thresholdIgnoreStartTime);
@@ -465,6 +466,9 @@ namespace TeslaSQL {
             public string errorTable { get; set; }
             public int dataCopyTimeout { get; set; }
             public int queryTimeout { get; set; }
+
+            [XmlArrayItem("magicHour")]
+            public string[] magicHours { get; set; }
 
             [XmlArray("tables")]
             public TableConf[] t { get; set; }

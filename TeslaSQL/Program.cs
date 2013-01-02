@@ -64,7 +64,7 @@ namespace TeslaSQL {
                 config.DumpConfig(parameters.more, config);
                 return;
             }
-
+            DataType.LoadDataMappingsFromFile(parameters.dataMappingFile);
             if (!String.IsNullOrEmpty(parameters.logLevelOverride)) {
                 try {
                     config.logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
@@ -141,6 +141,7 @@ namespace TeslaSQL {
             public int more { get; set; }
             public bool showHelp { get; set; }
             public string logFile { get; set; }
+            public string dataMappingFile { get; set; }
             public OptionSet optionSet { get; set; }
         }
 
@@ -198,7 +199,9 @@ namespace TeslaSQL {
             { "h|help" ,  "show this message and exit" ,
               v => parameters.showHelp = v != null },
               {"logfile=", "The log file {PATH}.",
-                  v => parameters.logFile = v }
+                  v => parameters.logFile = v },
+                  { "datamappingfile=", "The data mappings file {PATH}.",
+                      v => parameters.dataMappingFile = v}
             };
 
             //Save the option set object to the params struct. This is required to run ShowHelp if --help is passed in.

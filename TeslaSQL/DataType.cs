@@ -9,8 +9,6 @@ namespace TeslaSQL {
     /// Class repsenting a SQL data type including length/precision
     /// </summary>
     public class DataType {
-
-        private static readonly string dataMappingFile = @"D:\tesla\data_mappings";
         private static Dictionary<SqlFlavor, IList<string>> dataMappings = new Dictionary<SqlFlavor, IList<string>>();
 
         public string baseType { get; set; }
@@ -18,12 +16,16 @@ namespace TeslaSQL {
         public int? numericPrecision { get; set; }
         public int? numericScale { get; set; }
 
-        static DataType() {
-            LoadDataMappings();
+        public static void LoadDataMappingsFromFile(string filePath) {
+            string s;
+            using (var reader = new StreamReader(filePath)) {
+                s = reader.ReadToEnd();
+            }
+            LoadDataMappings(s);
         }
 
-        private static void LoadDataMappings() {
-            using (var reader = new StreamReader(dataMappingFile)) {
+        public static void LoadDataMappings(string mappings) {
+            using (var reader = new StringReader(mappings)) {
                 var flavors = new List<SqlFlavor>();
                 string[] headers = reader.ReadLine().Split(new char[] { '\t' });
                 foreach (var flavor in headers) {
@@ -31,7 +33,7 @@ namespace TeslaSQL {
                     flavors.Add(fl);
                     dataMappings[fl] = new List<string>();
                 }
-                while (!reader.EndOfStream) {
+                while (reader.Peek() > 0) {
                     string[] map = reader.ReadLine().Split(new char[] { '\t' });
                     for (int i = 0; i < map.Length; i++) {
                         dataMappings[flavors[i]].Add(map[i].ToLower());

@@ -10,6 +10,26 @@ namespace TeslaSQL.Tests {
     public class TestDataType {
         [Fact]
         public void TestMappings() {
+            DataType.LoadDataMappings(
+                @"MSSQL	Netezza
+binary	char
+bit	byteint
+datetime	timestamp
+datetime2	timestamp
+float	double precision
+hierarchyid	varchar(100)
+image	varchar(100)
+money	decimal(20,4)
+ntext	nvarchar(500)
+real	double precision
+smalldatetime	timestamp
+smallmoney	decimal(20,4)
+sql_variant	nvarchar(500)
+text	varchar(500)
+tinyint	smallint
+uniqueidentifier	varchar(64)
+varbinary	varchar
+xml	nvarchar(500)");
             string[] ms = new string[] {
                 "binary", "bit", "datetime", "datetime2", "float", "hierarchyid", "image", "money", "ntext", "real", "smalldatetime", "smallmoney", "sql_variant", "text", "tinyint", "uniqueidentifier", "varbinary", "xml"
             };
