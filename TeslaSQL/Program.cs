@@ -37,11 +37,6 @@ using TeslaSQL.DataUtils;
 namespace TeslaSQL {
     public class Program {
         static void Main(string[] args) {
-            var acsd = new TeslaSQL.Tests.Agents.TestSlave.ApplySchemaChangeTestData();
-            var acst = new TeslaSQL.Tests.Agents.TestSlave.TestApplySchemaChanges();
-            acst.SetFixture(acsd);
-            acst.TestApply_AddSingleColumn_WithColumnInList();
-
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);
