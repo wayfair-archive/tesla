@@ -75,7 +75,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        public int SqlNonQuery(string dbName, SqlCommand cmd, int timeout = 600) {
+        internal int SqlNonQuery(string dbName, SqlCommand cmd, int timeout = 600) {
             foreach (IDataParameter p in cmd.Parameters) {
                 if (p.Value == null)
                     p.Value = DBNull.Value;

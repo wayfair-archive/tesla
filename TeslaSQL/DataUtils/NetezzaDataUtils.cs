@@ -28,7 +28,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
-        private DataTable SqlQuery(string dbName, OleDbCommand cmd, int timeout = 30) {
+        public DataTable SqlQuery(string dbName, OleDbCommand cmd, int timeout = 30) {
             string connStr = buildConnString(dbName);
 
             using (OleDbConnection conn = new OleDbConnection(connStr)) {

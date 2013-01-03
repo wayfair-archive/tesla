@@ -39,7 +39,12 @@ namespace TeslaSQL.Agents {
             if (batches.Count == 0) {
                 batches = InitializeBatch();
             } else if (HasMagicHour() && !FullRunTime(DateTime.Now) && batches.All(ctb => (ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) > 0)) {
-                //if it's 
+                logger.Log("Magic hours are defined and we are not in one: applying schema changes only", LogLevel.Info);
+                batches = InitializeBatch();
+                foreach (var batch in batches) {
+                    ApplySchemaChangesAndWrite(batch);
+                }
+                return;
             }
 
 
@@ -75,7 +80,7 @@ namespace TeslaSQL.Agents {
             return false;
         }
 
-        private bool HasMagicHour() {            
+        private bool HasMagicHour() {
             return config.magicHours != null && config.magicHours.Length > 0;
         }
 
@@ -225,6 +230,8 @@ namespace TeslaSQL.Agents {
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
             var existingCTTables = new List<ChangeTable>();
             Stopwatch sw;
+
+            sw = ApplySchemaChangesAndWrite(ctb);
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 logger.Log("Downloading changes", LogLevel.Debug);
                 sw = Stopwatch.StartNew();
@@ -239,15 +246,6 @@ namespace TeslaSQL.Agents {
                 existingCTTables = PopulateTableList(config.tables, config.slaveCTDB, ctb.CTID);
             }
 
-            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                logger.Log("Applying schema changes", LogLevel.Debug);
-                sw = Stopwatch.StartNew();
-                ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, ctb.CTID);
-                logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
-                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
-                //marking this field so that all completed slave batches will have the same values
-                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
-            }
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Debug);
                 SetFieldLists(config.slaveDB, config.tables, destDataUtils);
@@ -261,6 +259,20 @@ namespace TeslaSQL.Agents {
             SyncHistoryTables(config.tables, config.slaveCTDB, config.slaveDB, existingCTTables);
             logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, DateTime.Now, config.slave);
+        }
+
+        private Stopwatch ApplySchemaChangesAndWrite(ChangeTrackingBatch ctb) {
+            Stopwatch sw;
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
+                logger.Log("Applying schema changes", LogLevel.Debug);
+                sw = Stopwatch.StartNew();
+                ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, ctb.CTID);
+                logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
+                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
+                //marking this field so that all completed slave batches will have the same values
+                sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
+            }
+            return sw;
         }
 
         private void SyncHistoryTables(TableConf[] tableConf, string slaveCTDB, string slaveDB, List<ChangeTable> existingCTTables) {
