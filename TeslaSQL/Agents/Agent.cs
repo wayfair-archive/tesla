@@ -24,7 +24,8 @@ namespace TeslaSQL.Agents {
         public Logger logger;
 
         public Agent() {
-            //parameterless constructor used only for unit tests
+            //this constructor is only used by for running unit tests
+            this.logger = new Logger(LogLevel.Critical, null, null, null, "");
         }
 
         public Agent(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
