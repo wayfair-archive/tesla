@@ -75,8 +75,8 @@ namespace TeslaSQL.Agents {
             return false;
         }
 
-        private bool HasMagicHour() {
-            return config.magicHours.Length > 0;
+        private bool HasMagicHour() {            
+            return config.magicHours != null && config.magicHours.Length > 0;
         }
 
         private DateTime GetLastRunTime() {

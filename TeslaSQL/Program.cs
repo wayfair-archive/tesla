@@ -52,19 +52,23 @@ namespace TeslaSQL {
 
             if (String.IsNullOrEmpty(parameters.configFile) || !ValidatePath(parameters.configFile)) {
                 throw new Exception("Please specify a valid config file path!");
-            }
+            }           
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
             var config = Config.Load(parameters.configFile);
             Console.Title = config.agentType + " | TeslaSQL";
             var logger = new Logger(config.logLevel, config.statsdHost, config.statsdPort, config.errorLogDB, parameters.logFile);
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
-          
+
             if (parameters.validate) {
                 config.DumpConfig(parameters.more, config);
                 return;
             }
-            DataType.LoadDataMappingsFromFile(parameters.dataMappingFile);
+
+            if (parameters.dataMappingFile != null) {
+                DataType.LoadDataMappingsFromFile(parameters.dataMappingFile);
+            }
+            
             if (!String.IsNullOrEmpty(parameters.logLevelOverride)) {
                 try {
                     config.logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
@@ -198,10 +202,10 @@ namespace TeslaSQL {
               ( int v) => parameters.more = v },
             { "h|help" ,  "show this message and exit" ,
               v => parameters.showHelp = v != null },
-              {"logfile=", "The log file {PATH}.",
-                  v => parameters.logFile = v },
-                  { "datamappingfile=", "The data mappings file {PATH}.",
-                      v => parameters.dataMappingFile = v}
+            {"f|logfile=", "The log file {PATH}.",
+                v => parameters.logFile = v },
+            { "p|datamappingfile=", "The data type mappings file {PATH} used by Slave agents.",
+                v => parameters.dataMappingFile = v}
             };
 
             //Save the option set object to the params struct. This is required to run ShowHelp if --help is passed in.
