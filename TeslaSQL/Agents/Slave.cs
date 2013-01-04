@@ -261,10 +261,13 @@ namespace TeslaSQL.Agents {
             logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, DateTime.Now, config.slave);
         }
-        private void SetFieldListsSlave(string database, IEnumerable<TableConf> tables,ChangeTrackingBatch batch) {
+        private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
             foreach (var table in tables) {
-                var cols = sourceDataUtils.GetFieldList(database, table.Name, table.schemaName);
-                var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch, database);
+                var cols = sourceDataUtils.GetFieldList(dbName, table.ToCTName(batch.CTID), table.schemaName);
+                //this is hacky but these aren't columns we actually care about, but we expect them to be there
+                cols.Remove("SYS_CHANGE_VERSION");
+                cols.Remove("SYS_CHANGE_OPERATION");
+                var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch, dbName);
                 foreach (var pk in pks) {
                     cols[pk] = true;
                 }

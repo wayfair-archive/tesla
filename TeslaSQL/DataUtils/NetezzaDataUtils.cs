@@ -140,10 +140,54 @@ namespace TeslaSQL.DataUtils {
             var res = SqlQuery(dbName, cmd);
             return res.Rows.Count > 0;
         }
-        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
-            throw new NotImplementedException();
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
+            var cmds = new List<InsertDelete>();
+            cmds.Add(BuildApplyCommand(table, dbName, CTDBName, ctid));
+            if (archiveTable != null) {
+                cmds.Add(BuildApplyCommand(archiveTable, dbName, CTDBName, ctid));
+            }
+            var connStr = buildConnString(dbName);
+            using (var conn = new OleDbConnection(connStr)) {
+                conn.Open();
+                var trans = conn.BeginTransaction();
+                foreach (var id in cmds) {
+                    id.delete.Transaction = trans;
+                    id.delete.Connection = conn;
+                    logger.Log(id.delete.CommandText, LogLevel.Trace);
+                    int numRows = id.delete.ExecuteNonQuery();
+                    logger.Log("Rows deleted: " + numRows, LogLevel.Info);
+                    id.insert.Transaction = trans;
+                    id.insert.Connection = conn;
+                    logger.Log(id.insert.CommandText, LogLevel.Trace);
+                    numRows = id.insert.ExecuteNonQuery();
+                    logger.Log("Rows deleted: " + numRows, LogLevel.Info);
+                }
+                trans.Commit();
+            }
         }
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid) {
+
+        class InsertDelete {
+            public readonly OleDbCommand insert;
+            public readonly OleDbCommand delete;
+            public InsertDelete(OleDbCommand insert, OleDbCommand delete) {
+                this.insert = insert;
+                this.delete = delete;
+            }
+        }
+        private InsertDelete BuildApplyCommand(TableConf table, string dbName,string CTDBName, long ctid) {
+            string delete = string.Format(@"DELETE FROM {0} P
+                                          WHERE EXISTS (SELECT 1 FROM {1}..{2} CT WHERE {3});",
+                                          table.Name, CTDBName, table.ToCTName(ctid), table.pkList);
+
+            string insert = string.Format(@"INSERT INTO {0} ({1}) 
+                              SELECT {1} FROM {2}..{3} CT WHERE NOT EXISTS (SELECT 1 FROM {0} P WHERE {4}) AND CT.sys_change_operation IN ( 'I', 'U' );",
+                                          table.Name, table.simpleColumnList, CTDBName, table.ToCTName(ctid), table.pkList);
+            var deleteCmd = new OleDbCommand(delete);
+            var insertCmd = new OleDbCommand(insert);
+            return new InsertDelete(insertCmd, deleteCmd);
+        }
+
+        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
             throw new NotImplementedException();
         }
         public void RenameColumn(TableConf t, string dbName, string schema, string table,
@@ -320,16 +364,9 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
-            throw new NotImplementedException();
-        }
-
-
         public void CreateHistoryTable(ChangeTable t, string slaveCTDB) {
             throw new NotImplementedException();
         }
-
 
         public ChangeTrackingBatch GetCTBatch(string dbName, long ctid) {
             throw new NotImplementedException();
