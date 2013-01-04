@@ -385,6 +385,12 @@ namespace TeslaSQL.Agents {
         private List<ChangeTable> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
             bool found = false;
             var tableList = new List<ChangeTable>();
+
+            if (config.slave == config.relayServer && sourceCTDB == destCTDB) {
+                logger.Log("Skipping download because slave is equal to relay. Populating table list instead.", LogLevel.Debug);
+                return PopulateTableList(config.tables, destCTDB, CTID);
+            } 
+                   
             IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, destDataUtils, logger, config);
             foreach (TableConf t in tables) {
                 found = false;
