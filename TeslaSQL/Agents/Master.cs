@@ -341,7 +341,7 @@ namespace TeslaSQL.Agents {
         protected void PublishChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
             if (config.master == config.relayServer && sourceCTDB == destCTDB) {
                 logger.Log("Skipping publish because master is equal to relay.", LogLevel.Debug);
-                return
+                return;
             }
 
             IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.masterType, (SqlFlavor)config.relayType, sourceDataUtils, destDataUtils, logger, config);
