@@ -8,16 +8,16 @@ namespace TeslaSQL.DataCopy {
         /// <summary>
         /// Returns an appropriate class that implements IDataCopy based on the passed in source and dest Sql types
         /// </summary>
-        public static IDataCopy GetInstance(SqlFlavor sourceSqlFlavor, SqlFlavor destSqlFlavor, IDataUtils sourceDataUtils, IDataUtils destDataUtils) {
+        public static IDataCopy GetInstance(SqlFlavor sourceSqlFlavor, SqlFlavor destSqlFlavor, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
             if (sourceDataUtils.GetType() == typeof(TestDataUtils) && destDataUtils.GetType() == typeof(TestDataUtils)) {
                 return new TestDataCopy((TestDataUtils)sourceDataUtils, (TestDataUtils)destDataUtils);
             }
             switch (sourceSqlFlavor) {
                 case SqlFlavor.MSSQL:
                     if (destSqlFlavor == SqlFlavor.MSSQL) {
-                        return new MSSQLToMSSQLDataCopy((MSSQLDataUtils)sourceDataUtils, (MSSQLDataUtils)destDataUtils);
+                        return new MSSQLToMSSQLDataCopy((MSSQLDataUtils)sourceDataUtils, (MSSQLDataUtils)destDataUtils, logger);
                     } else if (destSqlFlavor == SqlFlavor.Netezza) {
-                        return new MSSQLToNetezzaDataCopy((MSSQLDataUtils)sourceDataUtils, (NetezzaDataUtils)destDataUtils);
+                        return new MSSQLToNetezzaDataCopy((MSSQLDataUtils)sourceDataUtils, (NetezzaDataUtils)destDataUtils, logger);
                     }
                     break;
             }

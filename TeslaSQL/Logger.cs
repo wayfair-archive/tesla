@@ -77,7 +77,7 @@ namespace TeslaSQL {
 
             //errors are special - they are exceptions that don't stop the program but we want to write them to a database
             //table
-            if (logLevel.Equals(LogLevel.Error) && dataUtils != null) {
+            if (logLevel.Equals(LogLevel.Error) && errorLogDB != null &&  dataUtils != null) {
                 dataUtils.LogError(message);
             }
         }

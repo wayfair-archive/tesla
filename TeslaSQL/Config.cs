@@ -578,9 +578,16 @@ namespace TeslaSQL {
         }
 
         [XmlIgnore]
-        public string slaveColumnList {
+        public string simpleColumnList {
             get {
                 return string.Join(",", columns.Select(col => col.name));
+            }
+        }
+
+        [XmlIgnore]
+        public string slaveColumnList {
+            get {
+                return simpleColumnList;
             }
         }
 

@@ -37,6 +37,7 @@ namespace TeslaSQL.Agents {
             logger.Log("Initializing CT batch", LogLevel.Trace);
             var batches = GetIncompleteBatches();
             if (batches.Count == 0) {
+                logger.Log("No incomplete batches - initializing new", LogLevel.Debug);
                 batches = InitializeBatch();
             } else if (HasMagicHour() && !FullRunTime(DateTime.Now) && batches.All(ctb => (ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) > 0)) {
                 logger.Log("Magic hours are defined and we are not in one: applying schema changes only", LogLevel.Info);
@@ -54,6 +55,7 @@ namespace TeslaSQL.Agents {
              */
             if (config.batchConsolidationThreshold == 0 || batches.Count < config.batchConsolidationThreshold) {
                 foreach (var batch in batches) {
+                    logger.Log("Running single batch " + batch.CTID, LogLevel.Debug);
                     RunSingleBatch(batch);
                 }
                 logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
@@ -150,7 +152,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("Populating list of changetables for CTID : " + batch.CTID, LogLevel.Debug);
                 existingCTTables = existingCTTables.Concat(PopulateTableList(config.tables, config.slaveCTDB, batch.CTID)).ToList();
             }
-            SetFieldLists(config.slaveDB, config.tables, destDataUtils);
+            SetFieldListsSlave(config.slaveDB, config.tables, endBatch);
 
             foreach (ChangeTrackingBatch batch in batches) {
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
@@ -194,7 +196,7 @@ namespace TeslaSQL.Agents {
         }
 
         private IEnumerable<ChangeTable> ConsolidateBatches(IList<ChangeTable> tables, IList<ChangeTrackingBatch> batches) {
-            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, sourceDataUtils);
+            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, sourceDataUtils, logger);
             var lu = new Dictionary<string, List<ChangeTable>>();
             foreach (var changeTable in tables) {
                 if (!lu.ContainsKey(changeTable.name)) {
@@ -230,8 +232,7 @@ namespace TeslaSQL.Agents {
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
             var existingCTTables = new List<ChangeTable>();
             Stopwatch sw;
-
-            sw = ApplySchemaChangesAndWrite(ctb);
+            ApplySchemaChangesAndWrite(ctb);
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 logger.Log("Downloading changes", LogLevel.Debug);
                 sw = Stopwatch.StartNew();
@@ -248,7 +249,7 @@ namespace TeslaSQL.Agents {
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Debug);
-                SetFieldLists(config.slaveDB, config.tables, destDataUtils);
+                SetFieldListsSlave(config.slaveCTDB, config.tables, ctb);
                 sw = Stopwatch.StartNew();
                 ApplyChanges(config.tables, config.slaveDB, existingCTTables, ctb.CTID);
                 logger.Log("ApplyChanges: " + sw.Elapsed, LogLevel.Trace);
@@ -260,19 +261,26 @@ namespace TeslaSQL.Agents {
             logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
             sourceDataUtils.MarkBatchComplete(config.relayDB, ctb.CTID, DateTime.Now, config.slave);
         }
-
-        private Stopwatch ApplySchemaChangesAndWrite(ChangeTrackingBatch ctb) {
-            Stopwatch sw;
+        private void SetFieldListsSlave(string database, IEnumerable<TableConf> tables,ChangeTrackingBatch batch) {
+            foreach (var table in tables) {
+                var cols = sourceDataUtils.GetFieldList(database, table.Name, table.schemaName);
+                var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch, database);
+                foreach (var pk in pks) {
+                    cols[pk] = true;
+                }
+                SetFieldList(table, cols);
+            }
+        }
+        private void ApplySchemaChangesAndWrite(ChangeTrackingBatch ctb) {
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                 logger.Log("Applying schema changes", LogLevel.Debug);
-                sw = Stopwatch.StartNew();
+                var sw = Stopwatch.StartNew();
                 ApplySchemaChanges(config.tables, config.relayDB, config.slaveDB, ctb.CTID);
                 logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 //marking this field so that all completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
-            return sw;
         }
 
         private void SyncHistoryTables(TableConf[] tableConf, string slaveCTDB, string slaveDB, List<ChangeTable> existingCTTables) {
@@ -374,7 +382,7 @@ namespace TeslaSQL.Agents {
         private List<ChangeTable> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
             bool found = false;
             var tableList = new List<ChangeTable>();
-            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, destDataUtils);
+            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, destDataUtils, logger);
             foreach (TableConf t in tables) {
                 found = false;
                 var ct = new ChangeTable(t.Name, CTID, t.schemaName, config.slave);

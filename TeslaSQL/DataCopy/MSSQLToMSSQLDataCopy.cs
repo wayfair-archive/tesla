@@ -9,12 +9,14 @@ using TeslaSQL.DataUtils;
 namespace TeslaSQL.DataCopy {
     public class MSSQLToMSSQLDataCopy : IDataCopy {
 
-        private MSSQLDataUtils sourceDataUtils { get; set; }
-        private MSSQLDataUtils destDataUtils { get; set; }
+        private MSSQLDataUtils sourceDataUtils;
+        private MSSQLDataUtils destDataUtils;
+        private Logger logger;
 
-        public MSSQLToMSSQLDataCopy(MSSQLDataUtils sourceDataUtils, MSSQLDataUtils destDataUtils) {
+        public MSSQLToMSSQLDataCopy(MSSQLDataUtils sourceDataUtils, MSSQLDataUtils destDataUtils, Logger logger) {
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
+            this.logger = logger;
         }
 
         /// <summary>

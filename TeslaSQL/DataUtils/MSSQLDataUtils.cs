@@ -362,6 +362,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="table">Table Name</param>
         /// <returns>Smo.Table object representing the table</returns>
         public Table GetSmoTable(string dbName, string table, string schema = "dbo") {
+            logger.Log(string.Format("SmoTable: {3}: {0}.{1}.{2}", dbName, schema, table, server), LogLevel.Trace);
             using (SqlConnection sqlconn = new SqlConnection(buildConnString(dbName))) {
                 ServerConnection serverconn = new ServerConnection(sqlconn);
                 Server svr = new Server(serverconn);
@@ -721,7 +722,7 @@ namespace TeslaSQL.DataUtils {
                           table.ToFullCTName(ctid),
                           table.pkList,
                           table.mergeUpdateList.Length > 2 ? table.mergeUpdateList : table.pkList.Replace("AND", ","),
-                          table.masterColumnList.Replace("P.", "").Replace("CT.", ""),
+                          table.simpleColumnList,
                           table.masterColumnList.Replace("P.", "CT."),
                           table.schemaName,
                           CTDBName
@@ -889,6 +890,41 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 5000).Value = table.Name;
             var res = SqlQueryToScalar<string>(database, cmd);
             return res.Split(new char[] { ',' });
+        }
+
+        /// <summary>
+        /// Retrieves an SMO table object if the table exists, throws exception if not.
+        /// </summary>
+        /// <param name="dbName">Database name</param>
+        /// <param name="view">Table Name</param>
+        /// <returns>Smo.Table object representing the table</returns>
+        public View GetSmoView(string dbName, string view, string schema = "dbo") {
+            using (SqlConnection sqlconn = new SqlConnection(buildConnString(dbName))) {
+                ServerConnection serverconn = new ServerConnection(sqlconn);
+                Server svr = new Server(serverconn);
+                Database db = new Database();
+                if (svr.Databases.Contains(dbName) && svr.Databases[dbName].IsAccessible) {
+                    db = svr.Databases[dbName];
+                } else {
+                    throw new Exception("Database " + dbName + " does not exist or is inaccessible");
+                }
+                if (db.Tables.Contains(view)) {
+                    return db.Views[view, schema];
+                } else {
+                    throw new DoesNotExistException("Table " + view + " does not exist");
+                }
+            }
+        }
+
+        public void RecreateView(string dbName, string viewName, string viewSelect) {
+            try {
+                var view = GetSmoView(dbName, viewName);
+                view.Drop();
+            } catch (DoesNotExistException) {
+
+            }
+            var cmd = new SqlCommand(string.Format("CREATE VIEW {0} AS {1}", viewName, viewSelect));
+            SqlNonQuery(dbName, cmd);
         }
     }
 }

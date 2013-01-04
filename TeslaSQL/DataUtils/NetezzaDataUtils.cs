@@ -28,11 +28,11 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
-        public DataTable SqlQuery(string dbName, OleDbCommand cmd, int timeout = 30) {
+        internal DataTable SqlQuery(string dbName, OleDbCommand cmd, int timeout = 30) {
             string connStr = buildConnString(dbName);
 
             using (OleDbConnection conn = new OleDbConnection(connStr)) {
-                           conn.Open();
+                conn.Open();
                 cmd.Connection = conn;
                 cmd.CommandTimeout = timeout;
 
@@ -66,7 +66,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        private int SqlNonQuery(string dbName, OleDbCommand cmd, int timeout = 600) {
+        internal int SqlNonQuery(string dbName, OleDbCommand cmd, int timeout = 600) {
             //build connection string based on server/db info passed in
             string connStr = buildConnString(dbName);
             int numrows;
@@ -97,7 +97,6 @@ namespace TeslaSQL.DataUtils {
             string sqlhost = "";
             string sqluser = "";
             string sqlpass = "";
-
             switch (server) {
                 case TServer.SLAVE:
                     sqlhost = config.slave;
@@ -110,11 +109,76 @@ namespace TeslaSQL.DataUtils {
             return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass + ";Provider=NZOLEDB;";
         }
 
+        public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
+            var cols = new Dictionary<string, bool>();
+            using (var con = new OleDbConnection(buildConnString(dbName))) {
+                con.Open();
+                //this dark magic is (sort of) documented here 
+                //http://msdn.microsoft.com/en-us/library/system.data.oledb.oledbschemaguid.tables.aspx
+                var t = con.GetOleDbSchemaTable(OleDbSchemaGuid.Columns, new object[] { null, null, table, null });
+                foreach (DataRow row in t.Rows) {
+                    cols[row.Field<string>("COLUMN_NAME")] = false;
+                }
+            }
+            return cols;
+        }
+
+        public bool DropTableIfExists(string dbName, string table, string schema) {
+            if (CheckTableExists(dbName, table, schema)) {
+                string drop = string.Format("DROP TABLE {0};", table);
+                var cmd = new OleDbCommand(drop);
+                return SqlNonQuery(dbName, cmd) > 0;
+            }
+            return false;
+
+        }
+
+        public bool CheckTableExists(string dbName, string table, string schema = "dbo") {
+            string sql = "SELECT * FROM _v_table WHERE TABLENAME = @tablename";
+            var cmd = new OleDbCommand(sql);
+            cmd.Parameters.Add("@tablename", OleDbType.VarChar, 200).Value = table.ToUpper();
+            var res = SqlQuery(dbName, cmd);
+            return res.Rows.Count > 0;
+        }
+        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
+            throw new NotImplementedException();
+        }
+        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid) {
+            throw new NotImplementedException();
+        }
+        public void RenameColumn(TableConf t, string dbName, string schema, string table,
+            string columnName, string newColumnName) {
+            throw new NotImplementedException("Still need to implement");
+        }
+        public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
+
+            throw new NotImplementedException("Still need to implement");
+        }
+        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
+            throw new NotImplementedException("Still need to implement");
+
+        }
+        public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
+            throw new NotImplementedException("Still need to implement");
+        }
+
+
+        #region unimplemented
+
+
 
         public DataRow GetLastCTBatch(string dbName, AgentType agentType, string slaveIdentifier = "") {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
+
+        public IEnumerable<string> GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
+            throw new NotImplementedException("Not sure if we need this yet!");
+        }
+
+        private bool CheckColumnExists(string dbName, string schema, string table, string column) {
+            throw new NotImplementedException("Still need to implement");
+        }
 
         public DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
@@ -181,27 +245,8 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public bool CheckTableExists(string dbName, string table, string schema = "dbo") {
-            throw new NotImplementedException("Still need to implement!");
-        }
-
-
-        public IEnumerable<string> GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
-            throw new NotImplementedException("Not sure if we need this yet!");
-        }
-
-
         public bool HasPrimaryKey(string dbName, string tableName, string schema) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
-        }
-
-
-        public bool DropTableIfExists(string dbName, string table, string schema) {
-            throw new NotImplementedException("Still need to implement this!");
-        }
-
-        public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
-            throw new NotImplementedException("This still needs to be implemented!");
         }
 
 
@@ -244,40 +289,15 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-        private bool CheckColumnExists(string dbName, string schema, string table, string column) {
-            throw new NotImplementedException("Still need to implement");
-        }
-
-        public void RenameColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string newColumnName) {
-            throw new NotImplementedException("Still need to implement");
-        }
-
-        public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
-
-            throw new NotImplementedException("Still need to implement");
-        }
-
-        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
-            throw new NotImplementedException("Still need to implement");
-
-        }
-
-        public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
-            throw new NotImplementedException("Still need to implement");
-        }
 
         public void CreateTableInfoTable(string p, long p_2) {
-            throw new NotImplementedException();
+            throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid) {
-            throw new NotImplementedException();
-        }
 
         public void CreateConsolidatedTable(string tableName, long CTID, string schemaName, string dbName) {
             throw new NotImplementedException();
@@ -288,16 +308,16 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string consolidatedTableName, string dbName) {
-            throw new NotImplementedException();
+            throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
 
         public void CreateConsolidatedTable(string originalName, string schemaName, string dbName, string consolidatedName) {
-            throw new NotImplementedException();
+            throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
         public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName) {
-            throw new NotImplementedException();
+            throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
 
@@ -307,10 +327,6 @@ namespace TeslaSQL.DataUtils {
 
 
         public void CreateHistoryTable(ChangeTable t, string slaveCTDB) {
-            throw new NotImplementedException();
-        }
-
-        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
             throw new NotImplementedException();
         }
 
@@ -336,6 +352,7 @@ namespace TeslaSQL.DataUtils {
         public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database) {
             throw new NotImplementedException();
         }
+        #endregion
     }
 }
 

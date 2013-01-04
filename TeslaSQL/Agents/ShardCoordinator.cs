@@ -124,7 +124,7 @@ namespace TeslaSQL.Agents {
         }
 
         private void PublishSchemaChanges(ChangeTrackingBatch batch) {
-            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils);
+            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
             dc.CopyTable(config.masterShard, batch.schemaChangeTable, "dbo", config.relayDB, 3600);
         }
 
@@ -150,7 +150,7 @@ namespace TeslaSQL.Agents {
         }
 
         private void MergeTable(ChangeTrackingBatch batch, Dictionary<string, List<TColumn>> dbColumns, TableConf table, string firstDB) {
-            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils);
+            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
             dc.CopyTableDefinition(firstDB, table.ToCTName(batch.CTID), table.schemaName, config.relayDB, table.ToCTName(batch.CTID));
             foreach (var dbNameFields in dbColumns) {
                 var dbName = dbNameFields.Key;

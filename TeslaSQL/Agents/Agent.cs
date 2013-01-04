@@ -44,19 +44,15 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="Database">Database name to run on</param>
         /// <param name="tableConfArray">Array of tableconf objects to loop through and set field lists on</param>
-        public virtual void SetFieldLists(string database, TableConf[] tableConfArray, IDataUtils dataUtils) {
+        public virtual void SetFieldLists(string database, IEnumerable<TableConf> tableConfArray, IDataUtils dataUtils) {
             Dictionary<string, bool> dict;
             foreach (TableConf t in tableConfArray) {
                 try {
                     dict = dataUtils.GetFieldList(database, t.Name, t.schemaName);
                     SetFieldList(t, dict);
                 } catch (Exception e) {
-                    if (t.stopOnError) {
-                        throw e;
-                    } else {
-                        logger.Log("Error setting field lists for table " + t.schemaName + "." + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace, LogLevel.Error);
-                    }
-                }
+                    HandleException(e, t, "Error setting field lists for table " + t.schemaName + "." + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace);
+               }
             }
         }
 
@@ -137,10 +133,10 @@ namespace TeslaSQL.Agents {
         }
 
         protected void HandleException(Exception e, TableConf table, string message = "") {
+            logger.Log(e, message);
             if (table.stopOnError) {
                 throw e;
             }
-            logger.Log(e, message);
         }
 
         /// <summary>

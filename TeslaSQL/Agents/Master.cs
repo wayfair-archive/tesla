@@ -339,7 +339,7 @@ namespace TeslaSQL.Agents {
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
         protected void PublishChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
-            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.masterType, (SqlFlavor)config.relayType, sourceDataUtils, destDataUtils);
+            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.masterType, (SqlFlavor)config.relayType, sourceDataUtils, destDataUtils, logger);
             foreach (TableConf t in tables) {
                 if (changesCaptured[t.schemaName + "." + t.Name] > 0) {
                     logger.Log("Publishing changes for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
