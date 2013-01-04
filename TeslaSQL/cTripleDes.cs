@@ -19,17 +19,6 @@ namespace TeslaSQL {
         public cTripleDes() {
 
         }
-        public byte[] Encrypt(byte[] input) {
-            return Transform(input, m_des.CreateEncryptor(m_key, m_iv));
-        }
-        public byte[] Decrypt(byte[] input) {
-            return Transform(input, m_des.CreateDecryptor(m_key, m_iv));
-        }
-        public string Encrypt(string text) {
-            byte[] input = Convert.FromBase64String(text);
-            byte[] output = Transform(input, m_des.CreateEncryptor(m_key, m_iv));
-            return m_utf8.GetString(output);
-        }
         public string Decrypt(string text) {
             byte[] input = Convert.FromBase64String(text);
             byte[] output = Transform(input, m_des.CreateDecryptor(m_key, m_iv));

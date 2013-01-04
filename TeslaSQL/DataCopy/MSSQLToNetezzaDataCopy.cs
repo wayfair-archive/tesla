@@ -99,10 +99,6 @@ namespace TeslaSQL.DataCopy {
             }
         }
 
-        private void CopyDataFromQuery(string sourceDB, string destDB, SqlCommand cmd, string destTableName, string schema, int timeout, int timeout_2) {
-            throw new NotImplementedException();
-        }
-
         struct Col {
             public string name;
             public string datatype;
