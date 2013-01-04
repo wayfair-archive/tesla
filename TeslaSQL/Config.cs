@@ -63,6 +63,8 @@ namespace TeslaSQL {
             masterShard_m = c.masterShard;
             dataCopyTimeout = c.dataCopyTimeout > 0 ? c.dataCopyTimeout : 36000;
             queryTimeout = c.queryTimeout > 0 ? c.queryTimeout : 12000;
+            netezzaPrivateKeyPath_m = c.netezzaPrivateKeyPath;
+            netezzaUser_m = c.netezzaUser;
 
             if (c.magicHours != null) {
                 magicHours_m = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
@@ -417,12 +419,17 @@ namespace TeslaSQL {
         public bool sharding { get { return sharding_m; } }
 
         private readonly string[] shardDatabases_m;
-        public IEnumerable<string> shardDatabases { get { return shardDatabases_m != null ? shardDatabases_m.ToList() :  new List<string>(); } }
+        public IEnumerable<string> shardDatabases { get { return shardDatabases_m != null ? shardDatabases_m.ToList() : new List<string>(); } }
 
         private string masterShard_m;
         public string masterShard { get { return masterShard_m; } }
 
         private readonly TimeSpan[] magicHours_m;
+        private readonly string netezzaPrivateKeyPath_m;
+        public string netezzaPrivateKeyPath { get { return netezzaPrivateKeyPath_m; } }
+
+        private readonly string netezzaUser_m;
+        public string netezzaUser { get { return netezzaUser_m; } }
         public virtual TimeSpan[] magicHours { get { return magicHours_m; } }
 
         public int dataCopyTimeout { get; set; }
@@ -469,6 +476,8 @@ namespace TeslaSQL {
             public string errorTable { get; set; }
             public int dataCopyTimeout { get; set; }
             public int queryTimeout { get; set; }
+            public string netezzaUser { get; set; }
+            public string netezzaPrivateKeyPath { get; set; }
 
             [XmlArrayItem("magicHour")]
             public string[] magicHours { get; set; }
@@ -479,7 +488,6 @@ namespace TeslaSQL {
             [XmlArrayItem("shardDatabase")]
             public string[] shardDatabases { get; set; }
         }
-
 
 
 

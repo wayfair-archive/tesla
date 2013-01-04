@@ -196,7 +196,7 @@ namespace TeslaSQL.Agents {
         }
 
         private IEnumerable<ChangeTable> ConsolidateBatches(IList<ChangeTable> tables, IList<ChangeTrackingBatch> batches) {
-            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, sourceDataUtils, logger);
+            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, sourceDataUtils, logger, config);
             var lu = new Dictionary<string, List<ChangeTable>>();
             foreach (var changeTable in tables) {
                 if (!lu.ContainsKey(changeTable.name)) {
@@ -382,7 +382,7 @@ namespace TeslaSQL.Agents {
         private List<ChangeTable> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
             bool found = false;
             var tableList = new List<ChangeTable>();
-            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, destDataUtils, logger);
+            IDataCopy dataCopy = DataCopyFactory.GetInstance(config.relayType.Value, config.slaveType.Value, sourceDataUtils, destDataUtils, logger, config);
             foreach (TableConf t in tables) {
                 found = false;
                 var ct = new ChangeTable(t.Name, CTID, t.schemaName, config.slave);

@@ -8,6 +8,7 @@ using Microsoft.SqlServer.Management.Smo;
 using System.Data;
 using System.Data.OleDb;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace TeslaSQL.DataCopy {
     public class MSSQLToNetezzaDataCopy : IDataCopy {
@@ -15,11 +16,17 @@ namespace TeslaSQL.DataCopy {
         private MSSQLDataUtils sourceDataUtils;
         private NetezzaDataUtils destDataUtils;
         private Logger logger;
+        private string nzServer;
+        private string nzUser;
+        private string nzPrivateKeyPath;
 
-        public MSSQLToNetezzaDataCopy(MSSQLDataUtils sourceDataUtils, NetezzaDataUtils destDataUtils, Logger logger) {
+        public MSSQLToNetezzaDataCopy(MSSQLDataUtils sourceDataUtils, NetezzaDataUtils destDataUtils, Logger logger, string nzServer, string nzUser, string nzPrivateKeyPath) {
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
             this.logger = logger;
+            this.nzServer = nzServer;
+            this.nzUser = nzUser;
+            this.nzPrivateKeyPath = nzPrivateKeyPath;
         }
 
         public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null) {
@@ -43,21 +50,52 @@ namespace TeslaSQL.DataCopy {
             }
             var bcpArgs = string.Format(@"""{0}"" queryout \\bonas1a\sql_temp\{1}\{2}.txt -T -c -S{3} -t""|"" -r\n",
                                             bcpSelect,
-                                            sourceDB,
+                                            sourceDB.ToLower(),
                                             destTableName,
                                             "owl\\feeds"
                                             );
             logger.Log(bcpArgs, LogLevel.Trace);
-            var p = new Process();
-            p.StartInfo.FileName = "bcp";
-            p.StartInfo.Arguments = bcpArgs;
-            p.StartInfo.UseShellExecute = false;
-            p.StartInfo.RedirectStandardError = true;
-            p.Start();
-            p.WaitForExit();
-            if (p.ExitCode != 0) {
-                logger.Log(p.StandardError.ReadToEnd(), LogLevel.Critical);
-                throw new Exception("BCP error");
+            var bcp = new Process();
+            bcp.StartInfo.FileName = "bcp";
+            bcp.StartInfo.Arguments = bcpArgs;
+            bcp.StartInfo.UseShellExecute = false;
+            bcp.StartInfo.RedirectStandardError = true;
+            bcp.Start();
+            bcp.WaitForExit();
+            if (bcp.ExitCode != 0) {
+                string err =bcp.StandardError.ReadToEnd();
+                logger.Log(err, LogLevel.Critical);
+                throw new Exception("BCP error: " + err);
+            }
+
+            string plinkArgs = string.Format(@"-ssh -v -l {0} -i {1} {2} /export/home/nz/management_scripts/load_data_tesla.sh {3} {4}",
+                                              nzUser,
+                                              nzPrivateKeyPath,
+                                              nzServer,
+                                              destDB.ToLower(),
+                                              sourceTableName);
+
+            var plink = new Process();
+            plink.StartInfo.FileName = "plink.exe";
+            plink.StartInfo.Arguments = plinkArgs;
+            plink.StartInfo.UseShellExecute = false;
+            plink.StartInfo.RedirectStandardError = true;
+            plink.StartInfo.RedirectStandardOutput = true;
+            plink.Start();
+            plink.WaitForExit();
+            
+            if (plink.ExitCode != 0) {
+                string err = plink.StandardError.ReadToEnd();
+                logger.Log(err, LogLevel.Critical);
+                throw new Exception("plink error: " + err);
+            }
+            string output = plink.StandardOutput.ReadToEnd();
+            if (Regex.IsMatch(output, "Cannot open input file .* No such file or directory")
+                || !output.Contains("completed successfully")) {
+                    throw new Exception("Netezza load failed: " + output);
+            }
+            if (output.Contains("Disconnected: User aborted at host key verification")) {
+                throw new Exception("Error connecting to Netezza server: Please verify host key");
             }
         }
 
