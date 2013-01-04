@@ -299,7 +299,6 @@ namespace TeslaSQL.DataUtils {
 
 
         public void WriteSchemaChange(string dbName, Int64 CTID, SchemaChange schemaChange) {
-
             string query = "INSERT INTO dbo.tblCTSchemaChange_" + Convert.ToString(CTID) +
                 " (CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName, CscNewColumnName, " +
                 " CscBaseDataType, CscCharacterMaximumLength, CscNumericPrecision, CscNumericScale) " +
@@ -313,10 +312,20 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@schema", SqlDbType.VarChar, 100).Value = schemaChange.schemaName;
             cmd.Parameters.Add("@columnname", SqlDbType.VarChar, 500).Value = schemaChange.columnName;
             cmd.Parameters.Add("@newcolumnname", SqlDbType.VarChar, 500).Value = schemaChange.newColumnName;
-            cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = schemaChange.dataType.baseType;
-            cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = schemaChange.dataType.characterMaximumLength;
-            cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = schemaChange.dataType.numericPrecision;
-            cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = schemaChange.dataType.numericScale;
+            if (schemaChange.dataType != null) {
+                cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = schemaChange.dataType.baseType;
+                cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = schemaChange.dataType.characterMaximumLength;
+                cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = schemaChange.dataType.numericPrecision;
+                cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = schemaChange.dataType.numericScale;
+            } else {
+                if (schemaChange.eventType == SchemaChangeType.Add) {
+                    throw new Exception("Cannot add a schema change without a valid datatype");
+                }
+                cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = DBNull.Value;
+                cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = DBNull.Value;
+                cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = DBNull.Value;
+                cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = DBNull.Value;
+            }
             foreach (IDataParameter p in cmd.Parameters) {
                 if (p.Value == null)
                     p.Value = DBNull.Value;

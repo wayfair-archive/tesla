@@ -264,6 +264,7 @@ namespace TeslaSQL.Agents {
         private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
             foreach (var table in tables) {
                 var cols = sourceDataUtils.GetFieldList(dbName, table.ToCTName(batch.CTID), table.schemaName);
+
                 //this is hacky but these aren't columns we actually care about, but we expect them to be there
                 cols.Remove("SYS_CHANGE_VERSION");
                 cols.Remove("SYS_CHANGE_OPERATION");

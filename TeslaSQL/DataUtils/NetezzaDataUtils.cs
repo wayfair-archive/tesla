@@ -174,7 +174,7 @@ namespace TeslaSQL.DataUtils {
                 this.delete = delete;
             }
         }
-        private InsertDelete BuildApplyCommand(TableConf table, string dbName,string CTDBName, long ctid) {
+        private InsertDelete BuildApplyCommand(TableConf table, string dbName, string CTDBName, long ctid) {
             string delete = string.Format(@"DELETE FROM {0} P
                                           WHERE EXISTS (SELECT 1 FROM {1}..{2} CT WHERE {3});",
                                           table.Name, CTDBName, table.ToCTName(ctid), table.pkList);
@@ -199,11 +199,35 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Still need to implement");
         }
         public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
-            throw new NotImplementedException("Still need to implement");
-
+            if (CheckColumnExists(dbName, schema, table, columnName)) {
+                return;
+            }
+            dataType = DataType.MapDataType(config.relayType.Value, SqlFlavor.Netezza, dataType);
+            string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table, columnName, dataType);
+            var cmd = new OleDbCommand(sql);
+            SqlNonQuery(dbName, cmd);
+            RefreshViews(dbName, table);
         }
+
+        private void RefreshViews(string dbName, string tableName) {
+        }
+
         public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
-            throw new NotImplementedException("Still need to implement");
+            if (!CheckColumnExists(dbName, schema, table, columnName)) {
+                return;
+            }
+            string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", table, columnName);
+            var cmd = new OleDbCommand(sql);
+            SqlNonQuery(dbName, cmd);
+            RefreshViews(dbName, table);
+        }
+
+        public bool CheckColumnExists(string dbName, string schema, string table, string column) {
+            string sql = string.Format("SELECT 1 FROM _v_relation_column_def WHERE LOWER(name) = LOWER('{0}') AND type='TABLE' AND LOWER(attname) = LOWER('{1}')",
+                                       table, column);
+            var cmd = new OleDbCommand(sql);
+            var res = SqlQuery(dbName, cmd);
+            return res.Rows.Count > 0;
         }
 
 
@@ -220,9 +244,6 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Not sure if we need this yet!");
         }
 
-        private bool CheckColumnExists(string dbName, string schema, string table, string column) {
-            throw new NotImplementedException("Still need to implement");
-        }
 
         public DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
