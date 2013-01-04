@@ -386,7 +386,7 @@ namespace TeslaSQL.Agents {
             bool found = false;
             var tableList = new List<ChangeTable>();
 
-            if (config.slave == config.relayServer && sourceCTDB == destCTDB) {
+            if (config.slave != null && config.slave == config.relayServer && sourceCTDB == destCTDB) {
                 logger.Log("Skipping download because slave is equal to relay. Populating table list instead.", LogLevel.Debug);
                 return PopulateTableList(config.tables, destCTDB, CTID);
             } 
