@@ -27,7 +27,7 @@ namespace TeslaSQL {
                     File.Create(logFile).Close();
                 }
                 this.logFile = logFile;
-            } catch (Exception e) {
+            } catch (Exception) {
                 this.logFile = null;
             }      
             
