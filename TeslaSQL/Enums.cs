@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using log4net.Core;
 
 namespace TeslaSQL {
 
@@ -36,6 +37,26 @@ namespace TeslaSQL {
         //critical errors that cause us to exit the program
         Critical = 6
     }
+
+    public static class LogLevelExtension {
+        public static Level ToLog4Net(this LogLevel l) {
+            switch (l) {
+                case LogLevel.Trace:
+                    return Level.All;
+                case LogLevel.Debug:
+                    return Level.Debug;
+                case LogLevel.Info:
+                    return Level.Info;
+                case LogLevel.Warn:
+                    return Level.Warn;
+                case LogLevel.Error:
+                    return Level.Error;
+                case LogLevel.Critical:
+                    return Level.Critical;
+                default:
+                    throw new Exception("Unknown log level: " + l);
+            }
+        }
 
 
     /// <summary>

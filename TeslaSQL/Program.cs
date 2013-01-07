@@ -9,6 +9,7 @@ using NDesk.Options;
 using Xunit;
 using TeslaSQL.Agents;
 using TeslaSQL.DataUtils;
+using log4net.Config;
 #endregion
 
 /*
@@ -36,6 +37,7 @@ using TeslaSQL.DataUtils;
 
 namespace TeslaSQL {
     public class Program {
+        private const string log4netFile = @"D:\tesla\log4net.xml";
         static void Main(string[] args) {
             Params parameters = new Params();
             try {
@@ -59,7 +61,7 @@ namespace TeslaSQL {
             Console.Title = Config.agentType + " | TeslaSQL";
             var logger = new Logger(Config.logLevel, Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
-            
+            XmlConfigurator.Configure(new System.IO.FileInfo(log4netFile));
             if (parameters.validate) {
                 Config.DumpConfig(parameters.more);
                 return;

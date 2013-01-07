@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using TeslaSQL.DataUtils;
 using System.IO;
 using System.Diagnostics;
+using log4net;
 
 namespace TeslaSQL {
     public class Logger {
@@ -14,6 +15,7 @@ namespace TeslaSQL {
         private string errorLogDB { get; set; }
         public IDataUtils dataUtils { private get; set; }
         private readonly string logFile;
+        private static ILog log = LogManager.GetLogger(typeof(Logger));
 
         private StatsdPipe statsd;
     
@@ -58,22 +60,23 @@ namespace TeslaSQL {
         /// <param name="logLevel">LogLevel value, gets compared to the configured logLevel variable</param>
         public void Log(string message, LogLevel logLevel) {
             //compareto method returns a number less than 0 if logLevel is less than configured
-            if (logLevel.CompareTo(this.logLevel) >= 0) {
-                var frame = new StackFrame(1);
-                var method = frame.GetMethod();
-                var obj = method.DeclaringType.ToString();
-                var firstLine = DateTime.Now + ": " + obj + " " + method.Name;
-                var secondLine = logLevel + ": " + message;
-                Console.WriteLine(firstLine);
-                Console.WriteLine(secondLine);
-                if (logFile != null) {
-                    using (var writer = new StreamWriter(logFile, true)) {
-                        writer.WriteLine(firstLine);
-                        writer.WriteLine(secondLine);
-                        writer.Flush();
-                    }
-                }
-            }
+            //if (logLevel.CompareTo(this.logLevel) >= 0) {
+            //    var frame = new StackFrame(1);
+            //    var method = frame.GetMethod();
+            //    var obj = method.DeclaringType.ToString();
+            //    var firstLine = DateTime.Now + ": " + obj + " " + method.Name;
+            //    var secondLine = logLevel + ": " + message;
+            //    Console.WriteLine(firstLine);
+            //    Console.WriteLine(secondLine);
+            //    if (logFile != null) {
+            //        using (var writer = new StreamWriter(logFile, true)) {
+            //            writer.WriteLine(firstLine);
+            //            writer.WriteLine(secondLine);
+            //            writer.Flush();
+            //        }
+            //    }
+            //}
+            log.Logger.Log(message, logLevel.ToLog4Net());
 
             //errors are special - they are exceptions that don't stop the program but we want to write them to a database
             //table
