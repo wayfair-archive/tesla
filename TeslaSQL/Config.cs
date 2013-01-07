@@ -425,6 +425,11 @@ namespace TeslaSQL {
         //views to be refreshed when a table is altered on a slave
         public static RefreshView[] refreshViews { get; set; }
 
+        //default maximum for string columns in netezza slaves. can be overriden using 
+        //column modifiers. Since Netezza has pretty restrictive row size limits and you generally
+        //don't use big strings in data warehouses, this helps avoid those limits.
+        public static int netezzaStringLength { get; set; }
+
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
@@ -468,6 +473,7 @@ namespace TeslaSQL {
             public int queryTimeout { get; set; }
             public string netezzaUser { get; set; }
             public string netezzaPrivateKeyPath { get; set; }
+            public int netezzaStringLength { get; set; }
 
             public RefreshView[] refreshViews { get; set; }
 
