@@ -110,16 +110,7 @@ namespace TeslaSQL.Agents {
                 PublishSchemaChanges(batch);
                 sourceDataUtils.WriteBitWise(Config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.ShardCoordinator);
             }
-            try {
-                ConsolidateTables(batch);
-            } catch (AggregateException e) {
-                string message = "Caught " + e.InnerExceptions.Count + " exceptions merging tables.";
-                foreach (var s in e.InnerExceptions) {
-                    message += s.Message + '\n';
-                    message += s.StackTrace;
-                }
-                logger.Log(message, LogLevel.Error);
-            }
+            ConsolidateTables(batch);
             ConsolidateInfoTables(batch);
         }
 
@@ -145,7 +136,9 @@ namespace TeslaSQL.Agents {
             }
             logger.Log("Parallel invocation of " + actions.Count + " table merges", LogLevel.Trace);
             //interestingly, Parallel.Invoke does in fact bubble up exceptions, but not until after all threads have completed.
-            //actually it looks like what it does is wrap its exceptions in an AggregateException.
+            //actually it looks like what it does is wrap its exceptions in an AggregateException. We don't ever catch those
+            //though because if any exceptions happen inside of MergeTable it would generally be due to things like the server
+            //being down or a query timeout.
             Parallel.Invoke(actions.ToArray());
         }
 
