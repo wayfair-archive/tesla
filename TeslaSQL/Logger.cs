@@ -7,21 +7,18 @@ using TeslaSQL.DataUtils;
 using System.IO;
 using System.Diagnostics;
 using log4net;
+using TeslaSQL;
 
 namespace TeslaSQL {
     public class Logger {
-
-        private LogLevel logLevel { get; set; }
         private string errorLogDB { get; set; }
         public IDataUtils dataUtils { private get; set; }
         private readonly string logFile;
         private static ILog log = LogManager.GetLogger(typeof(Logger));
 
         private StatsdPipe statsd;
-    
+
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile) {
-            this.logLevel = logLevel;
-     
             this.errorLogDB = errorLogDB;
             try {
                 if (!File.Exists(logFile)) {
@@ -31,15 +28,15 @@ namespace TeslaSQL {
                 this.logFile = logFile;
             } catch (Exception) {
                 this.logFile = null;
-            }      
-            
-                try {
-                    this.statsd = new StatsdPipe(statsdHost, int.Parse(statsdPort));
-                    Log(String.Format("Building statsdpipe: {0}:{1}", statsdHost, statsdPort), LogLevel.Trace);
-                } catch {
-                    Log("Invalid or empty config values for statsdHost and statsdPipe; not logging to StatsD this run", LogLevel.Warn);
-                }
-            
+            }
+
+            try {
+                this.statsd = new StatsdPipe(statsdHost, int.Parse(statsdPort));
+                Log(String.Format("Building statsdpipe: {0}:{1}", statsdHost, statsdPort), LogLevel.Trace);
+            } catch {
+                Log("Invalid or empty config values for statsdHost and statsdPipe; not logging to StatsD this run", LogLevel.Warn);
+            }
+
         }
 
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile, IDataUtils dataUtils)
@@ -57,8 +54,8 @@ namespace TeslaSQL {
         /// Logs information and writes it to the console
         /// </summary>
         /// <param name="message">The message to log</param>
-        /// <param name="logLevel">LogLevel value, gets compared to the configured logLevel variable</param>
-        public void Log(string message, LogLevel logLevel) {
+        /// <param name="level">LogLevel value, gets compared to the configured logLevel variable</param>
+        public void Log(string message, LogLevel level) {
             //compareto method returns a number less than 0 if logLevel is less than configured
             //if (logLevel.CompareTo(this.logLevel) >= 0) {
             //    var frame = new StackFrame(1);
@@ -76,11 +73,30 @@ namespace TeslaSQL {
             //        }
             //    }
             //}
-            log.Logger.Log(message, logLevel.ToLog4Net());
+            switch (level) {
+                case LogLevel.Trace:
+                    log.Debug(message);
+                    break;
+                case LogLevel.Debug:
+                    log.Debug(message);
+                    break;
+                case LogLevel.Info:
+                    log.Info(message);
+                    break;
+                case LogLevel.Warn:
+                    log.Warn(message);
+                    break;
+                case LogLevel.Error:
+                    log.Error(message);
+                    break;
+                case LogLevel.Critical:
+                    log.Fatal(message);
+                    break;
+            }
 
             //errors are special - they are exceptions that don't stop the program but we want to write them to a database
             //table
-            if (logLevel.Equals(LogLevel.Error) && errorLogDB != null &&  dataUtils != null) {
+            if (level.Equals(LogLevel.Error) && errorLogDB != null && dataUtils != null) {
                 string error = "Agent: " + Config.agentType;
                 if (Config.master != null) {
                     error += " Master: " + Config.master;

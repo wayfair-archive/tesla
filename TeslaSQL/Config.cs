@@ -432,74 +432,7 @@ namespace TeslaSQL {
 
         #endregion
 
-        //This needs to be a class for the XmlRoot attribute to deserialize properly
-        [XmlRoot("conf")]
-        public class ConfigLoader {
-            public string logLevel { get; set; }
-            public string agentType { get; set; }
-            public string master { get; set; }
-            public string masterType { get; set; }
-            public string slave { get; set; }
-            public string slaveType { get; set; }
-            public string relayServer { get; set; }
-            public string relayType { get; set; }
-            public string masterDB { get; set; }
-            public string masterCTDB { get; set; }
-            public string slaveDB { get; set; }
-            public string slaveCTDB { get; set; }
-            public string relayDB { get; set; }
-            public string errorLogDB { get; set; }
-            public string masterUser { get; set; }
-            public string masterPassword { get; set; }
-            public string slaveUser { get; set; }
-            public string slavePassword { get; set; }
-            public string relayUser { get; set; }
-            public string relayPassword { get; set; }
-            public int changeRetentionHours { get; set; }
-            public int maxBatchSize { get; set; }
-            public string thresholdIgnoreStartTime { get; set; }
-            public string thresholdIgnoreEndTime { get; set; }
-            public int batchConsolidationThreshold { get; set; }
-            public string statsdHost { get; set; }
-            public string statsdPort { get; set; }
-            public string masterShard { get; set; }
-            public bool sharding { get; set; }
-            public string emailServerHost { get; set; }
-            public int emailServerPort { get; set; }
-            public string emailFromAddress { get; set; }
-            public string emailErrorRecipient { get; set; }
-            public string errorTable { get; set; }
-            public int dataCopyTimeout { get; set; }
-            public int queryTimeout { get; set; }
-            public string netezzaUser { get; set; }
-            public string netezzaPrivateKeyPath { get; set; }
-            public int netezzaStringLength { get; set; }
-
-            public RefreshView[] refreshViews { get; set; }
-
-            [XmlArrayItem("magicHour")]
-            public string[] magicHours { get; set; }
-
-            [XmlArray("tables")]
-            public TableConf[] t { get; set; }
-
-            [XmlArrayItem("shardDatabase")]
-            public string[] shardDatabases { get; set; }
-        }
-
-        [XmlType("refreshView")]
-        public class RefreshView {
-            public string viewName { get; set; }
-            public string db { get; set; }
-            public string command { get; set; }
-            [XmlIgnore]
-            public string tableName { get { return Regex.Replace(viewName, "vw", "TBL", RegexOptions.IgnoreCase); } }
-
-            public override string ToString() {
-                return string.Format("{0}..{1}: command = {2}", db, viewName, command);
-            }
-        }
-
+        
 
 
         /// <summary>
@@ -528,6 +461,73 @@ namespace TeslaSQL {
         }
 
 
+    }
+    //This needs to be a class for the XmlRoot attribute to deserialize properly
+    [XmlRoot("conf")]
+    public class ConfigLoader {
+        public string logLevel { get; set; }
+        public string agentType { get; set; }
+        public string master { get; set; }
+        public string masterType { get; set; }
+        public string slave { get; set; }
+        public string slaveType { get; set; }
+        public string relayServer { get; set; }
+        public string relayType { get; set; }
+        public string masterDB { get; set; }
+        public string masterCTDB { get; set; }
+        public string slaveDB { get; set; }
+        public string slaveCTDB { get; set; }
+        public string relayDB { get; set; }
+        public string errorLogDB { get; set; }
+        public string masterUser { get; set; }
+        public string masterPassword { get; set; }
+        public string slaveUser { get; set; }
+        public string slavePassword { get; set; }
+        public string relayUser { get; set; }
+        public string relayPassword { get; set; }
+        public int changeRetentionHours { get; set; }
+        public int maxBatchSize { get; set; }
+        public string thresholdIgnoreStartTime { get; set; }
+        public string thresholdIgnoreEndTime { get; set; }
+        public int batchConsolidationThreshold { get; set; }
+        public string statsdHost { get; set; }
+        public string statsdPort { get; set; }
+        public string masterShard { get; set; }
+        public bool sharding { get; set; }
+        public string emailServerHost { get; set; }
+        public int emailServerPort { get; set; }
+        public string emailFromAddress { get; set; }
+        public string emailErrorRecipient { get; set; }
+        public string errorTable { get; set; }
+        public int dataCopyTimeout { get; set; }
+        public int queryTimeout { get; set; }
+        public string netezzaUser { get; set; }
+        public string netezzaPrivateKeyPath { get; set; }
+        public int netezzaStringLength { get; set; }
+
+        public RefreshView[] refreshViews { get; set; }
+
+        [XmlArrayItem("magicHour")]
+        public string[] magicHours { get; set; }
+
+        [XmlArray("tables")]
+        public TableConf[] t { get; set; }
+
+        [XmlArrayItem("shardDatabase")]
+        public string[] shardDatabases { get; set; }
+    }
+
+    [XmlType("refreshView")]
+    public class RefreshView {
+        public string viewName { get; set; }
+        public string db { get; set; }
+        public string command { get; set; }
+        [XmlIgnore]
+        public string tableName { get { return Regex.Replace(viewName, "vw", "TBL", RegexOptions.IgnoreCase); } }
+
+        public override string ToString() {
+            return string.Format("{0}..{1}: command = {2}", db, viewName, command);
+        }
     }
 
     [XmlType("table")]

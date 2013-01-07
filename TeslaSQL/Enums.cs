@@ -57,7 +57,7 @@ namespace TeslaSQL {
                     throw new Exception("Unknown log level: " + l);
             }
         }
-
+    }
 
     /// <summary>
     /// Bitwise values for tracking the progress of a batch

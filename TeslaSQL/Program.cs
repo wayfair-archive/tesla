@@ -54,14 +54,17 @@ namespace TeslaSQL {
 
             if (String.IsNullOrEmpty(parameters.configFile) || !ValidatePath(parameters.configFile)) {
                 throw new Exception("Please specify a valid config file path!");
-            }           
+            }
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
             Config.Load(parameters.configFile);
             Console.Title = Config.agentType + " | TeslaSQL";
             var logger = new Logger(Config.logLevel, Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
-            logger.Log("Configuration file successfully loaded", LogLevel.Debug);
             XmlConfigurator.Configure(new System.IO.FileInfo(log4netFile));
+            logger.Log("Configuration file successfully loaded", LogLevel.Debug);
+            for (int i = 0; i < 500; i++) {
+                logger.Log("" +i, LogLevel.Info);
+            }
             if (parameters.validate) {
                 Config.DumpConfig(parameters.more);
                 return;
@@ -70,7 +73,7 @@ namespace TeslaSQL {
             if (parameters.dataMappingFile != null) {
                 DataType.LoadDataMappingsFromFile(parameters.dataMappingFile);
             }
-            
+
             if (!String.IsNullOrEmpty(parameters.logLevelOverride)) {
                 try {
                     Config.logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
