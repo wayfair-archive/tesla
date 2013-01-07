@@ -10,6 +10,8 @@ using Xunit;
 using System.Diagnostics;
 using TeslaSQL.DataUtils;
 using TeslaSQL.DataCopy;
+using System.Threading;
+using System.Threading.Tasks;
 #endregion
 
 namespace TeslaSQL.Agents {
@@ -316,7 +318,6 @@ namespace TeslaSQL.Agents {
                 }
             }
 
-            //drop the table if it exists
             logger.Log("Dropping table " + ctTableName + " if it exists", LogLevel.Trace);
             bool tExisted = sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, t.schemaName);
 
@@ -343,21 +344,30 @@ namespace TeslaSQL.Agents {
                 return;
             }
 
-            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)Config.masterType, (SqlFlavor)Config.relayType, sourceDataUtils, destDataUtils, logger);
+            var actions = new List<Action>();
             foreach (TableConf t in tables) {
                 if (changesCaptured[t.schemaName + "." + t.Name] > 0) {
-                    logger.Log("Publishing changes for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
-                    try {
-                        //hard coding timeout at 1 hour for bulk copy
-                        dataCopy.CopyTable(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destCTDB, Config.dataCopyTimeout);
-                        logger.Log("Publishing changes succeeded for " + t.schemaName + "." + t.Name, LogLevel.Trace);
-                    } catch (Exception e) {
-                        if (t.stopOnError) {
-                            throw e;
-                        } else {
-                            logger.Log("Copying change data for table " + t.schemaName + "." + t.Name + " failed with error: " + e.Message, LogLevel.Error);
-                        }
-                    }
+                    //we need to define a local variable in this scope for it to be appropriately evaluated in the action
+                    TableConf localT = t;
+                    Action act = () => PublishChangeTable(localT, sourceCTDB, destCTDB, CTID);
+                    actions.Add(act);
+                }
+            }
+            logger.Log("Parallel invocation of " + actions.Count + " changetable publishes", LogLevel.Trace);            
+            Parallel.Invoke(actions.ToArray());
+        }
+
+        protected void PublishChangeTable(TableConf table, string sourceCTDB, string destCTDB, Int64 CTID) {
+            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)Config.masterType, (SqlFlavor)Config.relayType, sourceDataUtils, destDataUtils, logger);
+            logger.Log("Publishing changes for table " + table.schemaName + "." + table.Name, LogLevel.Trace);
+            try {
+                dataCopy.CopyTable(sourceCTDB, CTTableName(table.Name, CTID), table.schemaName, destCTDB, Config.dataCopyTimeout);
+                logger.Log("Publishing changes succeeded for " + table.schemaName + "." + table.Name, LogLevel.Trace);
+            } catch (Exception e) {
+                if (table.stopOnError) {
+                    throw e;
+                } else {
+                    logger.Log("Copying change data for table " + table.schemaName + "." + table.Name + " failed with error: " + e.Message, LogLevel.Error);
                 }
             }
         }
