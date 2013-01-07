@@ -80,7 +80,7 @@ namespace TeslaSQL.Tests {
 
             [Fact]
             public void TestParse_AddColumn_WithTableNotInConfig() {
-                //schema change on a table not in the config. it should be ignored.
+                //schema change on a table not in the Config. it should be ignored.
                 String xml = @"<EVENT_INSTANCE><EventType>ALTER_TABLE</EventType><SchemaName>dbo</SchemaName>
                 <ObjectName>testnotinconfig</ObjectName><ObjectType>TABLE</ObjectType><AlterTableActionList>
                 <Create><Columns><Name>column1</Name></Columns></Create></AlterTableActionList></EVENT_INSTANCE>";
@@ -139,7 +139,7 @@ namespace TeslaSQL.Tests {
 
             [Fact]
             public void TestParse_RenameColumn_WithColumnInList() {
-                //renaming a column when a column list is present in config. if the column is in the list, it should be published.
+                //renaming a column when a column list is present in Config. if the column is in the list, it should be published.
                 String xml = @"<EVENT_INSTANCE><EventType>RENAME</EventType><SchemaName>dbo</SchemaName>
                 <ObjectName>column2</ObjectName><ObjectType>COLUMN</ObjectType><TargetObjectName>test2</TargetObjectName>
                 <TargetObjectType>TABLE</TargetObjectType><NewObjectName>col2</NewObjectName>
@@ -152,7 +152,7 @@ namespace TeslaSQL.Tests {
 
             [Fact]
             public void TestParse_RenameColumn_WithColumnNotInList() {
-                //renaming a column when a column list is present in config. if the column isn't the list, it shouldn't be published.
+                //renaming a column when a column list is present in Config. if the column isn't the list, it shouldn't be published.
                 String xml = @"<EVENT_INSTANCE><EventType>RENAME</EventType><SchemaName>dbo</SchemaName>
                 <ObjectName>col2</ObjectName><ObjectType>COLUMN</ObjectType><TargetObjectName>test2</TargetObjectName>
                 <TargetObjectType>TABLE</TargetObjectType><NewObjectName>col3</NewObjectName>

@@ -14,11 +14,9 @@ namespace TeslaSQL.DataUtils {
     public class MSSQLDataUtils : IDataUtils {
 
         public Logger logger;
-        public Config config;
         public TServer server;
 
-        public MSSQLDataUtils(Config config, Logger logger, TServer server) {
-            this.config = config;
+        public MSSQLDataUtils(Logger logger, TServer server) {
             this.logger = logger;
             this.server = server;
         }
@@ -112,19 +110,19 @@ namespace TeslaSQL.DataUtils {
 
             switch (server) {
                 case TServer.MASTER:
-                    sqlhost = config.master;
-                    sqluser = config.masterUser;
-                    sqlpass = (new cTripleDes().Decrypt(config.masterPassword));
+                    sqlhost = Config.master;
+                    sqluser = Config.masterUser;
+                    sqlpass = (new cTripleDes().Decrypt(Config.masterPassword));
                     break;
                 case TServer.SLAVE:
-                    sqlhost = config.slave;
-                    sqluser = config.slaveUser;
-                    sqlpass = (new cTripleDes().Decrypt(config.slavePassword));
+                    sqlhost = Config.slave;
+                    sqluser = Config.slaveUser;
+                    sqlpass = (new cTripleDes().Decrypt(Config.slavePassword));
                     break;
                 case TServer.RELAY:
-                    sqlhost = config.relayServer;
-                    sqluser = config.relayUser;
-                    sqlpass = (new cTripleDes().Decrypt(config.relayPassword));
+                    sqlhost = Config.relayServer;
+                    sqluser = Config.relayUser;
+                    sqlpass = (new cTripleDes().Decrypt(Config.relayPassword));
                     break;
             }
 
@@ -473,7 +471,7 @@ namespace TeslaSQL.DataUtils {
                 query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid AND SyncBitWise & @syncbitwise = 0";
                 cmd = new SqlCommand(query);
                 cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = value;
-                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = config.slave;
+                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = Config.slave;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             } else {
                 query = "UPDATE dbo.tblCTVersion SET SyncBitWise = SyncBitWise + @syncbitwise";
@@ -493,7 +491,7 @@ namespace TeslaSQL.DataUtils {
                 query = "SELECT syncBitWise from dbo.tblCTSlaveVersion WITH(NOLOCK)";
                 query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
                 cmd = new SqlCommand(query);
-                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = config.slave;
+                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = Config.slave;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             } else {
                 query = "SELECT syncBitWise from dbo.tblCTVersion WITH(NOLOCK)";
@@ -541,17 +539,17 @@ namespace TeslaSQL.DataUtils {
         public void LogError(string message) {
             SqlCommand cmd = new SqlCommand("INSERT INTO tblCtError (CelError) VALUES ( @error )");
             cmd.Parameters.Add("@error", SqlDbType.VarChar, -1).Value = message;
-            SqlNonQuery(config.errorLogDB, cmd);
+            SqlNonQuery(Config.errorLogDB, cmd);
         }
 
         public DataTable GetUnsentErrors() {
             SqlCommand cmd = new SqlCommand("SELECT CelError, CelId FROM tblCtError WHERE CelSent = 0");
-            return SqlQuery(config.errorLogDB, cmd);
+            return SqlQuery(Config.errorLogDB, cmd);
         }
 
         public void MarkErrorsSent(IEnumerable<int> celIds) {
             SqlCommand cmd = new SqlCommand("UPDATE tblCtError SET CelSent = 1 WHERE CelId IN (" + string.Join(",", celIds) + ")");
-            SqlNonQuery(config.errorLogDB, cmd);
+            SqlNonQuery(Config.errorLogDB, cmd);
         }
 
         private bool CheckColumnExists(string dbName, string schema, string table, string column) {
@@ -703,7 +701,7 @@ namespace TeslaSQL.DataUtils {
             if (archiveTable != null) {
                 tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName));
             }
-            var s = TransactionQuery(tableSql, dbName, config.queryTimeout);
+            var s = TransactionQuery(tableSql, dbName, Config.queryTimeout);
             logger.Log("table " + table.Name + ": insert: " + s[0].Rows[0].Field<int>("insertcount") + " | delete: " + s[0].Rows[0].Field<int>("deletecount"), LogLevel.Info);
             if (archiveTable != null) {
                 logger.Log("table " + table.Name + ": insert: " + s[1].Rows[0].Field<int>("insertcount") + " | delete: " + s[1].Rows[0].Field<int>("deletecount"), LogLevel.Info);

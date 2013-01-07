@@ -257,13 +257,12 @@ namespace TeslaSQL.Tests.Agents {
                 destDataUtils.testData = new DataSet();
                 //this method, conveniently, sets up the datatable schema we need
                 sourceDataUtils.CreateSchemaChangeTable("CT_testdb", 1);
-
-                var config = new Config();
-                config.tables = tables;
-                config.relayDB = "CT_testdb";
-                config.logLevel = LogLevel.Critical;
+   
+                Config.tables = tables;
+                Config.relayDB = "CT_testdb";
+                Config.logLevel = LogLevel.Critical;
                 var logger = new Logger(LogLevel.Critical, null, null, null, "");
-                slave = new Slave(config, sourceDataUtils, destDataUtils, logger);
+                slave = new Slave(sourceDataUtils, destDataUtils, logger);
             }
         }
 
@@ -298,11 +297,9 @@ namespace TeslaSQL.Tests.Agents {
                     new DateTime(now.Year, now.Month, now.Day, 3, 1, 0),
                     true
                     ));
-            var cfg = new Mock<Config>();
             
             foreach (var test in testCases) {
-                cfg.Setup(c => c.magicHours).Returns(test.magicHours);
-                config = cfg.Object;
+                Config.magicHours = test.magicHours;
                 var mockDataUtils = new Mock<IDataUtils>();
                 mockDataUtils.Setup(du => du.GetLastStartTime(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<AgentType>()))
                     .Returns(test.lastRun);

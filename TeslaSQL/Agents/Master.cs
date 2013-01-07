@@ -16,8 +16,7 @@ namespace TeslaSQL.Agents {
     public class Master : Agent {
         protected ChangeTrackingBatch ctb;
 
-        public Master(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
-            this.config = config;
+        public Master(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
             //log server is dest since dest is relay for slave
@@ -31,21 +30,21 @@ namespace TeslaSQL.Agents {
 
         public override void ValidateConfig() {
             logger.Log("Validating configuration for master", LogLevel.Trace);
-            Config.ValidateRequiredHost(config.relayServer);
-            Config.ValidateRequiredHost(config.master);
-            if (config.relayType == null || config.masterType == null) {
+            Config.ValidateRequiredHost(Config.relayServer);
+            Config.ValidateRequiredHost(Config.master);
+            if (Config.relayType == null || Config.masterType == null) {
                 throw new Exception("Master agent requires a valid SQL flavor for relay and master");
             }
         }
 
         public override void Run() {
             logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
-            Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(config.masterDB);
+            Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(Config.masterDB);
 
             logger.Log("Initializing CT batch", LogLevel.Debug);
             //set up the variables and CT version info for this run
             ctb = InitializeBatch(currentVersion);
-            if (config.sharding && ctb == null) {
+            if (Config.sharding && ctb == null) {
                 logger.Log("Last batch completed and there is no new batch to work on.", LogLevel.Info);
                 return;
             }
@@ -57,29 +56,29 @@ namespace TeslaSQL.Agents {
                 logger.Log("Beginning publish schema changes phase", LogLevel.Info);
 
                 logger.Log("Creating tblCTSchemaChange_<CTID> on relay server", LogLevel.Trace);
-                destDataUtils.CreateSchemaChangeTable(config.relayDB, ctb.CTID);
+                destDataUtils.CreateSchemaChangeTable(Config.relayDB, ctb.CTID);
 
                 //get the start time of the last batch where we successfully uploaded changes
                 logger.Log("Finding start time of the most recent successful batch on relay server", LogLevel.Trace);
-                previousSyncStartTime = destDataUtils.GetLastStartTime(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
+                previousSyncStartTime = destDataUtils.GetLastStartTime(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
                 logger.Log("Retrieved previousSyncStartTime of " + Convert.ToString(previousSyncStartTime) + " from relay server", LogLevel.Trace);
 
                 logger.Log("Publishing schema changes from master to relay server", LogLevel.Debug);
-                PublishSchemaChanges(config.tables, config.masterDB, config.relayDB, ctb.CTID, previousSyncStartTime);
+                PublishSchemaChanges(Config.tables, Config.masterDB, Config.relayDB, ctb.CTID, previousSyncStartTime);
                 logger.Log("Successfully published schema changes, persisting bitwise value now", LogLevel.Debug);
 
                 logger.Log("Writing bitwise value of " + Convert.ToInt32(SyncBitWise.PublishSchemaChanges) + " to tblCTVersion", LogLevel.Trace);
-                destDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
+                destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
             }
 
             logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
-            SetFieldLists(config.masterDB, config.tables, sourceDataUtils);
+            SetFieldLists(Config.masterDB, Config.tables, sourceDataUtils);
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 logger.Log("Beginning capture changes phase", LogLevel.Info);
                 logger.Log("Resizing batch based on batch threshold", LogLevel.Trace);
-                Int64 resizedStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, config.maxBatchSize,
-                    config.thresholdIgnoreStartTime, config.thresholdIgnoreEndTime, DateTime.Now);
+                Int64 resizedStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, Config.maxBatchSize,
+                    Config.thresholdIgnoreStartTime, Config.thresholdIgnoreEndTime, DateTime.Now);
 
                 if (resizedStopVersion != ctb.syncStopVersion) {
                     logger.Log("Resized batch due to threshold. Stop version changed from " + Convert.ToString(ctb.syncStopVersion) +
@@ -87,30 +86,30 @@ namespace TeslaSQL.Agents {
                     ctb.syncStopVersion = resizedStopVersion;
 
                     logger.Log("Writing new stopVersion back to tblCTVersion", LogLevel.Trace);
-                    destDataUtils.UpdateSyncStopVersion(config.relayDB, resizedStopVersion, ctb.CTID);
+                    destDataUtils.UpdateSyncStopVersion(Config.relayDB, resizedStopVersion, ctb.CTID);
                 }
 
                 logger.Log("Beginning creation of CT tables", LogLevel.Debug);
-                changesCaptured = CreateChangeTables(config.tables, config.masterDB, config.masterCTDB, ctb.syncStartVersion, ctb.syncStopVersion, ctb.CTID);
+                changesCaptured = CreateChangeTables(Config.tables, Config.masterDB, Config.masterCTDB, ctb.syncStartVersion, ctb.syncStopVersion, ctb.CTID);
                 logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
 
-                destDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
+                destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
                 logger.Log("Wrote bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.CaptureChanges)) + " to tblCTVersion", LogLevel.Trace);
             } else {
                 logger.Log("CreateChangeTables succeeded on the previous run, running GetRowCounts instead to populate changesCaptured object", LogLevel.Debug);
-                changesCaptured = GetRowCounts(config.tables, config.masterCTDB, ctb.CTID);
+                changesCaptured = GetRowCounts(Config.tables, Config.masterCTDB, ctb.CTID);
                 logger.Log("Successfully populated changesCaptured with a list of rowcounts for each changetable", LogLevel.Trace);
             }
 
             //copy change tables from master to relay server
             logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Info);
-            PublishChangeTables(config.tables, config.masterCTDB, config.relayDB, ctb.CTID, changesCaptured);
+            PublishChangeTables(Config.tables, Config.masterCTDB, Config.relayDB, ctb.CTID, changesCaptured);
             logger.Log("Publishing info table", LogLevel.Info);
-            PublishTableInfo(config.tables, config.relayDB, changesCaptured, ctb.CTID);
+            PublishTableInfo(Config.tables, Config.relayDB, changesCaptured, ctb.CTID);
             logger.Log("Successfully published changetables, persisting bitwise now", LogLevel.Debug);
 
             //this signifies the end of the master's responsibility for this batch
-            destDataUtils.WriteBitWise(config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
+            destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
             logger.Log("Wrote bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.UploadChanges)) + " to tblCTVersion", LogLevel.Trace);
 
             logger.Log("Master agent work complete", LogLevel.Info);
@@ -126,7 +125,7 @@ namespace TeslaSQL.Agents {
         /// <returns>boolean, which lets the agent know whether or not it should continue creating changetables</returns>
         protected ChangeTrackingBatch InitializeBatch(Int64 currentVersion) {
             logger.Log("Retrieving information about the most recently worked on batch from tblCTVersion", LogLevel.Trace);
-            var lastbatch = destDataUtils.GetLastCTBatch(config.relayDB, AgentType.Master);
+            var lastbatch = destDataUtils.GetLastCTBatch(Config.relayDB, AgentType.Master);
 
             if (lastbatch == null) {
                 logger.Log("No existing batches found, tblCTVersion was empty", LogLevel.Debug);
@@ -136,17 +135,17 @@ namespace TeslaSQL.Agents {
             }
 
             if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
-                if (config.sharding) {
+                if (Config.sharding) {
                     return null;
                 }
                 logger.Log("Last batch succeeded, creating a new one where that left off", LogLevel.Debug);
                 Int64 syncStartVersion = lastbatch.Field<Int64>("syncStopVersion");
-                Int64 CTID = destDataUtils.CreateCTVersion(config.relayDB, syncStartVersion, currentVersion);
+                Int64 CTID = destDataUtils.CreateCTVersion(Config.relayDB, syncStartVersion, currentVersion);
                 logger.Log("Created CTID " + CTID, LogLevel.Debug);
                 return new ChangeTrackingBatch(CTID, syncStartVersion, currentVersion, 0);
             } else if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 logger.Log("Last batch failed before creating CT tables. Updating syncStopVersion to avoid falling too far behind", LogLevel.Debug);
-                destDataUtils.UpdateSyncStopVersion(config.relayDB, currentVersion, lastbatch.Field<Int64>("CTID"));
+                destDataUtils.UpdateSyncStopVersion(Config.relayDB, currentVersion, lastbatch.Field<Int64>("CTID"));
                 logger.Log("New syncStopVersion is the current change tracking version on the master, " + Convert.ToString(currentVersion), LogLevel.Trace);
                 return new ChangeTrackingBatch(lastbatch.Field<Int64>("CTID"),
                     lastbatch.Field<Int64>("syncStartVersion"),
@@ -323,7 +322,7 @@ namespace TeslaSQL.Agents {
 
             logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
             Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, t.modifiedMasterColumnList, ctTableName,
-                sourceDB, t.schemaName, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, config.queryTimeout);
+                sourceDB, t.schemaName, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, Config.queryTimeout);
 
             logger.Log("Rows affected for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
             return new KeyValuePair<string, Int64>(t.schemaName + "." + t.Name, rowsAffected);
@@ -339,18 +338,18 @@ namespace TeslaSQL.Agents {
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
         protected void PublishChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
-            if (config.master != null && config.master == config.relayServer && sourceCTDB == destCTDB) {
+            if (Config.master != null && Config.master == Config.relayServer && sourceCTDB == destCTDB) {
                 logger.Log("Skipping publish because master is equal to relay.", LogLevel.Debug);
                 return;
             }
 
-            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)config.masterType, (SqlFlavor)config.relayType, sourceDataUtils, destDataUtils, logger, config);
+            IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)Config.masterType, (SqlFlavor)Config.relayType, sourceDataUtils, destDataUtils, logger);
             foreach (TableConf t in tables) {
                 if (changesCaptured[t.schemaName + "." + t.Name] > 0) {
                     logger.Log("Publishing changes for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     try {
                         //hard coding timeout at 1 hour for bulk copy
-                        dataCopy.CopyTable(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destCTDB, config.dataCopyTimeout);
+                        dataCopy.CopyTable(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName, destCTDB, Config.dataCopyTimeout);
                         logger.Log("Publishing changes succeeded for " + t.schemaName + "." + t.Name, LogLevel.Trace);
                     } catch (Exception e) {
                         if (t.stopOnError) {

@@ -13,14 +13,14 @@ namespace TeslaSQL.Agents {
         private IEmailClient emailClient;
 
         //base keyword invokes the base class's constructor
-        public Notifier(Config config, IDataUtils dataUtils, IEmailClient emailClient, Logger logger)
-            : base(config, dataUtils, null, logger) {
+        public Notifier(IDataUtils dataUtils, IEmailClient emailClient, Logger logger)
+            : base(dataUtils, null, logger) {
             this.emailClient = emailClient;
         }
 
         public override void ValidateConfig() {
-            Config.ValidateRequiredHost(config.relayServer);
-            if (config.relayType == null) {
+            Config.ValidateRequiredHost(Config.relayServer);
+            if (Config.relayType == null) {
                 throw new Exception("Notifier agent requires a valid SQL flavor for relay");
             }
         }
@@ -36,7 +36,7 @@ namespace TeslaSQL.Agents {
             if (errorList.Count == 0) {
                 return;
             }
-            emailClient.SendEmail(config.emailErrorRecipient, "Errors occurred during changetracking", string.Join("\r\n", errorList));
+            emailClient.SendEmail(Config.emailErrorRecipient, "Errors occurred during changetracking", string.Join("\r\n", errorList));
             sourceDataUtils.MarkErrorsSent(ids);
         }
     }

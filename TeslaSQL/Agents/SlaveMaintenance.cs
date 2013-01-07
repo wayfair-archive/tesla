@@ -12,15 +12,15 @@ namespace TeslaSQL.Agents
     class SlaveMaintenance : Agent
     {
         //base keyword invokes the base class's constructor
-        public SlaveMaintenance(Config config, IDataUtils dataUtils)
-            : base(config, dataUtils, null,null) {
+        public SlaveMaintenance(IDataUtils dataUtils)
+            : base(dataUtils, null,null) {
 
         }
 
         public override void ValidateConfig()
         {
-            Config.ValidateRequiredHost(config.slave);
-            if (config.slaveType == null) {
+            Config.ValidateRequiredHost(Config.slave);
+            if (Config.slaveType == null) {
                 throw new Exception("SlaveMaintenance agent requires a valid SQL flavor for slave");
             }
         }

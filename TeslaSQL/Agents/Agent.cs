@@ -16,8 +16,6 @@ namespace TeslaSQL.Agents {
     //each agent (master, slave, etc.) should inherit this
     public abstract class Agent {
 
-        public Config config;
-
         public IDataUtils sourceDataUtils;
         public IDataUtils destDataUtils;
 
@@ -28,8 +26,7 @@ namespace TeslaSQL.Agents {
             this.logger = new Logger(LogLevel.Critical, null, null, null, "");
         }
 
-        public Agent(Config config, IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
-            this.config = config;
+        public Agent(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
             this.logger = logger;

@@ -12,11 +12,9 @@ namespace TeslaSQL.DataUtils {
     public class NetezzaDataUtils : IDataUtils {
 
         public Logger logger;
-        public Config config;
         public TServer server;
 
-        public NetezzaDataUtils(Config config, Logger logger, TServer server) {
-            this.config = config;
+        public NetezzaDataUtils(Logger logger, TServer server) {            
             this.logger = logger;
             this.server = server;
         }
@@ -99,9 +97,9 @@ namespace TeslaSQL.DataUtils {
             string sqlpass = "";
             switch (server) {
                 case TServer.SLAVE:
-                    sqlhost = config.slave;
-                    sqluser = config.slaveUser;
-                    sqlpass = (new cTripleDes().Decrypt(config.slavePassword));
+                    sqlhost = Config.slave;
+                    sqluser = Config.slaveUser;
+                    sqlpass = (new cTripleDes().Decrypt(Config.slavePassword));
                     break;
                 default:
                     throw new NotImplementedException("Netezza is only supported as a slave!");
@@ -181,7 +179,7 @@ namespace TeslaSQL.DataUtils {
 
             string insert = string.Format(@"INSERT INTO {0} ({1}) 
                               SELECT {1} FROM {2}..{3} CT WHERE NOT EXISTS (SELECT 1 FROM {0} P WHERE {4}) AND CT.sys_change_operation IN ( 'I', 'U' );",
-                                          table.Name, table.simpleColumnList, CTDBName, table.ToCTName(ctid), table.pkList);
+                                          table.Name, table.netezzaColumnList, CTDBName, table.ToCTName(ctid), table.pkList);
             var deleteCmd = new OleDbCommand(delete);
             var insertCmd = new OleDbCommand(insert);
             return new InsertDelete(insertCmd, deleteCmd);
@@ -202,16 +200,18 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
         public void RenameColumn(TableConf t, string dbName, string schema, string table, string columnName, string newColumnName) {
-            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + config.slave, LogLevel.Error);
+            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + Config.slave, LogLevel.Error);
         }
         public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
-            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + config.slave, LogLevel.Error);
+            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + Config.slave, LogLevel.Error);
         }
+
         public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
+            columnName = MapReservedWord(columnName);
             if (CheckColumnExists(dbName, schema, table, columnName)) {
                 return;
             }
-            dataType = DataType.MapDataType(config.relayType.Value, SqlFlavor.Netezza, dataType);
+            dataType = DataType.MapDataType(Config.relayType.Value, SqlFlavor.Netezza, dataType);
             string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table, columnName, dataType);
             var cmd = new OleDbCommand(sql);
             SqlNonQuery(dbName, cmd);
@@ -219,7 +219,7 @@ namespace TeslaSQL.DataUtils {
         }
 
         private void RefreshViews(string dbName, string tableName) {
-            var refresh = config.refreshViews.Where(r => r.db.ToLower() == dbName.ToLower() && r.tableName.ToLower() == tableName.ToLower()).FirstOrDefault();
+            var refresh = Config.refreshViews.Where(r => r.db.ToLower() == dbName.ToLower() && r.tableName.ToLower() == tableName.ToLower()).FirstOrDefault();
             if (refresh == null) {
                 return;
             }
@@ -234,6 +234,7 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
+            columnName = MapReservedWord(columnName);
             if (!CheckColumnExists(dbName, schema, table, columnName)) {
                 return;
             }
@@ -249,6 +250,23 @@ namespace TeslaSQL.DataUtils {
             var cmd = new OleDbCommand(sql);
             var res = SqlQuery(dbName, cmd);
             return res.Rows.Count > 0;
+        }
+
+        public static string MapReservedWord(string col) {
+            var NetezzaReservedWords = new Dictionary<string, string>() {
+                 {"CTID", "CT_ID"},
+                 {"OID", "O_ID"},
+                 {"XMIN", "X_MIN"},
+                 {"CMIN", "C_MIN"},
+                 {"XMAX", "X_MAX"},
+                 {"CMAX", "C_MAX"},
+                 {"TABLEOID", "TABLE_O_ID"}
+                 };
+            if (NetezzaReservedWords.ContainsKey(col.ToUpper())) {
+                return NetezzaReservedWords[col.ToUpper()];
+            } else {
+                return col;
+            }
         }
 
 

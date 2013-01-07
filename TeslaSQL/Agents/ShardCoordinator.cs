@@ -15,9 +15,9 @@ namespace TeslaSQL.Agents {
         protected IEnumerable<string> shardDatabases;
         IList<TableConf> tablesWithChanges;
         Dictionary<TableConf, Dictionary<string, List<TColumn>>> tableDBFieldLists;
-        public ShardCoordinator(Config config, IDataUtils dataUtils, Logger logger)
-            : base(config, dataUtils, dataUtils, logger) {
-            shardDatabases = config.shardDatabases;
+        public ShardCoordinator(IDataUtils dataUtils, Logger logger)
+            : base(dataUtils, dataUtils, logger) {
+            shardDatabases = Config.shardDatabases;
             tablesWithChanges = new List<TableConf>();
         }
 
@@ -27,20 +27,20 @@ namespace TeslaSQL.Agents {
         }
 
         public override void ValidateConfig() {
-            Config.ValidateRequiredHost(config.relayServer);
-            if (config.relayType == null) {
+            Config.ValidateRequiredHost(Config.relayServer);
+            if (Config.relayType == null) {
                 throw new Exception("ShardCoordinator agent requires a valid SQL flavor for relay");
             }
-            if (string.IsNullOrEmpty(config.masterShard)) {
+            if (string.IsNullOrEmpty(Config.masterShard)) {
                 throw new Exception("ShardCoordinator agent requires a master shard");
             }
-            if (!config.shardDatabases.Contains(config.masterShard)) {
+            if (!Config.shardDatabases.Contains(Config.masterShard)) {
                 throw new Exception("ShardCoordinator agent requires that the masterShard element be one of the shards listed in shardDatabases");
             }
         }
 
         public override void Run() {
-            var batch = new ChangeTrackingBatch(sourceDataUtils.GetLastCTBatch(config.relayDB, AgentType.ShardCoordinator));
+            var batch = new ChangeTrackingBatch(sourceDataUtils.GetLastCTBatch(Config.relayDB, AgentType.ShardCoordinator));
             if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
                 CreateNewVersionsForShards(batch);
                 return;
@@ -56,7 +56,7 @@ namespace TeslaSQL.Agents {
             }
             if (AllShardMastersDone(batch)) {
                 Consolidate(batch);
-                sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID,
+                sourceDataUtils.WriteBitWise(Config.relayDB, batch.CTID,
                     Convert.ToInt32(SyncBitWise.CaptureChanges) | Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.ShardCoordinator);
             } else {
                 logger.Log("Not all shards are done yet, waiting until they catch up", LogLevel.Info);
@@ -84,7 +84,7 @@ namespace TeslaSQL.Agents {
 
         protected Dictionary<TableConf, Dictionary<string, List<TColumn>>> GetFieldListsByDB(Int64 ctid) {
             var fieldListByDB = new Dictionary<TableConf, Dictionary<string, List<TColumn>>>();
-            foreach (var table in config.tables) {
+            foreach (var table in Config.tables) {
                 var tDict = new Dictionary<string, List<TColumn>>();
                 foreach (var sd in shardDatabases) {
                     tDict[sd] = sourceDataUtils.GetFieldList(sd, table.ToCTName(ctid), table.schemaName).Select(kvp => new TColumn(kvp.Key, kvp.Value)).ToList();
@@ -96,7 +96,7 @@ namespace TeslaSQL.Agents {
 
         private ChangeTrackingBatch CreateNewVersionsForShards(ChangeTrackingBatch batch) {
             logger.Log("Creating new CT versions for slaves", LogLevel.Info);
-            Int64 ctid = sourceDataUtils.CreateCTVersion(config.relayDB, 0, 0);
+            Int64 ctid = sourceDataUtils.CreateCTVersion(Config.relayDB, 0, 0);
             foreach (var db in shardDatabases) {
                 var b = new ChangeTrackingBatch(sourceDataUtils.GetLastCTBatch(db, AgentType.ShardCoordinator));
                 sourceDataUtils.CreateShardCTVersion(db, ctid, b.syncStopVersion);
@@ -108,7 +108,7 @@ namespace TeslaSQL.Agents {
         private void Consolidate(ChangeTrackingBatch batch) {
             if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
                 PublishSchemaChanges(batch);
-                sourceDataUtils.WriteBitWise(config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.ShardCoordinator);
+                sourceDataUtils.WriteBitWise(Config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.ShardCoordinator);
             }
             try {
                 ConsolidateTables(batch);
@@ -124,8 +124,8 @@ namespace TeslaSQL.Agents {
         }
 
         private void PublishSchemaChanges(ChangeTrackingBatch batch) {
-            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils, logger,config);
-            dc.CopyTable(config.masterShard, batch.schemaChangeTable, "dbo", config.relayDB, 3600);
+            var dc = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
+            dc.CopyTable(Config.masterShard, batch.schemaChangeTable, "dbo", Config.relayDB, 3600);
         }
 
         private void ConsolidateTables(ChangeTrackingBatch batch) {
@@ -150,8 +150,8 @@ namespace TeslaSQL.Agents {
         }
 
         private void MergeTable(ChangeTrackingBatch batch, Dictionary<string, List<TColumn>> dbColumns, TableConf table, string firstDB) {
-            var dc = DataCopyFactory.GetInstance(config.relayType.Value, config.relayType.Value, sourceDataUtils, sourceDataUtils, logger, config);
-            dc.CopyTableDefinition(firstDB, table.ToCTName(batch.CTID), table.schemaName, config.relayDB, table.ToCTName(batch.CTID));
+            var dc = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
+            dc.CopyTableDefinition(firstDB, table.ToCTName(batch.CTID), table.schemaName, Config.relayDB, table.ToCTName(batch.CTID));
             foreach (var dbNameFields in dbColumns) {
                 var dbName = dbNameFields.Key;
                 var columns = dbNameFields.Value;
@@ -159,13 +159,13 @@ namespace TeslaSQL.Agents {
                     //no changes in this DB for this table
                     continue;
                 }
-                sourceDataUtils.MergeCTTable(table, config.relayDB, dbName, batch.CTID);
+                sourceDataUtils.MergeCTTable(table, Config.relayDB, dbName, batch.CTID);
             }
         }
 
         private void ConsolidateInfoTables(ChangeTrackingBatch batch) {
-            var rowCounts = GetRowCounts(config.tables, config.relayDB, batch.CTID);
-            PublishTableInfo(tablesWithChanges, config.relayDB, rowCounts, batch.CTID);
+            var rowCounts = GetRowCounts(Config.tables, Config.relayDB, batch.CTID);
+            PublishTableInfo(tablesWithChanges, Config.relayDB, rowCounts, batch.CTID);
         }
 
         private void SetFieldList(TableConf table, string database, ChangeTrackingBatch batch) {

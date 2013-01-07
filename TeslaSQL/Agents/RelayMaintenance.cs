@@ -12,15 +12,15 @@ namespace TeslaSQL.Agents
     class RelayMaintenance : Agent
     {
         //base keyword invokes the base class's constructor
-        public RelayMaintenance(Config config, IDataUtils dataUtils)
-            : base(config, dataUtils, null, null) {
+        public RelayMaintenance(IDataUtils dataUtils)
+            : base(dataUtils, null, null) {
 
         }
 
         public override void ValidateConfig()
         {
-            Config.ValidateRequiredHost(config.relayServer);
-            if (config.relayType == null) {
+            Config.ValidateRequiredHost(Config.relayServer);
+            if (Config.relayType == null) {
                 throw new Exception("RelayMaintenance agent requires a valid SQL flavor for relay");
             }
         }

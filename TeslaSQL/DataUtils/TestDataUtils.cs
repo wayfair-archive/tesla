@@ -21,13 +21,11 @@ namespace TeslaSQL.DataUtils {
         public string server { get; set; }
 
         public Logger logger;
-        public Config config;
 
         /// <summary>
         /// Constructor for unit tests that use config and logger elements
         /// </summary>
-        public TestDataUtils(Config config, Logger logger, TServer server) {
-            this.config = config;
+        public TestDataUtils(Logger logger, TServer server) {
             this.logger = logger;
             this.server = Convert.ToString(server);
             testData = new DataSet();
@@ -310,7 +308,7 @@ namespace TeslaSQL.DataUtils {
                 //find the table
                 table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
                 //find the row
-                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + config.slave + "'")[0];
+                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + Config.slave + "'")[0];
             } else {
                 //find the table
                 table = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
@@ -334,7 +332,7 @@ namespace TeslaSQL.DataUtils {
                 //find the table
                 table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
                 //find the row
-                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + config.slave + "'")[0];
+                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + Config.slave + "'")[0];
             } else {
                 //find the table
                 table = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];

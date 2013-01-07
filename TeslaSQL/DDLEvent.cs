@@ -81,7 +81,7 @@ namespace TeslaSQL {
             TableConf t = tables.SingleOrDefault(item => String.Compare(item.Name, tableName, ignoreCase: true) == 0);
 
             if (t == null) {
-                //the DDL event applies to a table not in our config, so we just ignore it
+                //the DDL event applies to a table not in our so we just ignore it
                 return schemaChanges;
             }
 

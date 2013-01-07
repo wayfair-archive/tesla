@@ -22,10 +22,9 @@ namespace TeslaSQL.Tests.Agents {
         public void SetFixture(MasterTestFixture fixture) {           
             this.sourceDataUtils = fixture.sourceDataUtils;
             this.destDataUtils = fixture.destDataUtils;
-            this.config = fixture.config;
             ((TestDataUtils)sourceDataUtils).ReloadData("test1");
             ((TestDataUtils)destDataUtils).ReloadData("test1");            
-            SetFieldLists("testdb", config.tables, sourceDataUtils);
+            SetFieldLists("testdb", Config.tables, sourceDataUtils);
         }
 
         [Fact]
@@ -87,7 +86,7 @@ namespace TeslaSQL.Tests.Agents {
             //create tblCTSchemaChange_100
             destDataUtils.CreateSchemaChangeTable("CT_testdb", 101);
             //publish schema changes from tblDDLevent
-            PublishSchemaChanges(config.tables, "testdb", "CT_testdb", 101, new DateTime(2000, 1, 1));
+            PublishSchemaChanges(Config.tables, "testdb", "CT_testdb", 101, new DateTime(2000, 1, 1));
             //retrieve results from tblCTSchemaChange_101
             DataTable results = destDataUtils.GetSchemaChanges("CT_testdb", 101);
             //parse schema change object for the resulting row
@@ -102,14 +101,14 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestCreateChangeTables() {
-            Dictionary<string, Int64> result = CreateChangeTables(config.tables, "testdb", "CT_testdb", 1000, 2000, 101);
+            Dictionary<string, Int64> result = CreateChangeTables(Config.tables, "testdb", "CT_testdb", 1000, 2000, 101);
             Assert.Equal(1, result["dbo.test1"]);
             Assert.Equal(0, result["dbo.test2"]);            
         }
 
         [Fact]
         public void TestPublishChangeTables() {
-            PublishChangeTables(config.tables, "CT_testdb", "CT_testdb", 101, changesCaptured);
+            PublishChangeTables(Config.tables, "CT_testdb", "CT_testdb", 101, changesCaptured);
             DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTtest1_101", "RELAY.CT_testdb"].Rows[0];
             Assert.True(actual.Field<int>("column1") == 100
                 && actual.Field<string>("column2") == "test"
@@ -126,7 +125,7 @@ namespace TeslaSQL.Tests.Agents {
             //undo changes
             ((TestDataUtils)destDataUtils).ReloadData("test1");
             ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);                     
-            PublishTableInfo(config.tables, "CT_testdb", changesCaptured, ctb.CTID);
+            PublishTableInfo(Config.tables, "CT_testdb", changesCaptured, ctb.CTID);
             DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[0];
             Assert.True(actual.Field<string>("CtiTableName") == "test1"
                 && actual.Field<string>("CtiSchemaName") == "dbo"
@@ -142,13 +141,13 @@ namespace TeslaSQL.Tests.Agents {
        
         [Fact]
         public void TestGetRowCounts_NonZero() {
-            var rowCounts = GetRowCounts(config.tables, "CT_testdb", 101);
+            var rowCounts = GetRowCounts(Config.tables, "CT_testdb", 101);
             Assert.Equal(1, rowCounts["dbo.test1"]);
         }
 
         [Fact]
         public void TestGetRowCounts_Zero() {
-            var rowCounts = GetRowCounts(config.tables, "CT_testdb", 101);
+            var rowCounts = GetRowCounts(Config.tables, "CT_testdb", 101);
             Assert.Equal(0, rowCounts["dbo.test2"]);
         }
 
@@ -198,7 +197,6 @@ namespace TeslaSQL.Tests.Agents {
     public class MasterTestFixture {
         public TestDataUtils sourceDataUtils;
         public TestDataUtils destDataUtils;
-        public Config config;
 
         public MasterTestFixture() {
             var tables = new TableConf[2];
@@ -214,15 +212,14 @@ namespace TeslaSQL.Tests.Agents {
             sourceDataUtils.testData = new DataSet();
             destDataUtils = new TestDataUtils(TServer.RELAY);
             destDataUtils.testData = new DataSet();
-          
-            config = new Config();
-            config.masterDB = "testdb";
-            config.masterCTDB = "CT_testdb";
-            config.relayDB = "CT_testdb";
-            config.logLevel = LogLevel.Critical;
-            config.tables = tables;
-            config.masterType = SqlFlavor.MSSQL;
-            config.relayType = SqlFlavor.MSSQL;
+
+            Config.masterDB = "testdb";
+            Config.masterCTDB = "CT_testdb";
+            Config.relayDB = "CT_testdb";
+            Config.logLevel = LogLevel.Critical;
+            Config.tables = tables;
+            Config.masterType = SqlFlavor.MSSQL;
+            Config.relayType = SqlFlavor.MSSQL;
         }
 
         //TODO move this somewhere else

@@ -12,27 +12,21 @@ using System.Xml;
 using System.Xml.Serialization;
 using Microsoft.SqlServer.Management.Smo;
 using Xunit;
+using TeslaSQL.DataUtils;
 #endregion
 
 namespace TeslaSQL {
 
-    public class Config {
+    public static class Config {
         //method to initialize configuration by deserializing config file into objects
-        public static Config Load(string configFile) {
+        public static void Load(string configFile) {
             ConfigLoader c = null;
             XmlSerializer serializer = new XmlSerializer(typeof(ConfigLoader));
 
             StreamReader reader = new StreamReader(configFile);
             c = (ConfigLoader)serializer.Deserialize(reader);
             reader.Close();
-            return new Config(c);
-        }
 
-        public Config() {
-            //parameterless constructor for unit tests
-        }
-
-        public Config(ConfigLoader c) {
             masterDB = ValidateNullableIdentifier(c.masterDB);
             masterCTDB = ValidateNullableIdentifier(c.masterCTDB);
             slaveCTDB = ValidateNullableIdentifier(c.slaveCTDB);
@@ -40,47 +34,51 @@ namespace TeslaSQL {
             relayDB = ValidateNullableIdentifier(c.relayDB);
             errorLogDB = ValidateNullableIdentifier(c.errorLogDB);
             errorTable = c.errorTable;
-            masterUser_m = ValidateNullableIdentifier(c.masterUser);
-            masterPassword_m = c.masterPassword;
-            slaveUser_m = ValidateNullableIdentifier(c.slaveUser);
-            slavePassword_m = c.slavePassword;
-            relayUser_m = ValidateNullableIdentifier(c.relayUser);
-            relayPassword_m = c.relayPassword;
-            changeRetentionHours_m = c.changeRetentionHours;
-            maxBatchSize_m = c.maxBatchSize;
-            batchConsolidationThreshold_m = c.batchConsolidationThreshold;
-            statsdHost_m = c.statsdHost;
-            statsdPort_m = c.statsdPort;
-            relayServer_m = c.relayServer;
-            slave_m = c.slave;
-            master_m = c.master;
-            emailServerHost_m = c.emailServerHost;
-            emailServerPort_m = c.emailServerPort;
-            emailFromAddress_m = c.emailFromAddress;
-            emailErrorRecipient_m = c.emailErrorRecipient;
-            sharding_m = c.sharding;
-            shardDatabases_m = c.shardDatabases;
-            masterShard_m = c.masterShard;
+            masterUser = ValidateNullableIdentifier(c.masterUser);
+            masterPassword = c.masterPassword;
+            slaveUser = ValidateNullableIdentifier(c.slaveUser);
+            slavePassword = c.slavePassword;
+            relayUser = ValidateNullableIdentifier(c.relayUser);
+            relayPassword = c.relayPassword;
+            changeRetentionHours = c.changeRetentionHours;
+            maxBatchSize = c.maxBatchSize;
+            batchConsolidationThreshold = c.batchConsolidationThreshold;
+            statsdHost = c.statsdHost;
+            statsdPort = c.statsdPort;
+            relayServer = c.relayServer;
+            slave = c.slave;
+            master = c.master;
+            emailServerHost = c.emailServerHost;
+            emailServerPort = c.emailServerPort;
+            emailFromAddress = c.emailFromAddress;
+            emailErrorRecipient = c.emailErrorRecipient;
+            sharding = c.sharding;
+            shardDatabases_local = c.shardDatabases;
+            masterShard = c.masterShard;
             dataCopyTimeout = c.dataCopyTimeout > 0 ? c.dataCopyTimeout : 36000;
             queryTimeout = c.queryTimeout > 0 ? c.queryTimeout : 12000;
-            netezzaPrivateKeyPath_m = c.netezzaPrivateKeyPath;
-            netezzaUser_m = c.netezzaUser;
-            refreshViews_m = c.refreshViews;
-
+            netezzaPrivateKeyPath = c.netezzaPrivateKeyPath;
+            netezzaUser = c.netezzaUser;
+            refreshViews = c.refreshViews;
+            
             if (c.magicHours != null) {
-                magicHours_m = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
+                magicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
             }
 
             if (c.thresholdIgnoreStartTime != null) {
-                thresholdIgnoreStartTime_m = TimeSpan.Parse(c.thresholdIgnoreStartTime);
+                thresholdIgnoreStartTime = TimeSpan.Parse(c.thresholdIgnoreStartTime);
             }
             if (c.thresholdIgnoreEndTime != null) {
-                thresholdIgnoreEndTime_m = TimeSpan.Parse(c.thresholdIgnoreEndTime);
+                thresholdIgnoreEndTime = TimeSpan.Parse(c.thresholdIgnoreEndTime);
             }
 
-            if (!Enum.TryParse(c.agentType, out agentType_m)) {
+            AgentType parsedAgentType;
+            if (!Enum.TryParse(c.agentType, out parsedAgentType)) {
                 throw new InvalidDataException("Invalid agent type in configuration file!");
+            } else {
+                agentType = parsedAgentType;
             }
+
             if (!String.IsNullOrEmpty(c.relayType)) {
                 try {
                     relayType = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.relayType);
@@ -166,7 +164,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="identifier">Identifier string, which can also be null or empty</param>
         /// <returns>The identifier if it is valid. Throws an exception otherwise. </returns>
-        protected static string ValidateNullableIdentifier(string identifier) {
+        public static string ValidateNullableIdentifier(string identifier) {
             //the following regex represents a valid SQL identifier
             //it must start with a letter or underscore, followed by any combination
             //of word characters (letters, digits, underscores), the dollar sign, or spaces
@@ -185,14 +183,14 @@ namespace TeslaSQL {
         /// Writes all string properties to the console for debugging purposes.
         /// </summary>
         /// <param name="more">How many lines to print before stopping and writing "...more"</param>
-        public void DumpConfig(int more, Config config) {
+        public static void DumpConfig(int more) {
             int linecount = 0;
             //keep track of the existing console color so we can reset it at the end
             ConsoleColor prevColor = Console.ForegroundColor;
 
             //iterate through all properties of the Config class and recursively print them
             foreach (var prop in typeof(Config).GetProperties()) {
-                linecount = DumpConfigObject(prop, config, linecount, more, null);
+                linecount = DumpConfigObject(prop, typeof(Config), linecount, more, null);
             }
             //reset console color to whatever it was before this
             Console.ForegroundColor = prevColor;
@@ -208,7 +206,7 @@ namespace TeslaSQL {
         /// <param name="more">How many lines to print before stopping and writing "...more"</param>
         /// <param name="prefix">Prefix for indentation of nested properties</param>
         /// <returns>Int - the current line counter</returns>
-        public int DumpConfigObject(System.Reflection.PropertyInfo prop, Object o, int linecount, int more, string prefix = null) {
+        public static int DumpConfigObject(System.Reflection.PropertyInfo prop, Object o, int linecount, int more, string prefix = null) {
             //don't print empty/null properties
             if (!String.IsNullOrEmpty(Convert.ToString(prop.GetValue(o, null)))) {
                 //some nice color highlighting of the names/values just to make the output more readable
@@ -281,7 +279,7 @@ namespace TeslaSQL {
         /// <param name="counter">Current line counter</param>
         /// <param name="more">How many lines to print before stopping and writing "...more"</param>
         /// <returns>The current line counter</returns>
-        public int WriteLine(string message, int counter, int more) {
+        public static int WriteLine(string message, int counter, int more) {
             if (more > 0) {
                 counter++;
                 if (counter >= more) {
@@ -302,147 +300,135 @@ namespace TeslaSQL {
 
         #region properties
         //log level from config file. public since it can also be set via override in the main program
-        public LogLevel logLevel { get; set; }
+        public static LogLevel logLevel { get; set; }
 
         //array of table objects for global configuration        
-        public TableConf[] tables { get; set; }
+        public static TableConf[] tables { get; set; }
 
         //the agent type we should run (i.e. master, slave)
-        private AgentType agentType_m;
-        public AgentType agentType { get { return agentType_m; } }
+        public static AgentType agentType { get; set; }
 
         //hostname or IP of the master server
-        private string master_m;
-        public string master { get { return master_m; } }
+        public static string master { get; set; }
 
         //hostname or IP of the slave server
-        private string slave_m;
-        public string slave { get { return slave_m; } }
+        public static string slave { get; set; }
 
         //hostname or IP of the relay server
-        private string relayServer_m;
-        public string relayServer { get { return relayServer_m; } }
+        public static string relayServer { get; set; }
 
         //type of relay server (i.e. MSSQL, MySQL, PostgreSQL)
-        public SqlFlavor? relayType { get; set; }
+        public static SqlFlavor? relayType { get; set; }
 
         //type of master server (i.e. MSSQL, MySQL, PostgreSQL)
-        public SqlFlavor? masterType { get; set; }
+        public static SqlFlavor? masterType { get; set; }
 
         //type of slave server (i.e. MSSQL, MySQL, PostgreSQL)
-        public SqlFlavor? slaveType { get; set; }
+        public static SqlFlavor? slaveType { get; set; }
 
         //master database name
-        public string masterDB { get; set; }
+        public static string masterDB { get; set; }
 
         //master CT database name
-        public string masterCTDB { get; set; }
+        public static string masterCTDB { get; set; }
 
         //slave database name
-        public string slaveDB { get; set; }
+        public static string slaveDB { get; set; }
 
         //slave CT database name
-        public string slaveCTDB { get; set; }
+        public static string slaveCTDB { get; set; }
 
-        //relay database name. public for unit testing purposes        
-        public string relayDB { get; set; }
+        //relay database name        
+        public static string relayDB { get; set; }
 
         //database to log errors to
-        public string errorLogDB { get; set; }
+        public static string errorLogDB { get; set; }
 
-        public string errorTable { get; set; }
+        public static string errorTable { get; set; }
 
         //how many hours to retain changes for in the relay server
-        private int changeRetentionHours_m;
-        public int changeRetentionHours { get { return changeRetentionHours_m; } }
+        public static int changeRetentionHours { get; set; }
 
         //username to use when connecting to the master
-        private string masterUser_m;
-        public string masterUser { get { return masterUser_m; } }
+        public static string masterUser { get; set; }
 
         //password to use when connecting to the master
-        private string masterPassword_m;
-        public string masterPassword { get { return masterPassword_m; } }
+        public static string masterPassword { get; set; }
 
         //username to use when connecting to the slave
-        private string slaveUser_m;
-        public string slaveUser { get { return slaveUser_m; } }
+        public static string slaveUser { get; set; }
 
         //password to use when connecting to the slave
-        private string slavePassword_m;
-        public string slavePassword { get { return slavePassword_m; } }
+        public static string slavePassword { get; set; }
 
         //username to use when connecting to the relay server
-        private string relayUser_m;
-        public string relayUser { get { return relayUser_m; } }
+        public static string relayUser { get; set; }
 
         //password to use when connecting to the relay server
-        private string relayPassword_m;
-        public string relayPassword { get { return relayPassword_m; } }
+        public static string relayPassword { get; set; }
 
         //how many CT versions to include in a batch on the master
-        private int maxBatchSize_m;
-        public int maxBatchSize { get { return maxBatchSize_m; } }
+        public static int maxBatchSize { get; set; }
 
         //start time for when we ignore the max batch size each day (to catch up if we are behind)
-        private TimeSpan? thresholdIgnoreStartTime_m;
-        public TimeSpan? thresholdIgnoreStartTime { get { return thresholdIgnoreStartTime_m; } }
+        public static TimeSpan? thresholdIgnoreStartTime { get; set; }
 
         //end time for when we ignore the max batch size each day (to catch up if we are behind)
-        private TimeSpan? thresholdIgnoreEndTime_m;
-        public TimeSpan? thresholdIgnoreEndTime { get { return thresholdIgnoreEndTime_m; } }
+        public static TimeSpan? thresholdIgnoreEndTime { get; set; }
 
         //once a slave gets this many batches behind it will start consolidating them into a bigger batch
-        private int batchConsolidationThreshold_m;
-        public int batchConsolidationThreshold { get { return batchConsolidationThreshold_m; } }
+        public static int batchConsolidationThreshold { get; set; }
 
         //hostname or ip to write statsd calls to
-        private string statsdHost_m;
-        public string statsdHost { get { return statsdHost_m; } }
+        public static string statsdHost { get; set; }
 
         //port to write statsd calls to
-        private string statsdPort_m;
-        public string statsdPort { get { return statsdPort_m; } }
+        public static string statsdPort { get; set; }
 
-        private readonly string emailServerHost_m;
-        public string emailServerHost { get { return emailServerHost_m; } }
+        //smtp server hostname or ip
+        public static string emailServerHost { get; set; }
 
-        private readonly int emailServerPort_m;
-        public int emailServerPort { get { return emailServerPort_m; } }
+        //smtp port
+        public static int emailServerPort { get; set; }
 
-        private readonly string emailFromAddress_m;
-        public string emailFromAddress { get { return emailFromAddress_m; } }
+        //address to send notifications from in Notifier agent
+        public static string emailFromAddress { get; set; }
 
-        private readonly string emailErrorRecipient_m;
-        public string emailErrorRecipient { get { return emailErrorRecipient_m; } }
+        //address or list of addresses to send notifications to in Notifier agent
+        public static string emailErrorRecipient { get; set; }
 
-        private readonly bool sharding_m;
-        public bool sharding { get { return sharding_m; } }
+        //is this a master agent that takes part in sharding?
+        public static bool sharding { get; set; }
 
-        private readonly string[] shardDatabases_m;
-        public IEnumerable<string> shardDatabases { get { return shardDatabases_m != null ? shardDatabases_m.ToList() : new List<string>(); } }
+        //for shardcoordinator, list of shard databases
+        private static string[] shardDatabases_local { get; set; }
+        public static IEnumerable<string> shardDatabases { get { return shardDatabases_local != null ? shardDatabases_local.ToList() : new List<string>(); } }
 
-        private string masterShard_m;
-        public string masterShard { get { return masterShard_m; } }
+        //one shard to rule them all (which one we pull schema changes from). in a standard sharded setup this can be arbitrary.
+        public static string masterShard { get; set; }
 
-        private readonly TimeSpan[] magicHours_m;
-        private readonly string netezzaPrivateKeyPath_m;
-        public string netezzaPrivateKeyPath { get { return netezzaPrivateKeyPath_m; } }
+        //ssh user for sshing to a netezza slave
+        public static string netezzaUser { get; set; }
 
-        private readonly string netezzaUser_m;
-        public string netezzaUser { get { return netezzaUser_m; } }
-        public virtual TimeSpan[] magicHours { get { return magicHours_m; } }
+        //private key for sshing to a netezza slave
+        public static string netezzaPrivateKeyPath { get; set; }
+       
+        //array of times after which a slave will sync changes
+        public static TimeSpan[] magicHours { get; set; }
 
-        public int dataCopyTimeout { get; set; }
-        public int queryTimeout { get; set; }
+        //timeout for copying data from one server to another
+        public static int dataCopyTimeout { get; set; }
 
-        private readonly RefreshView[] refreshViews_m;
-        public IEnumerable<RefreshView> refreshViews { get { return refreshViews_m; } }
+        //timeout for various queries that run as part of tesla
+        public static int queryTimeout { get; set; }
+
+        //views to be refreshed when a table is altered on a slave
+        public static RefreshView[] refreshViews { get; set; }
 
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
-        [System.Xml.Serialization.XmlRoot("conf")]
+        [XmlRoot("conf")]
         public class ConfigLoader {
             public string logLevel { get; set; }
             public string agentType { get; set; }
@@ -566,14 +552,12 @@ namespace TeslaSQL {
             }
         }
 
-
         //used only on slaves to keep a historical record of changes
         [XmlElement("recordHistoryTable")]
         public bool recordHistoryTable { get; set; }
 
         [XmlIgnore]
         public IList<TColumn> columns = new List<TColumn>();
-
 
         [XmlIgnore]
         public string masterColumnList {
@@ -602,10 +586,19 @@ namespace TeslaSQL {
             }
         }
 
+       
         [XmlIgnore]
         public string simpleColumnList {
             get {
                 return string.Join(",", columns.Select(col => col.name));
+            }
+        }
+
+        
+        [XmlIgnore]
+        public string netezzaColumnList {
+            get {
+                return string.Join(",", columns.Select(col => NetezzaDataUtils.MapReservedWord(col.name)));
             }
         }
 

@@ -13,15 +13,15 @@ namespace TeslaSQL.Agents
     {
 
         //base keyword invokes the base class's constructor
-        public MasterMaintenance(Config config, IDataUtils dataUtils)
-            : base(config, dataUtils, null,null) {
+        public MasterMaintenance(IDataUtils dataUtils)
+            : base(dataUtils, null,null) {
 
         }
 
         public override void ValidateConfig()
         {
-            Config.ValidateRequiredHost(config.master);
-            if (config.masterType == null) {
+            Config.ValidateRequiredHost(Config.master);
+            if (Config.masterType == null) {
                 throw new Exception("MasterMaintenance agent requires a valid SQL flavor for master");
             }
         }

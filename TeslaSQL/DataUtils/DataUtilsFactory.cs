@@ -8,12 +8,12 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// Returns an appropriate class that implements IDataUtils based on the passed in Sql type
         /// </summary>
-        public static IDataUtils GetInstance(Config config, Logger logger, TServer server, SqlFlavor flavor) {
+        public static IDataUtils GetInstance(Logger logger, TServer server, SqlFlavor flavor) {
             switch (flavor) {
                 case SqlFlavor.MSSQL:
-                    return new MSSQLDataUtils(config, logger, server);
+                    return new MSSQLDataUtils(logger, server);
                 case SqlFlavor.Netezza:
-                    return new NetezzaDataUtils(config, logger, server);
+                    return new NetezzaDataUtils(logger, server);
             }
             //if we get here without returning it means something was passed in that isn't supported
             throw new NotImplementedException("Specified SQL types not supported for data copying!");

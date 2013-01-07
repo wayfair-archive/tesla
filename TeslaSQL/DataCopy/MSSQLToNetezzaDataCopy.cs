@@ -146,14 +146,12 @@ namespace TeslaSQL.DataCopy {
                 SqlDataType.Numeric
             };
             var cols = new List<Col>();
-            foreach (Column col in table.Columns) {
+            foreach (Column col in table.Columns) {            
 
+                //TODO
                 //--a few hard coded exceptions - ignoring for now
                 //if @tablename = 'tbljoinMarketTestSegmentVariation'
                 //    SELECT @columnlist = REPLACE(@columnlist, 'NVARCHAR(500)', 'NVARCHAR(100)')
-
-                //if @tablename = 'SM_tracking_log'
-                //    SELECT @columnlist = REPLACE(@columnlist, 'CTID', 'CT_ID')
 
                 string dataType = col.DataType.Name;
 
@@ -167,7 +165,7 @@ namespace TeslaSQL.DataCopy {
                 } else if (shortenedNumericTypes.Contains(col.DataType.SqlDataType)) {
                     dataType += "(" + col.DataType.NumericPrecision + ")";
                 }
-                cols.Add(new Col(col.Name, dataType));
+                cols.Add(new Col(NetezzaDataUtils.MapReservedWord(col.Name), dataType));
             }
             return cols;
         }
