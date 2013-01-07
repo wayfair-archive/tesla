@@ -81,6 +81,18 @@ namespace TeslaSQL {
             //errors are special - they are exceptions that don't stop the program but we want to write them to a database
             //table
             if (logLevel.Equals(LogLevel.Error) && errorLogDB != null &&  dataUtils != null) {
+                string error = "Agent: " + Config.agentType;
+                if (Config.master != null) {
+                    error += " Master: " + Config.master;
+                    error += " DB: " + Config.masterDB;
+                } else if (Config.slave != null) {
+                    error += " Slave: " + Config.slave;
+                    error += " DB: " + Config.slaveDB;
+                } else {
+                    error += " Relay: " + Config.relayServer;
+                    error += " DB: " + Config.relayDB;
+                }
+                error += " - " + message;
                 dataUtils.LogError(message);
             }
         }

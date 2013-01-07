@@ -146,13 +146,7 @@ namespace TeslaSQL.DataCopy {
                 SqlDataType.Numeric
             };
             var cols = new List<Col>();
-            foreach (Column col in table.Columns) {            
-
-                //TODO
-                //--a few hard coded exceptions - ignoring for now
-                //if @tablename = 'tbljoinMarketTestSegmentVariation'
-                //    SELECT @columnlist = REPLACE(@columnlist, 'NVARCHAR(500)', 'NVARCHAR(100)')
-
+            foreach (Column col in table.Columns) {
                 string dataType = col.DataType.Name;
 
                 string modDataType = DataType.MapDataType(SqlFlavor.MSSQL, SqlFlavor.Netezza, dataType);
@@ -161,7 +155,15 @@ namespace TeslaSQL.DataCopy {
                     continue;
                 }
                 if (shortenedTypes.Contains(col.DataType.SqlDataType)) {
-                    dataType += "(" + ((col.DataType.MaximumLength > 500 || col.DataType.MaximumLength < 1) ? 500 : col.DataType.MaximumLength) + ")";
+                    //see if there are any column modifiers which override our length defaults
+                    ColumnModifier[] modifiers = Config.tables.Where(t => t.Name == table.Name).FirstOrDefault().columnModifiers;
+                    ColumnModifier mod = modifiers.Where(c => ((c.columnName == col.Name) && (c.type == "ShortenField"))).FirstOrDefault();
+
+                    if (mod != null) {
+                        dataType += "(" + mod.length + ")";
+                    } else {
+                        dataType += "(" + ((col.DataType.MaximumLength > Config.netezzaStringLength || col.DataType.MaximumLength < 1) ? Config.netezzaStringLength : col.DataType.MaximumLength) + ")";
+                    }
                 } else if (shortenedNumericTypes.Contains(col.DataType.SqlDataType)) {
                     dataType += "(" + col.DataType.NumericPrecision + ")";
                 }
