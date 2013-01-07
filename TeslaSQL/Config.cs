@@ -65,6 +65,7 @@ namespace TeslaSQL {
             queryTimeout = c.queryTimeout > 0 ? c.queryTimeout : 12000;
             netezzaPrivateKeyPath_m = c.netezzaPrivateKeyPath;
             netezzaUser_m = c.netezzaUser;
+            refreshViews_m = c.refreshViews;
 
             if (c.magicHours != null) {
                 magicHours_m = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
@@ -435,6 +436,9 @@ namespace TeslaSQL {
         public int dataCopyTimeout { get; set; }
         public int queryTimeout { get; set; }
 
+        private readonly RefreshView[] refreshViews_m;
+        public IEnumerable<RefreshView> refreshViews { get { return refreshViews_m; } }
+
         #endregion
 
         //This needs to be a class for the XmlRoot attribute to deserialize properly
@@ -479,6 +483,8 @@ namespace TeslaSQL {
             public string netezzaUser { get; set; }
             public string netezzaPrivateKeyPath { get; set; }
 
+            public RefreshView[] refreshViews { get; set; }
+
             [XmlArrayItem("magicHour")]
             public string[] magicHours { get; set; }
 
@@ -489,7 +495,18 @@ namespace TeslaSQL {
             public string[] shardDatabases { get; set; }
         }
 
+        [XmlType("refreshView")]
+        public class RefreshView {
+            public string viewName { get; set; }
+            public string db { get; set; }
+            public string command { get; set; }
+            [XmlIgnore]
+            public string tableName { get { return Regex.Replace(viewName, "vw", "TBL", RegexOptions.IgnoreCase); } }
 
+            public override string ToString() {
+                return string.Format("{0}..{1}: command = {2}", db, viewName, command);
+            }
+        }
 
 
 

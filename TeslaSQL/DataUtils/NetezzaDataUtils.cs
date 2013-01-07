@@ -187,16 +187,25 @@ namespace TeslaSQL.DataUtils {
             return new InsertDelete(insertCmd, deleteCmd);
         }
 
-        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
-            throw new NotImplementedException();
+        public void CopyIntoHistoryTable(ChangeTable t, string dbName) {
+            string sql;
+            if (CheckTableExists(dbName, t.historyName, t.schemaName)) {
+                logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
+                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
+                logger.Log(sql, LogLevel.Debug);
+            } else {
+                logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
+                sql = string.Format("CREATE TABLE {0} AS SELECT {1} AS CTHistID, * FROM {2}", t.historyName,t.ctid, t.ctName);
+                logger.Log(sql, LogLevel.Debug);
+            }
+            var cmd = new OleDbCommand(sql);
+            SqlNonQuery(dbName, cmd);
         }
-        public void RenameColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string newColumnName) {
-            throw new NotImplementedException("Still need to implement");
+        public void RenameColumn(TableConf t, string dbName, string schema, string table, string columnName, string newColumnName) {
+            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + config.slave, LogLevel.Error);
         }
         public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
-
-            throw new NotImplementedException("Still need to implement");
+            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + config.slave, LogLevel.Error);
         }
         public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             if (CheckColumnExists(dbName, schema, table, columnName)) {
@@ -210,6 +219,18 @@ namespace TeslaSQL.DataUtils {
         }
 
         private void RefreshViews(string dbName, string tableName) {
+            var refresh = config.refreshViews.Where(r => r.db.ToLower() == dbName.ToLower() && r.tableName.ToLower() == tableName.ToLower()).FirstOrDefault();
+            if (refresh == null) {
+                return;
+            }
+            string sql = refresh.command;
+            var cmd = new OleDbCommand(sql);
+            try {
+                SqlNonQuery(dbName, cmd);
+            } catch (Exception e) {
+                throw new Exception("Please check any pending schema changes to be applied on Netezza before refreshing the view::" + dbName + ".." + refresh.viewName);
+            }
+
         }
 
         public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
