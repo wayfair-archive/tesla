@@ -66,7 +66,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="message">The message to log</param>
         /// <param name="level">LogLevel value, gets compared to the configured logLevel variable</param>
-        public void Log(string message, LogLevel level) {
+        public void Log(object message, LogLevel level) {
             switch (level) {
                 case LogLevel.Trace:
                     foreach (var log in logs) { log.Debug(message); }
@@ -103,7 +103,7 @@ namespace TeslaSQL {
                     error += " DB: " + Config.relayDB;
                 }
                 error += " - " + message;
-                dataUtils.LogError(message);
+                dataUtils.LogError(message.ToString());
             }
         }
         public void Log(Exception e, string message = null) {
