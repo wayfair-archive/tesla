@@ -37,7 +37,6 @@ using log4net.Config;
 
 namespace TeslaSQL {
     public class Program {
-        private const string log4netFile = @"D:\tesla\log4net.xml";
         static void Main(string[] args) {
             int myint = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
             Params parameters = new Params();
@@ -61,9 +60,9 @@ namespace TeslaSQL {
             Config.Load(parameters.configFile);
             Console.Title = Config.agentType + " | TeslaSQL";
             var logger = new Logger(Config.logLevel, Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
-            XmlConfigurator.Configure(new System.IO.FileInfo(log4netFile));
+            XmlConfigurator.Configure(new System.IO.FileInfo(parameters.log4NetConfigPath));
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
-
+            return;
 
             if (parameters.validate) {
                 Config.DumpConfig(parameters.more);
@@ -151,6 +150,7 @@ namespace TeslaSQL {
             public bool showHelp { get; set; }
             public string logFile { get; set; }
             public string dataMappingFile { get; set; }
+            public string log4NetConfigPath { get; set; }
             public OptionSet optionSet { get; set; }
         }
 
@@ -207,10 +207,12 @@ namespace TeslaSQL {
               ( int v) => parameters.more = v },
             { "h|help" ,  "show this message and exit" ,
               v => parameters.showHelp = v != null },
-            {"f|logfile=", "The log file {PATH}.",
+            { "f|logfile=", "The log file {PATH}.",
                 v => parameters.logFile = v },
             { "p|datamappingfile=", "The data type mappings file {PATH} used by Slave agents.",
-                v => parameters.dataMappingFile = v}
+                v => parameters.dataMappingFile = v},
+            { "n|log4netfile=", "The log4net configuration file {PATH}.",
+                v => parameters.log4NetConfigPath = v}
             };
 
             //Save the option set object to the params struct. This is required to run ShowHelp if --help is passed in.
