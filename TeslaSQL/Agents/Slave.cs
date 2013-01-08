@@ -8,8 +8,10 @@ using System.Xml;
 using Xunit;
 using TeslaSQL.DataUtils;
 using TeslaSQL.DataCopy;
-using Microsoft.SqlServer.Management.Smo;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
 #endregion
 
 namespace TeslaSQL.Agents {
@@ -136,6 +138,41 @@ namespace TeslaSQL.Agents {
             return batches;
         }
 
+        /// <summary>
+        /// Runs a single change tracking batch
+        /// </summary>
+        /// <param name="CTID">Change tracking batch object to work on</param>
+        private void RunSingleBatch(ChangeTrackingBatch ctb) {
+            Stopwatch sw;
+            ApplySchemaChangesAndWrite(ctb);
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
+                logger.Log("Downloading changes", LogLevel.Debug);
+                sw = Stopwatch.StartNew();
+                CopyChangeTables(Config.tables, Config.relayDB, Config.slaveCTDB, ctb.CTID);
+                logger.Log("CopyChangeTables: " + sw.Elapsed, LogLevel.Trace);
+                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
+                //marking this field so that completed slave batches will have the same values
+                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
+            } 
+
+            logger.Log("Populating table list", LogLevel.Debug);
+            List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.slaveCTDB, ctb.CTID);
+
+            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
+                logger.Log("Applying changes", LogLevel.Debug);
+                SetFieldListsSlave(Config.slaveCTDB, Config.tables, ctb);
+                sw = Stopwatch.StartNew();
+                ApplyChanges(Config.tables, Config.slaveDB, existingCTTables, ctb.CTID);
+                logger.Log("ApplyChanges: " + sw.Elapsed, LogLevel.Trace);
+                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
+            }
+            logger.Log("Syncing history tables", LogLevel.Debug);
+            sw = Stopwatch.StartNew();
+            SyncHistoryTables(Config.tables, Config.slaveCTDB, Config.slaveDB, existingCTTables);
+            logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
+            sourceDataUtils.MarkBatchComplete(Config.relayDB, ctb.CTID, DateTime.Now, Config.slave);
+        }
+
 
         /// <summary>
         /// Consolidates multiple batches and runs them as a group
@@ -164,7 +201,7 @@ namespace TeslaSQL.Agents {
 
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
                 logger.Log("Consolidating batches", LogLevel.Trace);
-                ConsolidateBatches(existingCTTables, batches);
+                ConsolidateBatches(existingCTTables);
                 sourceDataUtils.WriteBitWise(Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             }
 
@@ -195,10 +232,9 @@ namespace TeslaSQL.Agents {
             logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + Config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
         }
 
-        private IEnumerable<ChangeTable> ConsolidateBatches(IList<ChangeTable> tables, IList<ChangeTrackingBatch> batches) {
-            //TODO parallelism
-            IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.slaveType.Value, sourceDataUtils, sourceDataUtils, logger);
+        private IEnumerable<ChangeTable> ConsolidateBatches(IList<ChangeTable> tables) {            
             var lu = new Dictionary<string, List<ChangeTable>>();
+            var actions = new List<Action>(); 
             foreach (var changeTable in tables) {
                 if (!lu.ContainsKey(changeTable.name)) {
                     lu[changeTable.name] = new List<ChangeTable>();
@@ -212,56 +248,28 @@ namespace TeslaSQL.Agents {
                 }
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
                 consolidatedTables.Add(lastChangeTable);
-                try {
-                    dataCopy.CopyTable(Config.relayDB, lastChangeTable.ctName, table.schemaName, Config.relayDB, Config.dataCopyTimeout, lastChangeTable.consolidatedName);
-                    foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid)) {
-                        sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, Config.relayDB, table.schemaName);
+                TableConf tLocal = table;
+                IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.slaveType.Value, sourceDataUtils, sourceDataUtils, logger);
+                Action act = () => {
+                    try {
+                        dataCopy.CopyTable(Config.relayDB, lastChangeTable.ctName, tLocal.schemaName, Config.relayDB, Config.dataCopyTimeout, lastChangeTable.consolidatedName);
+                        foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid)) {
+                            sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, Config.relayDB, tLocal.schemaName);
+                        }
+                        sourceDataUtils.RemoveDuplicatePrimaryKeyChangeRows(tLocal, lastChangeTable.consolidatedName, Config.relayDB);
+                    } catch (Exception e) {
+                        HandleException(e, tLocal);
                     }
-                    sourceDataUtils.RemoveDuplicatePrimaryKeyChangeRows(table, lastChangeTable.consolidatedName, Config.relayDB);
-                } catch (Exception e) {
-                    HandleException(e, table);
-                }
+                };
+                actions.Add(act);
             }
+            logger.Log("Parallel invocation of " + actions.Count + " changetable consolidations", LogLevel.Trace);
+            var options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = Config.maxThreads;
+            Parallel.Invoke(options, actions.ToArray());
             return consolidatedTables;
-        }
+        }        
 
-
-        /// <summary>
-        /// Runs a single change tracking batch
-        /// </summary>
-        /// <param name="CTID">Change tracking batch object to work on</param>
-        private void RunSingleBatch(ChangeTrackingBatch ctb) {
-            var existingCTTables = new List<ChangeTable>();
-            Stopwatch sw;
-            ApplySchemaChangesAndWrite(ctb);
-            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
-                logger.Log("Downloading changes", LogLevel.Debug);
-                sw = Stopwatch.StartNew();
-                existingCTTables = CopyChangeTables(Config.tables, Config.relayDB, Config.slaveCTDB, ctb.CTID);
-                logger.Log("CopyChangeTables: " + sw.Elapsed, LogLevel.Trace);
-                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
-                //marking this field so that completed slave batches will have the same values
-                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
-            } else {
-                logger.Log("Changes downloaded, populating tables", LogLevel.Debug);
-                //since CopyChangeTables doesn't need to be called to fill in CT table list, get it from the slave instead
-                existingCTTables = PopulateTableList(Config.tables, Config.slaveCTDB, ctb.CTID);
-            }
-
-            if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
-                logger.Log("Applying changes", LogLevel.Debug);
-                SetFieldListsSlave(Config.slaveCTDB, Config.tables, ctb);
-                sw = Stopwatch.StartNew();
-                ApplyChanges(Config.tables, Config.slaveDB, existingCTTables, ctb.CTID);
-                logger.Log("ApplyChanges: " + sw.Elapsed, LogLevel.Trace);
-                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
-            }
-            logger.Log("Syncing history tables", LogLevel.Debug);
-            sw = Stopwatch.StartNew();
-            SyncHistoryTables(Config.tables, Config.slaveCTDB, Config.slaveDB, existingCTTables);
-            logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
-            sourceDataUtils.MarkBatchComplete(Config.relayDB, ctb.CTID, DateTime.Now, Config.slave);
-        }
         private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
             foreach (var table in tables) {
                 var cols = sourceDataUtils.GetFieldList(dbName, table.ToCTName(batch.CTID), table.schemaName);
@@ -276,6 +284,7 @@ namespace TeslaSQL.Agents {
                 SetFieldList(table, cols);
             }
         }
+
         private void ApplySchemaChangesAndWrite(ChangeTrackingBatch ctb) {
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                 logger.Log("Applying schema changes", LogLevel.Debug);
@@ -289,24 +298,33 @@ namespace TeslaSQL.Agents {
         }
 
         private void SyncHistoryTables(TableConf[] tableConf, string slaveCTDB, string slaveDB, List<ChangeTable> existingCTTables) {
-            //TODO parallelism
+            var actions = new List<Action>();
             foreach (var t in existingCTTables) {
                 var s = tableConf.First(tc => tc.Name.Equals(t.name, StringComparison.InvariantCultureIgnoreCase));
                 if (!s.recordHistoryTable) {
                     logger.Log("Skipping writing history table for " + t.name + " because it is not configured", LogLevel.Debug);
                     continue;
                 }
-                logger.Log("Writing history table for " + t.name, LogLevel.Debug);
-                try {
-                    destDataUtils.CopyIntoHistoryTable(t, slaveCTDB);
-                } catch (Exception e) {
-                    HandleException(e, s);
-                }
+                ChangeTable tLocal = t;
+                Action act = () => {
+                    logger.Log("Writing history table for " + tLocal.name, LogLevel.Debug);
+                    try {
+                        destDataUtils.CopyIntoHistoryTable(tLocal, slaveCTDB);
+                        logger.Log("Successfully wrote history for " + tLocal.name, LogLevel.Debug);
+                    } catch (Exception e) {
+                        HandleException(e, s);
+                    }
+                };
+                actions.Add(act);
             }
+
+            logger.Log("Parallel invocation of " + actions.Count + " history table syncs", LogLevel.Trace);
+            var options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = Config.maxThreads;
+            Parallel.Invoke(options, actions.ToArray());
         }
 
         private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<ChangeTable> tables, Int64 CTID) {
-            //TODO parallelism
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var table in tableConf) {
                 if (tables.Any(s => s.name == table.Name)) {
@@ -327,16 +345,25 @@ namespace TeslaSQL.Agents {
                     }
                 }
             }
+            var actions = new List<Action>();
             foreach (var tableArchive in hasArchive) {
-                try {
-                    logger.Log("Applying changes for table " + tableArchive.Key.Name + (hasArchive == null ? "" : " (and archive)"), LogLevel.Debug);
-                    var sw = Stopwatch.StartNew();
-                    destDataUtils.ApplyTableChanges(tableArchive.Key, tableArchive.Value, Config.slaveDB, CTID, Config.slaveCTDB);
-                    logger.Log("ApplyTableChanges: " + sw.Elapsed, LogLevel.Trace);
-                } catch (Exception e) {
-                    HandleException(e, tableArchive.Key);
-                }
+                KeyValuePair<TableConf, TableConf> tLocal = tableArchive;
+                Action act = () => {
+                    try {
+                        logger.Log("Applying changes for table " + tLocal.Key.Name + (hasArchive == null ? "" : " (and archive)"), LogLevel.Debug);
+                        var sw = Stopwatch.StartNew();
+                        destDataUtils.ApplyTableChanges(tLocal.Key, tLocal.Value, Config.slaveDB, CTID, Config.slaveCTDB);
+                        logger.Log("ApplyTableChanges " + tLocal.Key.Name + ": " + sw.Elapsed, LogLevel.Trace);
+                    } catch (Exception e) {
+                        HandleException(e, tLocal.Key);
+                    }
+                };
+                actions.Add(act);
             }
+            logger.Log("Parallel invocation of " + actions.Count + " table change applies", LogLevel.Trace);
+            var options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = Config.maxThreads;
+            Parallel.Invoke(options, actions.ToArray());
         }
 
 
@@ -386,40 +413,40 @@ namespace TeslaSQL.Agents {
         /// <param name="sourceCTDB">Source CT database</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
-        private List<ChangeTable> CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
-            bool found = false;
-            var tableList = new List<ChangeTable>();
-
+        private void CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
             if (Config.slave != null && Config.slave == Config.relayServer && sourceCTDB == destCTDB) {
-                logger.Log("Skipping download because slave is equal to relay. Populating table list instead.", LogLevel.Debug);
-                return PopulateTableList(Config.tables, destCTDB, CTID);
+                logger.Log("Skipping download because slave is equal to relay.", LogLevel.Debug);
+                return;
             } 
-                   
-            //TODO parallelism
-            IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.slaveType.Value, sourceDataUtils, destDataUtils, logger);
+
+            var actions = new List<Action>();
             foreach (TableConf t in tables) {
-                found = false;
+                IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.slaveType.Value, sourceDataUtils, destDataUtils, logger);
                 var ct = new ChangeTable(t.Name, CTID, t.schemaName, Config.slave);
                 string sourceCTTable = isConsolidated ? ct.consolidatedName : ct.ctName;
                 string destCTTable = ct.ctName;
-                try {
-                    //hard coding timeout at 1 hour for bulk copy
-                    logger.Log("Copying table " + t.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
-                    var sw = Stopwatch.StartNew();
-                    dataCopy.CopyTable(sourceCTDB, sourceCTTable, t.schemaName, destCTDB, 36000, destCTTable);
-                    logger.Log("CopyTable: " + sw.Elapsed, LogLevel.Trace);
-                    found = true;
-                } catch (DoesNotExistException) {
-                    //this is a totally normal and expected case since we only publish changetables when data actually changed
-                    logger.Log("No changes to pull for table " + t.schemaName + "." + sourceCTTable + " because it does not exist ", LogLevel.Debug);
-                } catch (Exception e) {
-                    HandleException(e, t);
-                }
-                if (found) {
-                    tableList.Add(ct);
-                }
+                TableConf tLocal = t;
+                Action act = () => {
+                    try {
+                        //hard coding timeout at 1 hour for bulk copy
+                        logger.Log("Copying table " + tLocal.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
+                        var sw = Stopwatch.StartNew();
+                        dataCopy.CopyTable(sourceCTDB, sourceCTTable, tLocal.schemaName, destCTDB, 36000, destCTTable);
+                        logger.Log("CopyTable: " + sw.Elapsed, LogLevel.Trace);
+                    } catch (DoesNotExistException) {
+                        //this is a totally normal and expected case since we only publish changetables when data actually changed
+                        logger.Log("No changes to pull for table " + tLocal.schemaName + "." + sourceCTTable + " because it does not exist ", LogLevel.Debug);
+                    } catch (Exception e) {
+                        HandleException(e, tLocal);
+                    }
+                };
+                actions.Add(act);                
             }
-            return tableList;
+            logger.Log("Parallel invocation of " + actions.Count + " changetable downloads", LogLevel.Trace);
+            var options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = Config.maxThreads;
+            Parallel.Invoke(options, actions.ToArray());
+            return;
         }
 
         public void ApplySchemaChanges(TableConf[] tables, string sourceDB, string destDB, Int64 CTID) {

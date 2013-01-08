@@ -266,6 +266,7 @@ namespace TeslaSQL.Agents {
             Console.WriteLine(Config.maxThreads);
             var options = new ParallelOptions();
             options.MaxDegreeOfParallelism = Config.maxThreads;
+            logger.Log("Parallel invocation of " + actions.Count + " change captures", LogLevel.Trace);
             Parallel.Invoke(options, actions.ToArray());
             return changesCaptured;
         }
