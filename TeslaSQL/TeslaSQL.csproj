@@ -54,6 +54,9 @@
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="gelf4net">
+      <HintPath>..\gelf4net\gelf4net.dll</HintPath>
+    </Reference>
     <Reference Include="log4net">
       <HintPath>..\log4net\log4net.dll</HintPath>
     </Reference>

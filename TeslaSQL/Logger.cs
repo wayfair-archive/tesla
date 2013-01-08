@@ -14,8 +14,19 @@ namespace TeslaSQL {
         private string errorLogDB { get; set; }
         public IDataUtils dataUtils { private get; set; }
         private readonly string logFile;
-        private static ILog log = LogManager.GetLogger(typeof(Logger));
 
+        private static IEnumerable<ILog> logs;
+
+        static Logger() {
+            ILog consoleLog = LogManager.GetLogger("console");
+            ILog fileLog = LogManager.GetLogger("file");
+            ILog grayLog = LogManager.GetLogger("graylog");
+            logs = new List<ILog> { 
+                consoleLog,
+                fileLog,
+                grayLog
+            };
+        }
         private StatsdPipe statsd;
 
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile) {
@@ -56,41 +67,24 @@ namespace TeslaSQL {
         /// <param name="message">The message to log</param>
         /// <param name="level">LogLevel value, gets compared to the configured logLevel variable</param>
         public void Log(string message, LogLevel level) {
-            //compareto method returns a number less than 0 if logLevel is less than configured
-            //if (logLevel.CompareTo(this.logLevel) >= 0) {
-            //    var frame = new StackFrame(1);
-            //    var method = frame.GetMethod();
-            //    var obj = method.DeclaringType.ToString();
-            //    var firstLine = DateTime.Now + ": " + obj + " " + method.Name;
-            //    var secondLine = logLevel + ": " + message;
-            //    Console.WriteLine(firstLine);
-            //    Console.WriteLine(secondLine);
-            //    if (logFile != null) {
-            //        using (var writer = new StreamWriter(logFile, true)) {
-            //            writer.WriteLine(firstLine);
-            //            writer.WriteLine(secondLine);
-            //            writer.Flush();
-            //        }
-            //    }
-            //}
             switch (level) {
                 case LogLevel.Trace:
-                    log.Debug(message);
+                    foreach (var log in logs) { log.Debug(message); }
                     break;
                 case LogLevel.Debug:
-                    log.Debug(message);
+                    foreach (var log in logs) { log.Debug(message); }
                     break;
                 case LogLevel.Info:
-                    log.Info(message);
+                    foreach (var log in logs) { log.Info(message); }
                     break;
                 case LogLevel.Warn:
-                    log.Warn(message);
+                    foreach (var log in logs) { log.Warn(message); }
                     break;
                 case LogLevel.Error:
-                    log.Error(message);
+                    foreach (var log in logs) { log.Error(message); }
                     break;
                 case LogLevel.Critical:
-                    log.Fatal(message);
+                    foreach (var log in logs) { log.Fatal(message); }
                     break;
             }
 

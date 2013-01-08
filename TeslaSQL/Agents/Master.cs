@@ -253,13 +253,13 @@ namespace TeslaSQL.Agents {
             var actions = new List<Action>();            
             foreach (TableConf t in tables) {
                 //local variables inside the loop required for the action to bind properly
-                TableConf t_local = t;
+                TableConf table = t;
                 KeyValuePair<string, Int64> result;
                 Action act = () => {
-                    logger.Log("Creating changetable for " + t_local.schemaName + "." + t_local.Name, LogLevel.Debug);
-                    result = CreateChangeTable(t_local, sourceDB, sourceCTDB, startVersion, stopVersion, CTID);
+                    logger.Log("Creating changetable for " + table.schemaName + "." + table.Name, LogLevel.Debug);
+                    result = CreateChangeTable(table, sourceDB, sourceCTDB, startVersion, stopVersion, CTID);
                     changesCaptured.TryAdd(result.Key, result.Value);
-                    logger.Log(Convert.ToString(result.Value) + " changes captured for table " + t_local.schemaName + "." + t_local.Name, LogLevel.Trace);
+                    logger.Log(result.Value + " changes captured for table " + table.schemaName + "." + table.Name, LogLevel.Trace);
                 };
                 actions.Add(act);
             }

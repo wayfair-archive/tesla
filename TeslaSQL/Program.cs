@@ -62,9 +62,8 @@ namespace TeslaSQL {
             var logger = new Logger(Config.logLevel, Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
             XmlConfigurator.Configure(new System.IO.FileInfo(log4netFile));
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
-            for (int i = 0; i < 500; i++) {
-                logger.Log("" +i, LogLevel.Info);
-            }
+            
+
             if (parameters.validate) {
                 Config.DumpConfig(parameters.more);
                 return;
