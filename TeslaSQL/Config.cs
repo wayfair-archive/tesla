@@ -460,8 +460,7 @@ namespace TeslaSQL {
 
                     dictionary.Add(cm.columnName, "LEFT(CAST(P." + cm.columnName + " AS NVARCHAR(MAX))," + Convert.ToString(cm.length) + ") as " + cm.columnName);
                 } else {
-                    //TODO do we want to throw this, or only if it's a stopOnError table, or not at all?
-                    throw new NotSupportedException("Exception type " + cm.type + " not supported - exception for column " + cm.columnName + " violates this");
+                    throw new NotSupportedException("Modifier type " + cm.type + " not supported - modifier for column " + cm.columnName + " violates this");
                 }
             }
             return dictionary;

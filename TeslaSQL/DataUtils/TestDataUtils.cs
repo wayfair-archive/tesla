@@ -143,8 +143,6 @@ namespace TeslaSQL.DataUtils {
             //add it to the datatable
             tblCTVersion.Rows.Add(row);
             //commit the change
-            //TODO is this required? seems like it may not be
-            //tblCTVersion.AcceptChanges();
             return CTID;
         }
 
