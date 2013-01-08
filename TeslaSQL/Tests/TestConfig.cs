@@ -47,7 +47,6 @@ namespace TeslaSQL.Tests {
             Assert.Throws<InvalidDataException>(delegate { Config.ValidateRequiredHost(null); });
 
             //invalid hostnames and ips
-            //TODO decide whether we care that bogus ips like 256.0.0.0 will get through because they are valid hostnames?
             Assert.Throws<InvalidDataException>(delegate { Config.ValidateRequiredHost(" startswithspace"); });
             Assert.Throws<InvalidDataException>(delegate { Config.ValidateRequiredHost("has a space"); });
             Assert.Throws<InvalidDataException>(delegate { Config.ValidateRequiredHost("has\twhitespace"); });

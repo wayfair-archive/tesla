@@ -39,6 +39,7 @@ namespace TeslaSQL {
     public class Program {
         private const string log4netFile = @"D:\tesla\log4net.xml";
         static void Main(string[] args) {
+            int myint = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);

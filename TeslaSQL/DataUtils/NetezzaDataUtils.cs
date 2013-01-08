@@ -70,16 +70,11 @@ namespace TeslaSQL.DataUtils {
             int numrows;
             //using block to avoid resource leaks
             using (OleDbConnection conn = new OleDbConnection(connStr)) {
-                try {
-                    //open database connection
-                    conn.Open();
-                    cmd.Connection = conn;
-                    cmd.CommandTimeout = timeout;
-                    numrows = cmd.ExecuteNonQuery();
-                } catch (Exception e) {
-                    //TODO figure out what to catch/rethrow
-                    throw e;
-                }
+                //open database connection
+                conn.Open();
+                cmd.Connection = conn;
+                cmd.CommandTimeout = timeout;
+                numrows = cmd.ExecuteNonQuery();
             }
             return numrows;
         }

@@ -364,7 +364,7 @@ namespace TeslaSQL.Agents {
                     Action act = () => PublishChangeTable(localT, sourceCTDB, destCTDB, CTID);
                     actions.Add(act);
                 }
-            }
+            }            
             logger.Log("Parallel invocation of " + actions.Count + " changetable publishes", LogLevel.Trace);   
             var options = new ParallelOptions();
             options.MaxDegreeOfParallelism = Config.maxThreads;

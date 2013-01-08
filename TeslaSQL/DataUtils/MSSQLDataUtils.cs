@@ -83,16 +83,10 @@ namespace TeslaSQL.DataUtils {
             int numrows;
             //using block to avoid resource leaks
             using (SqlConnection conn = new SqlConnection(connStr)) {
-                try {
-                    //open database connection
-                    conn.Open();
-                    cmd.Connection = conn;
-                    cmd.CommandTimeout = timeout;
-                    numrows = cmd.ExecuteNonQuery();
-                } catch (Exception e) {
-                    //TODO figure out what to catch/rethrow
-                    throw e;
-                }
+                conn.Open();
+                cmd.Connection = conn;
+                cmd.CommandTimeout = timeout;
+                numrows = cmd.ExecuteNonQuery();
             }
             return numrows;
         }
@@ -448,9 +442,8 @@ namespace TeslaSQL.DataUtils {
             //attempt to get smo table object
             try {
                 t_smo = GetSmoTable(dbName, table, schema);
-            } catch (DoesNotExistException) {
-                //TODO figure out if we also want to throw here
-                logger.Log("Unable to get field list for " + dbName + "." + schema + "." + table + " because it does not exist", LogLevel.Error);
+            } catch (DoesNotExistException) {                
+                logger.Log("Unable to get field list for " + dbName + "." + schema + "." + table + " because it does not exist", LogLevel.Debug);
                 return dict;
             }
 
@@ -820,12 +813,12 @@ namespace TeslaSQL.DataUtils {
 
 
         public DataTable GetPendingCTSlaveVersions(string dbName) {
-            //TODO remove hardcoded 255
-            string query = @"SELECT * FROM tblCTSlaveVersion
+            string query = string.Format(
+                        @"SELECT * FROM tblCTSlaveVersion
                             WHERE CTID > 
                             (
-                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE syncBitWise = 255
-                            )";
+                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE syncBitWise = {0}
+                            )", Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum());
             SqlCommand cmd = new SqlCommand(query);
             return SqlQuery(dbName, cmd);
         }
@@ -871,8 +864,6 @@ namespace TeslaSQL.DataUtils {
 
 
         public void MergeCTTable(TableConf table, string destDB, string sourceDB, long CTID) {
-
-
             //TODO this is probably unnecessary; maybe just use full column list in all conditions.
             var mergeList = table.columns.Any(c => !c.isPk) ? table.mergeUpdateList : string.Join(",", table.columns.Select(c => String.Format("P.{0} = CT.{0}", c.name)));
             var columnList = string.Join(",", table.columns.Select(c => c.name));
