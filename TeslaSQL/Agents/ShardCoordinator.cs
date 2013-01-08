@@ -139,7 +139,9 @@ namespace TeslaSQL.Agents {
             //actually it looks like what it does is wrap its exceptions in an AggregateException. We don't ever catch those
             //though because if any exceptions happen inside of MergeTable it would generally be due to things like the server
             //being down or a query timeout.
-            Parallel.Invoke(actions.ToArray());
+            var options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = Config.maxThreads;
+            Parallel.Invoke(options, actions.ToArray());
         }
 
         private void MergeTable(ChangeTrackingBatch batch, Dictionary<string, List<TColumn>> dbColumns, TableConf table, string firstDB) {

@@ -12,6 +12,7 @@ using TeslaSQL.DataUtils;
 using TeslaSQL.DataCopy;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 #endregion
 
 namespace TeslaSQL.Agents {
@@ -52,7 +53,7 @@ namespace TeslaSQL.Agents {
             }
             logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
             DateTime previousSyncStartTime;
-            Dictionary<string, Int64> changesCaptured;
+            IDictionary<string, Int64> changesCaptured;
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
                 logger.Log("Beginning publish schema changes phase", LogLevel.Info);
@@ -247,15 +248,25 @@ namespace TeslaSQL.Agents {
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
         /// <param name="CTID">CT batch ID this is being run for</param>
-        protected Dictionary<string, Int64> CreateChangeTables(TableConf[] tables, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
-            Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64>();
-            KeyValuePair<string, Int64> result;
+        protected IDictionary<string, Int64> CreateChangeTables(TableConf[] tables, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
+            var changesCaptured = new ConcurrentDictionary<string, Int64>();
+            var actions = new List<Action>();            
             foreach (TableConf t in tables) {
-                logger.Log("Creating changetable for " + t.schemaName + "." + t.Name, LogLevel.Debug);
-                result = CreateChangeTable(t, sourceDB, sourceCTDB, startVersion, stopVersion, CTID);
-                changesCaptured.Add(result.Key, result.Value);
-                logger.Log(Convert.ToString(result.Value) + " changes captured for table " + t.schemaName + "." + t.Name, LogLevel.Trace);
+                //local variables inside the loop required for the action to bind properly
+                TableConf t_local = t;
+                KeyValuePair<string, Int64> result;
+                Action act = () => {
+                    logger.Log("Creating changetable for " + t_local.schemaName + "." + t_local.Name, LogLevel.Debug);
+                    result = CreateChangeTable(t_local, sourceDB, sourceCTDB, startVersion, stopVersion, CTID);
+                    changesCaptured.TryAdd(result.Key, result.Value);
+                    logger.Log(Convert.ToString(result.Value) + " changes captured for table " + t_local.schemaName + "." + t_local.Name, LogLevel.Trace);
+                };
+                actions.Add(act);
             }
+            Console.WriteLine(Config.maxThreads);
+            var options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = Config.maxThreads;
+            Parallel.Invoke(options, actions.ToArray());
             return changesCaptured;
         }
 
@@ -338,7 +349,7 @@ namespace TeslaSQL.Agents {
         /// <param name="sourceCTDB">Source CT database</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
-        protected void PublishChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, Dictionary<string, Int64> changesCaptured) {
+        protected void PublishChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, IDictionary<string, Int64> changesCaptured) {
             if (Config.master != null && Config.master == Config.relayServer && sourceCTDB == destCTDB) {
                 logger.Log("Skipping publish because master is equal to relay.", LogLevel.Debug);
                 return;
@@ -353,8 +364,10 @@ namespace TeslaSQL.Agents {
                     actions.Add(act);
                 }
             }
-            logger.Log("Parallel invocation of " + actions.Count + " changetable publishes", LogLevel.Trace);            
-            Parallel.Invoke(actions.ToArray());
+            logger.Log("Parallel invocation of " + actions.Count + " changetable publishes", LogLevel.Trace);   
+            var options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = Config.maxThreads;
+            Parallel.Invoke(options, actions.ToArray());
         }
 
         protected void PublishChangeTable(TableConf table, string sourceCTDB, string destCTDB, Int64 CTID) {

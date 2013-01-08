@@ -60,7 +60,8 @@ namespace TeslaSQL {
             netezzaPrivateKeyPath = c.netezzaPrivateKeyPath;
             netezzaUser = c.netezzaUser;
             refreshViews = c.refreshViews;
-            
+            maxThreads_local = c.maxThreads;
+
             if (c.magicHours != null) {
                 magicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
             }
@@ -430,6 +431,13 @@ namespace TeslaSQL {
         //don't use big strings in data warehouses, this helps avoid those limits.
         public static int netezzaStringLength { get; set; }
 
+        //maximum number of threads to use in multithreaded portions of tesla
+        private static int maxThreads_local;
+        public static int maxThreads { 
+            get { return maxThreads_local > 0 ? maxThreads_local : -1; }
+            set { maxThreads_local = value; }
+        }
+
         #endregion
 
         
@@ -456,7 +464,6 @@ namespace TeslaSQL {
                     throw new NotSupportedException("Exception type " + cm.type + " not supported - exception for column " + cm.columnName + " violates this");
                 }
             }
-
             return dictionary;
         }
 
@@ -504,7 +511,7 @@ namespace TeslaSQL {
         public string netezzaUser { get; set; }
         public string netezzaPrivateKeyPath { get; set; }
         public int netezzaStringLength { get; set; }
-
+        public int maxThreads { get; set; }
         public RefreshView[] refreshViews { get; set; }
 
         [XmlArrayItem("magicHour")]

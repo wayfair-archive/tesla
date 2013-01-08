@@ -101,7 +101,7 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestCreateChangeTables() {
-            Dictionary<string, Int64> result = CreateChangeTables(Config.tables, "testdb", "CT_testdb", 1000, 2000, 101);
+            IDictionary<string, Int64> result = CreateChangeTables(Config.tables, "testdb", "CT_testdb", 1000, 2000, 101);
             Assert.Equal(1, result["dbo.test1"]);
             Assert.Equal(0, result["dbo.test2"]);            
         }
