@@ -537,11 +537,7 @@ namespace TeslaSQL {
         public RefreshView[] refreshViews { get; set; }
         public string bcpPath { get; set; }
         public string nzLoadScriptPath { get; set; }
-<<<<<<< HEAD
-        
-=======
         public string plinkPath { get; set; }
->>>>>>> da869a30b1119c99225475081443d9eaaf81ad23
 
         [XmlArrayItem("magicHour")]
         public string[] magicHours { get; set; }
