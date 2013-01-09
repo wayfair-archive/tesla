@@ -916,7 +916,7 @@ namespace TeslaSQL.DataUtils {
                 } else {
                     throw new Exception("Database " + dbName + " does not exist or is inaccessible");
                 }
-                if (db.Tables.Contains(view)) {
+                if (db.Views.Contains(view)) {
                     return db.Views[view, schema];
                 } else {
                     throw new DoesNotExistException("Table " + view + " does not exist");
