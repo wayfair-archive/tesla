@@ -61,6 +61,10 @@ namespace TeslaSQL {
             Log(String.Format("Timing: {0}, {1} @{2}", key, value, sampleRate), LogLevel.Trace);
         }
 
+        public void Increment(string key, int magnitude, double sampleRate = 1.0) {
+            if (statsd == null) { return; }
+            statsd.Increment(key, magnitude, sampleRate);
+        }
         /// <summary>
         /// Logs information and writes it to the console
         /// </summary>

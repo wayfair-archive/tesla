@@ -688,17 +688,24 @@ namespace TeslaSQL.DataUtils {
             bulkCopy.WriteToServer(reader);
         }
 
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName) {
+        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName) {
             var tableSql = new List<SqlCommand>();
             tableSql.Add(BuildMergeQuery(table, dbName, CTID, CTDBName));
             if (archiveTable != null) {
                 tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName));
             }
             var s = TransactionQuery(tableSql, dbName, Config.queryTimeout);
-            logger.Log("table " + table.Name + ": insert: " + s[0].Rows[0].Field<int>("insertcount") + " | delete: " + s[0].Rows[0].Field<int>("deletecount"), LogLevel.Info);
+            int inserted = s[0].Rows[0].Field<int>("insertcount");
+            int deleted = s[0].Rows[0].Field<int>("deletecount");
+            logger.Log("table " + table.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
+            var rowCounts = new RowCounts(inserted, deleted);
             if (archiveTable != null) {
-                logger.Log("table " + table.Name + ": insert: " + s[1].Rows[0].Field<int>("insertcount") + " | delete: " + s[1].Rows[0].Field<int>("deletecount"), LogLevel.Info);
+                 inserted = s[1].Rows[0].Field<int>("insertcount");
+                 deleted = s[1].Rows[0].Field<int>("deletecount");
+                 logger.Log("table " + archiveTable.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
+                 rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
             }
+            return rowCounts;
         }
 
         private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 ctid, string CTDBName) {
@@ -923,6 +930,12 @@ namespace TeslaSQL.DataUtils {
             }
             var cmd = new SqlCommand(string.Format("CREATE VIEW {0} AS {1}", viewName, viewSelect));
             SqlNonQuery(dbName, cmd);
+        }
+
+       public int GetExpectedRowCounts(string ctDbName, long ctid) {
+            string sql = string.Format("SELECT SUM(CtiExpectedRows) FROM tblCTTableInfo_{0};", ctid);
+            var cmd = new SqlCommand(sql);
+            return SqlQueryToScalar<int>(ctDbName, cmd);
         }
     }
 }

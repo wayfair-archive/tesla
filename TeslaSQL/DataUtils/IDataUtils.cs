@@ -295,7 +295,7 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         /// <param name="table">Table to apply changes to</param>
         /// <param name="archiveTable">Archive table - if null, no archiving is done</param>
-        void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid, string CTDBName);
+        RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid, string CTDBName);
 
         /// <summary>
         /// Consolidates batches. Used when a slave has too many batches to process one at a time.
@@ -326,5 +326,7 @@ namespace TeslaSQL.DataUtils {
         void CreateShardCTVersion(string db, long ctid, Int64 startVersion);
 
         IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database);
+
+        int GetExpectedRowCounts(string ctDbName, long ctid);
     }
 }

@@ -153,7 +153,7 @@ namespace TeslaSQL.Agents {
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 //marking this field so that completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
-            } 
+            }
 
             logger.Log("Populating table list", LogLevel.Debug);
             List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.slaveCTDB, ctb.CTID);
@@ -162,7 +162,8 @@ namespace TeslaSQL.Agents {
                 logger.Log("Applying changes", LogLevel.Debug);
                 SetFieldListsSlave(Config.slaveCTDB, Config.tables, ctb);
                 sw = Stopwatch.StartNew();
-                ApplyChanges(Config.tables, Config.slaveDB, existingCTTables, ctb.CTID);
+                RowCounts total = ApplyChanges(Config.tables, Config.slaveDB, existingCTTables, ctb.CTID);
+                RecordRowCounts(total, ctb);
                 logger.Log("ApplyChanges: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
             }
@@ -170,7 +171,19 @@ namespace TeslaSQL.Agents {
             sw = Stopwatch.StartNew();
             SyncHistoryTables(Config.tables, Config.slaveCTDB, Config.slaveDB, existingCTTables);
             logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
-            sourceDataUtils.MarkBatchComplete(Config.relayDB, ctb.CTID, DateTime.Now, Config.slave);
+            var syncStopTime = DateTime.Now;
+            sourceDataUtils.MarkBatchComplete(Config.relayDB, ctb.CTID, syncStopTime, Config.slave);
+            string key = String.Format(
+                "db.mssql_changetracking_counters.DataDurationToSync{0}.{1}",
+                Config.slave.Replace('.', '_'),
+                Config.slaveDB);
+            logger.Increment(key, (int)(syncStopTime - ctb.syncStartTime.Value).TotalMinutes);
+        }
+
+        private void RecordRowCounts(RowCounts actual, ChangeTrackingBatch ctb) {
+            var expected = sourceDataUtils.GetExpectedRowCounts(Config.relayDB, ctb.CTID);
+
+            logger.Log("Expected row counts: " + expected + " | actual: " + actual, LogLevel.Info);
         }
 
 
@@ -212,10 +225,11 @@ namespace TeslaSQL.Agents {
                 sourceDataUtils.WriteBitWise(Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
             }
 
-
+            RowCounts total;
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
-                ApplyChanges(Config.tables, Config.slaveCTDB, existingCTTables, endBatch.CTID);
+                total = ApplyChanges(Config.tables, Config.slaveCTDB, existingCTTables, endBatch.CTID);
                 sourceDataUtils.WriteBitWise(Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
+                RecordRowCounts(total, endBatch);
             }
             var lastChangedTables = new List<ChangeTable>();
             foreach (var group in existingCTTables.GroupBy(c => c.name)) {
@@ -232,9 +246,9 @@ namespace TeslaSQL.Agents {
             logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + Config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
         }
 
-        private IEnumerable<ChangeTable> ConsolidateBatches(IList<ChangeTable> tables) {            
+        private IEnumerable<ChangeTable> ConsolidateBatches(IList<ChangeTable> tables) {
             var lu = new Dictionary<string, List<ChangeTable>>();
-            var actions = new List<Action>(); 
+            var actions = new List<Action>();
             foreach (var changeTable in tables) {
                 if (!lu.ContainsKey(changeTable.name)) {
                     lu[changeTable.name] = new List<ChangeTable>();
@@ -268,7 +282,7 @@ namespace TeslaSQL.Agents {
             options.MaxDegreeOfParallelism = Config.maxThreads;
             Parallel.Invoke(options, actions.ToArray());
             return consolidatedTables;
-        }        
+        }
 
         private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
             foreach (var table in tables) {
@@ -324,7 +338,7 @@ namespace TeslaSQL.Agents {
             Parallel.Invoke(options, actions.ToArray());
         }
 
-        private void ApplyChanges(TableConf[] tableConf, string slaveDB, List<ChangeTable> tables, Int64 CTID) {
+        private RowCounts ApplyChanges(TableConf[] tableConf, string slaveDB, List<ChangeTable> tables, Int64 CTID) {
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var table in tableConf) {
                 if (tables.Any(s => s.name == table.Name)) {
@@ -346,13 +360,15 @@ namespace TeslaSQL.Agents {
                 }
             }
             var actions = new List<Action>();
+            var counts = new ConcurrentDictionary<string, RowCounts>();
             foreach (var tableArchive in hasArchive) {
                 KeyValuePair<TableConf, TableConf> tLocal = tableArchive;
                 Action act = () => {
                     try {
                         logger.Log("Applying changes for table " + tLocal.Key.Name + (hasArchive == null ? "" : " (and archive)"), LogLevel.Debug);
                         var sw = Stopwatch.StartNew();
-                        destDataUtils.ApplyTableChanges(tLocal.Key, tLocal.Value, Config.slaveDB, CTID, Config.slaveCTDB);
+                        var rc = destDataUtils.ApplyTableChanges(tLocal.Key, tLocal.Value, Config.slaveDB, CTID, Config.slaveCTDB);
+                        counts[tLocal.Key.Name] = rc;
                         logger.Log("ApplyTableChanges " + tLocal.Key.Name + ": " + sw.Elapsed, LogLevel.Trace);
                     } catch (Exception e) {
                         HandleException(e, tLocal.Key);
@@ -364,6 +380,8 @@ namespace TeslaSQL.Agents {
             var options = new ParallelOptions();
             options.MaxDegreeOfParallelism = Config.maxThreads;
             Parallel.Invoke(options, actions.ToArray());
+            RowCounts total = counts.Values.Aggregate(new RowCounts(0, 0), (a, b) => new RowCounts(a.Inserted + b.Inserted, a.Deleted + b.Deleted));
+            return total;
         }
 
 
@@ -417,7 +435,7 @@ namespace TeslaSQL.Agents {
             if (Config.slave != null && Config.slave == Config.relayServer && sourceCTDB == destCTDB) {
                 logger.Log("Skipping download because slave is equal to relay.", LogLevel.Debug);
                 return;
-            } 
+            }
 
             var actions = new List<Action>();
             foreach (TableConf t in tables) {
@@ -440,7 +458,7 @@ namespace TeslaSQL.Agents {
                         HandleException(e, tLocal);
                     }
                 };
-                actions.Add(act);                
+                actions.Add(act);
             }
             logger.Log("Parallel invocation of " + actions.Count + " changetable downloads", LogLevel.Trace);
             var options = new ParallelOptions();

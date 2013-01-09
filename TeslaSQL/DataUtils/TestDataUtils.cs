@@ -481,9 +481,6 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
 
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid) {
-            throw new NotImplementedException();
-        }
 
         public void CreateConsolidatedTable(string tableName, Int64 CTID, string schemaName, string dbName) {
             throw new NotImplementedException("Still need to implement");
@@ -517,7 +514,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
+        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
             throw new NotImplementedException();
         }
 
@@ -554,6 +551,11 @@ namespace TeslaSQL.DataUtils {
 
 
         public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database) {
+            throw new NotImplementedException();
+        }
+
+
+        public int GetExpectedRowCounts(string ctDbName, long ctid) {
             throw new NotImplementedException();
         }
     }

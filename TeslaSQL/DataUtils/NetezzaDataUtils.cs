@@ -133,13 +133,14 @@ namespace TeslaSQL.DataUtils {
             var res = SqlQuery(dbName, cmd);
             return res.Rows.Count > 0;
         }
-        public void ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
+        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
             var cmds = new List<InsertDelete>();
             cmds.Add(BuildApplyCommand(table, dbName, CTDBName, ctid));
             if (archiveTable != null) {
                 cmds.Add(BuildApplyCommand(archiveTable, dbName, CTDBName, ctid));
             }
             var connStr = buildConnString(dbName);
+            var rowCounts = new RowCounts(0, 0);
             using (var conn = new OleDbConnection(connStr)) {
                 conn.Open();
                 var trans = conn.BeginTransaction();
@@ -147,16 +148,18 @@ namespace TeslaSQL.DataUtils {
                     id.delete.Transaction = trans;
                     id.delete.Connection = conn;
                     logger.Log(id.delete.CommandText, LogLevel.Trace);
-                    int numRows = id.delete.ExecuteNonQuery();
-                    logger.Log("Rows deleted: " + numRows, LogLevel.Info);
+                    int deleted = id.delete.ExecuteNonQuery();
+                    logger.Log("Rows deleted: " + deleted, LogLevel.Info);
                     id.insert.Transaction = trans;
                     id.insert.Connection = conn;
                     logger.Log(id.insert.CommandText, LogLevel.Trace);
-                    numRows = id.insert.ExecuteNonQuery();
-                    logger.Log("Rows deleted: " + numRows, LogLevel.Info);
+                    int inserted = id.insert.ExecuteNonQuery();
+                    logger.Log("Rows deleted: " + inserted, LogLevel.Info);
+                    rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
                 }
                 trans.Commit();
             }
+            return rowCounts;
         }
 
         class InsertDelete {
@@ -445,6 +448,11 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
         #endregion
+
+
+        public int GetExpectedRowCounts(string ctDbName, long ctid) {
+            throw new NotImplementedException();
+        }
     }
 }
 

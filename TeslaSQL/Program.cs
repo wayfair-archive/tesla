@@ -62,7 +62,6 @@ namespace TeslaSQL {
             var logger = new Logger(Config.logLevel, Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
             XmlConfigurator.Configure(new System.IO.FileInfo(parameters.log4NetConfigPath));
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
-            return;
 
             if (parameters.validate) {
                 Config.DumpConfig(parameters.more);
@@ -89,6 +88,12 @@ namespace TeslaSQL {
                 logger.Log("Running agent of type " + Config.agentType, LogLevel.Info);
                 a.Run();
                 logger.Log("Agent completed successfully", LogLevel.Info);
+            } catch (AggregateException ae) {
+                logger.Log("Parallelization error", LogLevel.Critical);
+                foreach (var e in ae.InnerExceptions) {
+                    logger.Log(e.Message + '\n' + e.StackTrace, LogLevel.Critical);
+                }
+            
             } catch (Exception e) {
                 logger.Log("ERROR: " + e.Message + " - Stack Trace: " + e.StackTrace, LogLevel.Critical);
                 responseCode = 1;

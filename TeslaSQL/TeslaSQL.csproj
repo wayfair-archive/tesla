@@ -132,6 +132,7 @@
     <Compile Include="Options.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RowCounts.cs" />
     <Compile Include="SchemaChange.cs" />
     <Compile Include="SimpleEmailClient.cs" />
     <Compile Include="DataUtils\TestDataUtils.cs" />
