@@ -54,16 +54,26 @@ namespace TeslaSQL {
             : this(logLevel, statsdHost, statsdPort, errorLogDB, logFile) {
             this.dataUtils = dataUtils;
         }
-
+        /// <summary>
+        /// Sends a timing value to graphite
+        /// </summary>
+        /// <param name="key">The name of the counter</param>
+        /// <param name="sampleRate">Fraction of values to actually send</param>
         public void Timing(string key, int value, double sampleRate = 1.0) {
             if (statsd == null) { return; }
             statsd.Timing(key, value, sampleRate);
             Log(String.Format("Timing: {0}, {1} @{2}", key, value, sampleRate), LogLevel.Trace);
         }
-
+        /// <summary>
+        /// Increments a counter value in graphite
+        /// </summary>
+        /// <param name="key">The name of the counter</param>
+        /// <param name="magnitude">How much to increment by</param>
+        /// <param name="sampleRate">Fraction of values to actually send</param>
         public void Increment(string key, int magnitude, double sampleRate = 1.0) {
             if (statsd == null) { return; }
             statsd.Increment(key, magnitude, sampleRate);
+            Log(String.Format("Increment: {0}, {1} @{2}", key, magnitude, sampleRate), LogLevel.Trace);
         }
         /// <summary>
         /// Logs information and writes it to the console

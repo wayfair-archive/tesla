@@ -182,8 +182,12 @@ namespace TeslaSQL.Agents {
 
         private void RecordRowCounts(RowCounts actual, ChangeTrackingBatch ctb) {
             var expected = sourceDataUtils.GetExpectedRowCounts(Config.relayDB, ctb.CTID);
-
             logger.Log("Expected row counts: " + expected + " | actual: " + actual, LogLevel.Info);
+            double diff = expected - actual.Inserted;
+            double mismatch = diff / expected;
+            int percentDiff = (int)(mismatch * 100);
+            string key = string.Format("db.mssql_changetracking_counters.RecordCountMismatchProd{0}.{1}", Config.slave.Replace('.', '_'), Config.slaveDB);
+            logger.Increment(key, percentDiff);
         }
 
 

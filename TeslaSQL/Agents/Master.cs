@@ -379,7 +379,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("Publishing changes succeeded for " + table.schemaName + "." + table.Name, LogLevel.Trace);
             } catch (Exception e) {
                 if (table.stopOnError) {
-                    throw e;
+                    throw;
                 } else {
                     logger.Log("Copying change data for table " + table.schemaName + "." + table.Name + " failed with error: " + e.Message, LogLevel.Error);
                 }
