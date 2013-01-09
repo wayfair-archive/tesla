@@ -31,6 +31,11 @@ namespace TeslaSQL.Agents {
             this.logger = new Logger(LogLevel.Critical, null, null, null, "");
         }
 
+        public string TimingKey {
+            get {
+                return string.Format("db.mssql_changetracking_counters.TeslaRunDuration{0}.{1}.{2}", Config.master.Replace('.', '_'), AgentType.Master, Config.masterDB);
+            }
+        }
         public override void ValidateConfig() {
             logger.Log("Validating configuration for master", LogLevel.Trace);
             Config.ValidateRequiredHost(Config.relayServer);
@@ -41,6 +46,7 @@ namespace TeslaSQL.Agents {
         }
 
         public override void Run() {
+            DateTime start = DateTime.Now;
             logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
             Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(Config.masterDB);
 
@@ -116,6 +122,8 @@ namespace TeslaSQL.Agents {
             logger.Log("Wrote bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.UploadChanges)) + " to tblCTVersion", LogLevel.Trace);
 
             logger.Log("Master agent work complete", LogLevel.Info);
+            var elapsed = DateTime.Now - start;
+            logger.Timing(TimingKey, (int)elapsed.TotalMinutes);
             return;
         }
 

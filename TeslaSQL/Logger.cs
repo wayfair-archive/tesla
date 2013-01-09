@@ -83,7 +83,7 @@ namespace TeslaSQL {
         public void Log(object message, LogLevel level) {
             switch (level) {
                 case LogLevel.Trace:
-                    foreach (var log in logs) { log.Debug(message); }
+                    foreach (var log in logs) { log.Debug(message);}
                     break;
                 case LogLevel.Debug:
                     foreach (var log in logs) { log.Debug(message); }

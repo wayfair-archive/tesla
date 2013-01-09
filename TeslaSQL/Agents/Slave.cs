@@ -34,8 +34,13 @@ namespace TeslaSQL.Agents {
                 throw new Exception("Slave agent requires a valid SQL flavor for relay and slave");
             }
         }
-
+        public string TimingKey {
+            get {
+                return string.Format("db.mssql_changetracking_counters.TeslaRunDuration{0}.{1}.{2}", Config.slave.Replace('.', '_'), AgentType.Slave, Config.slaveDB);
+            }
+        }
         public override void Run() {
+            DateTime start = DateTime.Now;
             logger.Log("Initializing CT batch", LogLevel.Trace);
             var batches = GetIncompleteBatches();
             if (batches.Count == 0) {
@@ -47,6 +52,7 @@ namespace TeslaSQL.Agents {
                 foreach (var batch in batches) {
                     ApplySchemaChangesAndWrite(batch);
                 }
+                logger.Timing(TimingKey, (int)(DateTime.Now - start).TotalMinutes);
                 return;
             }
 
@@ -66,6 +72,7 @@ namespace TeslaSQL.Agents {
             }
 
             logger.Log("Slave agent work complete", LogLevel.Info);
+            logger.Timing(TimingKey, (int)(DateTime.Now - start).TotalMinutes);
             return;
         }
 

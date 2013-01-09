@@ -36,6 +36,7 @@ namespace TeslaSQL.Agents {
 
         public abstract void ValidateConfig();
 
+
         /// <summary>
         /// Set field list values for each table in the config
         /// </summary>
