@@ -38,7 +38,6 @@ using log4net.Config;
 namespace TeslaSQL {
     public class Program {
         static void Main(string[] args) {
-            int myint = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
             Params parameters = new Params();
             try {
                 parameters = ParseArgs(args);
