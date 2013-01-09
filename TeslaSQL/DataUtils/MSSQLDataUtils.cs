@@ -929,7 +929,6 @@ namespace TeslaSQL.DataUtils {
             return res.Split(new char[] { ',' });
         }
 
-
         public void RecreateView(string dbName, string viewName, string viewSelect) {
             try {
                 var view = GetSmoView(dbName, viewName);
