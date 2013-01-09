@@ -137,6 +137,9 @@ namespace TeslaSQL {
         public void Log(Exception e, string message = null) {
             if (message == null) {
                 message = e.StackTrace.ToString();
+                if (e.InnerException != null) {
+                    message += "Inner exception:\n" + e.InnerException.StackTrace;
+                }
             } else {
                 message = message + "\r\n" + e.ToString();
             }

@@ -328,5 +328,27 @@ namespace TeslaSQL.DataUtils {
         IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database);
 
         int GetExpectedRowCounts(string ctDbName, long ctid);
+
+
+       
+        IEnumerable<TTable> GetTables(string p);
+
+        /// <summary>
+        /// returns a list of CTIDs started before chopDate
+        /// </summary>
+        /// <param name="p"></param>
+        /// <param name="chopDate"></param>
+        /// <returns></returns>
+        IEnumerable<int> GetOldCTIDs(string p, DateTime chopDate, AgentType agentType);
+
+        void DeleteOldCTVersions(string p, DateTime chopDate, AgentType agentType);
+    }
+    public struct TTable {
+        public readonly string name;
+        public readonly string schema;
+        public TTable(string name, string schema) {
+            this.name = name;
+            this.schema = schema;
+        }
     }
 }
