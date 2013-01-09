@@ -8,6 +8,7 @@ using System.IO;
 using System.Diagnostics;
 using log4net;
 using TeslaSQL;
+using log4net.Appender;
 
 namespace TeslaSQL {
     public class Logger {
@@ -20,6 +21,7 @@ namespace TeslaSQL {
         static Logger() {
             ILog consoleLog = LogManager.GetLogger("console");
             ILog fileLog = LogManager.GetLogger("file");
+
             ILog grayLog = LogManager.GetLogger("graylog");
             logs = new List<ILog> { 
                 consoleLog,
@@ -28,6 +30,18 @@ namespace TeslaSQL {
             };
         }
         private StatsdPipe statsd;
+
+        public static void SetLogFilePath(string file) {
+            var repo = LogManager.GetRepository();
+            var app = repo.GetAppenders().FirstOrDefault(a => a.Name == "RollingFile");
+            if (app != null) {
+               var coerce = app as RollingFileAppender;
+               if (coerce != null) {
+                   coerce.File = file;
+                   coerce.ActivateOptions();
+               }
+            }
+        }
 
         public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile) {
             this.errorLogDB = errorLogDB;
@@ -83,7 +97,7 @@ namespace TeslaSQL {
         public void Log(object message, LogLevel level) {
             switch (level) {
                 case LogLevel.Trace:
-                    foreach (var log in logs) { log.Debug(message);}
+                    foreach (var log in logs) { log.Debug(message); }
                     break;
                 case LogLevel.Debug:
                     foreach (var log in logs) { log.Debug(message); }
