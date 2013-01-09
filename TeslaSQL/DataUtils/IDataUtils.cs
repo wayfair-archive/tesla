@@ -330,7 +330,7 @@ namespace TeslaSQL.DataUtils {
         int GetExpectedRowCounts(string ctDbName, long ctid);
 
 
-       
+
         IEnumerable<TTable> GetTables(string p);
 
         /// <summary>
@@ -339,9 +339,9 @@ namespace TeslaSQL.DataUtils {
         /// <param name="p"></param>
         /// <param name="chopDate"></param>
         /// <returns></returns>
-        IEnumerable<int> GetOldCTIDs(string p, DateTime chopDate, AgentType agentType);
+        IEnumerable<long> GetOldCTIDsMaster(string dbName, DateTime chopDate);
 
-        void DeleteOldCTVersions(string p, DateTime chopDate, AgentType agentType);
+        void DeleteOldCTVersionsMaster(string dbName, DateTime chopDate);
     }
     public struct TTable {
         public readonly string name;

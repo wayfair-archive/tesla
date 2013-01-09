@@ -15,7 +15,8 @@ namespace TeslaSQL.Tests.Agents {
             Config.masterCTDB = "alksdjf";
             Config.changeRetentionHours = 10;
             var dataUtils = new Mock<IDataUtils>();
-            var intsToDel = new List<int> { 3, 4, 5 };
+            var destDataUtils = new Mock<IDataUtils>();
+            var ctidsToDel = new List<long> { 3, 4, 5 };
             var tables = new List<TTable>{
                 new TTable("tblCTtblTest_3", "dbo"),
                 new TTable("tblCTtblTest_4", "dbo"),
@@ -25,16 +26,17 @@ namespace TeslaSQL.Tests.Agents {
                 new TTable("tblCTVersion", "dbo"),
             };
             var tablesToDel = tables.Where(
-                t => t.name.Contains('_') && intsToDel.Contains(int.Parse(t.name.Substring(t.name.LastIndexOf('_') + 1)))
+                t => t.name.Contains('_') && ctidsToDel.Contains(long.Parse(t.name.Substring(t.name.LastIndexOf('_') + 1)))
                     );
-            dataUtils.Setup(
-                du => du.GetOldCTIDs(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<AgentType>()))
-                .Returns(intsToDel);
+            destDataUtils.Setup(
+                du => du.GetOldCTIDsMaster(It.IsAny<string>(), It.IsAny<DateTime>()))
+                .Returns(ctidsToDel);
             dataUtils.Setup(
                 du => du.GetTables(It.IsAny<string>()))
                 .Returns(tables);
 
             this.sourceDataUtils = dataUtils.Object;
+            this.destDataUtils = destDataUtils.Object;
             Run();
             foreach (var otherT in tablesToDel) {
                 dataUtils.Verify(

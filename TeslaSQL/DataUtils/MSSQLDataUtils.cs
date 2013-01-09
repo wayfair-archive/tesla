@@ -366,19 +366,48 @@ namespace TeslaSQL.DataUtils {
         /// <returns>Smo.Table object representing the table</returns>
         public Table GetSmoTable(string dbName, string table, string schema = "dbo") {
             logger.Log(string.Format("SmoTable: {3}: {0}.{1}.{2}", dbName, schema, table, server), LogLevel.Trace);
+            var db = GetSmoDatabase(dbName);
+            if (db.Tables.Contains(table)) {
+                return db.Tables[table, schema];
+            } else {
+                throw new DoesNotExistException("Table " + table + " does not exist");
+            }
+        }
+
+        /// <summary>
+        /// Retrieves an SMO table object if the table exists, throws exception if not.
+        /// </summary>
+        /// <param name="dbName">Database name</param>
+        /// <param name="view">Table Name</param>
+        /// <returns>Smo.Table object representing the table</returns>
+        public View GetSmoView(string dbName, string view, string schema = "dbo") {
+            var db = GetSmoDatabase(dbName);
+            if (db.Views.Contains(view)) {
+                return db.Views[view, schema];
+            } else {
+                throw new DoesNotExistException("Table " + view + " does not exist");
+            }
+        }
+        
+        public IEnumerable<TTable> GetTables(string dbName) {
+            var tables = new List<TTable>();
+            var db = GetSmoDatabase(dbName);
+            foreach (Table t in db.Tables) {
+                tables.Add(new TTable(t.Name, t.Schema));
+            }
+            return tables;
+        }
+
+        private Database GetSmoDatabase(string dbName) {
             using (SqlConnection sqlconn = new SqlConnection(buildConnString(dbName))) {
                 ServerConnection serverconn = new ServerConnection(sqlconn);
                 Server svr = new Server(serverconn);
                 Database db = new Database();
                 if (svr.Databases.Contains(dbName) && svr.Databases[dbName].IsAccessible) {
                     db = svr.Databases[dbName];
+                    return db;
                 } else {
                     throw new Exception("Database " + dbName + " does not exist or is inaccessible");
-                }
-                if (db.Tables.Contains(table)) {
-                    return db.Tables[table, schema];
-                } else {
-                    throw new DoesNotExistException("Table " + table + " does not exist");
                 }
             }
         }
@@ -444,7 +473,7 @@ namespace TeslaSQL.DataUtils {
             //attempt to get smo table object
             try {
                 t_smo = GetSmoTable(dbName, table, schema);
-            } catch (DoesNotExistException) {                
+            } catch (DoesNotExistException) {
                 logger.Log("Unable to get field list for " + dbName + "." + schema + "." + table + " because it does not exist", LogLevel.Debug);
                 return dict;
             }
@@ -702,10 +731,10 @@ namespace TeslaSQL.DataUtils {
             logger.Log("table " + table.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
             var rowCounts = new RowCounts(inserted, deleted);
             if (archiveTable != null) {
-                 inserted = s[1].Rows[0].Field<int>("insertcount");
-                 deleted = s[1].Rows[0].Field<int>("deletecount");
-                 logger.Log("table " + archiveTable.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
-                 rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
+                inserted = s[1].Rows[0].Field<int>("insertcount");
+                deleted = s[1].Rows[0].Field<int>("deletecount");
+                logger.Log("table " + archiveTable.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
+                rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
             }
             return rowCounts;
         }
@@ -900,29 +929,6 @@ namespace TeslaSQL.DataUtils {
             return res.Split(new char[] { ',' });
         }
 
-        /// <summary>
-        /// Retrieves an SMO table object if the table exists, throws exception if not.
-        /// </summary>
-        /// <param name="dbName">Database name</param>
-        /// <param name="view">Table Name</param>
-        /// <returns>Smo.Table object representing the table</returns>
-        public View GetSmoView(string dbName, string view, string schema = "dbo") {
-            using (SqlConnection sqlconn = new SqlConnection(buildConnString(dbName))) {
-                ServerConnection serverconn = new ServerConnection(sqlconn);
-                Server svr = new Server(serverconn);
-                Database db = new Database();
-                if (svr.Databases.Contains(dbName) && svr.Databases[dbName].IsAccessible) {
-                    db = svr.Databases[dbName];
-                } else {
-                    throw new Exception("Database " + dbName + " does not exist or is inaccessible");
-                }
-                if (db.Tables.Contains(view)) {
-                    return db.Views[view, schema];
-                } else {
-                    throw new DoesNotExistException("Table " + view + " does not exist");
-                }
-            }
-        }
 
         public void RecreateView(string dbName, string viewName, string viewSelect) {
             try {
@@ -935,23 +941,28 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-       public int GetExpectedRowCounts(string ctDbName, long ctid) {
+        public int GetExpectedRowCounts(string ctDbName, long ctid) {
             string sql = string.Format("SELECT SUM(CtiExpectedRows) FROM tblCTTableInfo_{0};", ctid);
             var cmd = new SqlCommand(sql);
             return SqlQueryToScalar<int>(ctDbName, cmd);
         }
 
-
-       public IEnumerable<TTable> GetTables(string p) {
-           throw new NotImplementedException();
-       }
-
-       public IEnumerable<int> GetOldCTIDs(string p, DateTime chopDate, AgentType agentType) {
-           throw new NotImplementedException();
-       }
-
-       public void DeleteOldCTVersions(string p, DateTime chopDate, AgentType agentType) {
-           throw new NotImplementedException();
-       }
+        public IEnumerable<long> GetOldCTIDsMaster(string dbName, DateTime chopDate) {
+            string sql = "SELECT ctid FROM tblCTVersion WHERE syncStartTime < @chopDate";
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
+            var res = SqlQuery(dbName, cmd);
+            var ctids = new List<long>();
+            foreach (DataRow row in res.Rows) {
+                ctids.Add(row.Field<long>("ctid"));
+            }
+            return ctids;
+        }
+        public void DeleteOldCTVersionsMaster(string dbName, DateTime chopDate) {
+            string sql = "DELETE FROM tblCTVersion WHERE syncStartTime < @chopDate";
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
+            SqlNonQuery(dbName, cmd);
+        }
     }
 }

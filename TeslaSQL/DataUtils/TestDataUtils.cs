@@ -564,11 +564,16 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
 
-        public IEnumerable<int> GetOldCTIDs(string p, DateTime chopDate, AgentType agentType) {
+        public IEnumerable<long> GetOldCTIDsMaster(string p, DateTime chopDate) {
             throw new NotImplementedException();
         }
 
-        public void DeleteOldCTVersions(string p, DateTime chopDate, AgentType agentType) {
+        public void DeleteOldCTVersionsMaster(string p, DateTime chopDate, AgentType agentType) {
+            throw new NotImplementedException();
+        }
+
+
+        public void DeleteOldCTVersionsMaster(string dbName, DateTime chopDate) {
             throw new NotImplementedException();
         }
     }
