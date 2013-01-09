@@ -42,8 +42,9 @@ namespace TeslaSQL {
             try {
                 parameters = ParseArgs(args);
             } catch (Exception e) {
+                Console.WriteLine("Error parsing arguments: " + e.Message);
                 Console.WriteLine("Try `TeslaSQL --help' for more information.");
-                throw e;
+                Environment.Exit(1);
             }
 
             if (parameters.showHelp) {
@@ -52,14 +53,28 @@ namespace TeslaSQL {
             }
 
             if (String.IsNullOrEmpty(parameters.configFile) || !ValidatePath(parameters.configFile)) {
-                throw new Exception("Please specify a valid config file path!");
+                Console.WriteLine("Please specify a valid config file path!");
+                Environment.Exit(1);
             }
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
-            Config.Load(parameters.configFile);
+            try {
+                Config.Load(parameters.configFile);
+            } catch (Exception e) {
+                Console.WriteLine("Unable to load configuration file due to error: " + e.Message + ". Inner exception: " + e.InnerException.Message
+                    + " Stack Trace: " + e.StackTrace);
+                Environment.Exit(1);
+            }
             Console.Title = Config.agentType + " | TeslaSQL";
+
             var logger = new Logger(Config.logLevel, Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
-            XmlConfigurator.Configure(new System.IO.FileInfo(parameters.log4NetConfigPath));
+            try {
+                XmlConfigurator.Configure(new System.IO.FileInfo(parameters.log4NetConfigPath));
+            } catch (Exception e) {
+                Console.WriteLine("Unable to initialize logging facility due to error: " + e.Message + ". Stack Trace: " + e.StackTrace);
+                Environment.Exit(1);
+            }
+
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
 
             if (parameters.validate) {
@@ -68,15 +83,21 @@ namespace TeslaSQL {
             }
 
             if (parameters.dataMappingFile != null) {
-                DataType.LoadDataMappingsFromFile(parameters.dataMappingFile);
+                try {
+                    DataType.LoadDataMappingsFromFile(parameters.dataMappingFile);
+                } catch (Exception e) {
+                    Console.WriteLine("UNable to initialize logging facility due to error: " + e.Message + ". Stack Trace: " + e.StackTrace);
+                    Environment.Exit(1);
+                }
             }
 
             if (!String.IsNullOrEmpty(parameters.logLevelOverride)) {
                 try {
                     Config.logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), parameters.logLevelOverride);
                 } catch {
+                    Console.WriteLine("Invalid log level!");
                     Console.WriteLine("Try `TeslaSQL --help' for more information.");
-                    throw new Exception("Invalid log level!");
+                    Environment.Exit(1);
                 }
             }
 
