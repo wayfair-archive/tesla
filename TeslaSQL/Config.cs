@@ -61,6 +61,8 @@ namespace TeslaSQL {
             netezzaUser = c.netezzaUser;
             refreshViews = c.refreshViews;
             maxThreads_local = c.maxThreads;
+            bcpPath = c.bcpPath;
+            nzLoadScriptPath = c.nzLoadScriptPath;
 
             if (c.magicHours != null) {
                 magicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
@@ -431,6 +433,13 @@ namespace TeslaSQL {
         //don't use big strings in data warehouses, this helps avoid those limits.
         public static int netezzaStringLength { get; set; }
 
+        //path to BCP data out to for copying to netezza (should be an NFS share that netezza can mount)
+        public static string bcpPath { get; set; }
+
+        //path to a shell script on the Netezza server that wraps an nzload command for loading data
+        //must be executable by the nzuser that we ssh as
+        public static string nzLoadScriptPath { get; set; }
+
         //maximum number of threads to use in multithreaded portions of tesla
         private static int maxThreads_local;
         public static int maxThreads { 
@@ -512,6 +521,8 @@ namespace TeslaSQL {
         public int netezzaStringLength { get; set; }
         public int maxThreads { get; set; }
         public RefreshView[] refreshViews { get; set; }
+        public string bcpPath { get; set; }
+        public string nzLoadScriptPath { get; set; }
 
         [XmlArrayItem("magicHour")]
         public string[] magicHours { get; set; }

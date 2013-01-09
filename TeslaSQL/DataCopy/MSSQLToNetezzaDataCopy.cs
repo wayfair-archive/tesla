@@ -9,6 +9,7 @@ using System.Data;
 using System.Data.OleDb;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using System.IO;
 
 namespace TeslaSQL.DataCopy {
     public class MSSQLToNetezzaDataCopy : IDataCopy {
@@ -27,6 +28,13 @@ namespace TeslaSQL.DataCopy {
             this.nzServer = nzServer;
             this.nzUser = nzUser;
             this.nzPrivateKeyPath = nzPrivateKeyPath;
+        }
+
+        private void CreateDirectoryIfNotExists(string directory) {
+            DirectoryInfo dir = new DirectoryInfo(directory);
+            if (!dir.Exists) {
+                dir.Create();
+            } 
         }
 
         public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null) {
@@ -48,11 +56,13 @@ namespace TeslaSQL.DataCopy {
                 sourceDataUtils.RecreateView(sourceDB, viewName, bcpSelect);
                 bcpSelect = string.Format("SELECT * FROM {0}..{1}", sourceDB, viewName);
             }
-            var bcpArgs = string.Format(@"""{0}"" queryout \\bonas1a\sql_temp\{1}\{2}.txt -T -c -S{3} -t""|"" -r\n",
+            string directory = Config.bcpPath.TrimEnd('\\') + @"\" + sourceDB.ToLower();
+            CreateDirectoryIfNotExists(directory);
+            var bcpArgs = string.Format(@"""{0}"" queryout {1}\{2}.txt -T -c -S{3} -t""|"" -r\n",
                                             bcpSelect,
-                                            sourceDB.ToLower(),
+                                            directory,
                                             destTableName,
-                                            "owl\\feeds"
+                                            Config.relayServer
                                             );
             logger.Log(bcpArgs, LogLevel.Trace);
             var bcp = new Process();
@@ -68,10 +78,11 @@ namespace TeslaSQL.DataCopy {
                 throw new Exception("BCP error: " + err);
             }
 
-            string plinkArgs = string.Format(@"-ssh -v -l {0} -i {1} {2} /export/home/nz/management_scripts/load_data_tesla.sh {3} {4}",
+            string plinkArgs = string.Format(@"-ssh -v -l {0} -i {1} {2} {3} {4} {5}",
                                               nzUser,
                                               nzPrivateKeyPath,
                                               nzServer,
+                                              Config.nzLoadScriptPath,
                                               destDB.ToLower(),
                                               sourceTableName);
 
