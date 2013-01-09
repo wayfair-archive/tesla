@@ -64,6 +64,8 @@ namespace TeslaSQL {
             maxThreads_local = c.maxThreads;
             bcpPath = c.bcpPath;
             nzLoadScriptPath = c.nzLoadScriptPath;
+            netezzaStringLength = c.netezzaStringLength;
+            plinkPath = c.plinkPath;
 
             if (c.magicHours != null) {
                 magicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
@@ -448,6 +450,9 @@ namespace TeslaSQL {
         //must be executable by the nzuser that we ssh as
         public static string nzLoadScriptPath { get; set; }
 
+        //path to plink executable for sshing into netezza
+        public static string plinkPath { get; set; }
+
         //maximum number of threads to use in multithreaded portions of tesla
         private static int maxThreads_local;
         public static int maxThreads { 
@@ -532,7 +537,11 @@ namespace TeslaSQL {
         public RefreshView[] refreshViews { get; set; }
         public string bcpPath { get; set; }
         public string nzLoadScriptPath { get; set; }
+<<<<<<< HEAD
         
+=======
+        public string plinkPath { get; set; }
+>>>>>>> da869a30b1119c99225475081443d9eaaf81ad23
 
         [XmlArrayItem("magicHour")]
         public string[] magicHours { get; set; }

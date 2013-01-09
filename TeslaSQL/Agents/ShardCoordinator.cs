@@ -116,7 +116,7 @@ namespace TeslaSQL.Agents {
 
         private void PublishSchemaChanges(ChangeTrackingBatch batch) {
             var dc = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
-            dc.CopyTable(Config.masterShard, batch.schemaChangeTable, "dbo", Config.relayDB, 3600);
+            dc.CopyTable(Config.masterShard, batch.schemaChangeTable, "dbo", Config.relayDB, Config.dataCopyTimeout);
         }
 
         private void ConsolidateTables(ChangeTrackingBatch batch) {

@@ -33,7 +33,7 @@ namespace TeslaSQL.DataCopy {
             }
         }
 
-        public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null) {
+        public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null, Int64? CTID = null) {
             //by default the dest table will have the same name as the source table
             destTableName = (destTableName == null) ? sourceTableName : destTableName;
 
@@ -53,7 +53,7 @@ namespace TeslaSQL.DataCopy {
         /// <param name="sourceTableName">Table name</param>
         /// <param name="schema">Table's schema</param>
         /// <param name="destDB">Destination database name</param>
-        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName) {
+        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, Int64? CTID = null) {
             //script out the table at the source
             string createScript = sourceDataUtils.ScriptTable(sourceDB, sourceTableName, schema);
             createScript = createScript.Replace(sourceTableName, destTableName);

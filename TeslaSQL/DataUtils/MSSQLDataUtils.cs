@@ -28,7 +28,8 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
-        private DataTable SqlQuery(string dbName, SqlCommand cmd, int timeout = 30) {
+        private DataTable SqlQuery(string dbName, SqlCommand cmd, int? timeout = null) {
+            int commandTimeout = timeout ?? Config.queryTimeout;
             foreach (IDataParameter p in cmd.Parameters) {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
@@ -41,7 +42,7 @@ namespace TeslaSQL.DataUtils {
                 //open database connection
                 conn.Open();
                 cmd.Connection = conn;
-                cmd.CommandTimeout = timeout;
+                cmd.CommandTimeout = commandTimeout;
 
                 DataSet ds = new DataSet();
                 SqlDataAdapter da = new SqlDataAdapter(cmd);
@@ -60,7 +61,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>The value in the first column and row, as the specified type</returns>
-        private T SqlQueryToScalar<T>(string dbName, SqlCommand cmd, int timeout = 30) {
+        private T SqlQueryToScalar<T>(string dbName, SqlCommand cmd, int? timeout = null) {
             DataTable result = SqlQuery(dbName, cmd, timeout);
             //return result in first column and first row as specified type
             return (T)result.Rows[0][0];
@@ -73,7 +74,8 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        internal int SqlNonQuery(string dbName, SqlCommand cmd, int timeout = 600) {
+        internal int SqlNonQuery(string dbName, SqlCommand cmd, int? timeout = null) {
+            int commandTimeout = timeout ?? Config.queryTimeout;
             foreach (IDataParameter p in cmd.Parameters) {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
@@ -85,7 +87,7 @@ namespace TeslaSQL.DataUtils {
             using (SqlConnection conn = new SqlConnection(connStr)) {
                 conn.Open();
                 cmd.Connection = conn;
-                cmd.CommandTimeout = timeout;
+                cmd.CommandTimeout = commandTimeout;
                 numrows = cmd.ExecuteNonQuery();
             }
             return numrows;
@@ -128,11 +130,11 @@ namespace TeslaSQL.DataUtils {
             SqlCommand cmd;
             //for slave we have to pass the slave identifier in and use tblCTSlaveVersion
             if (agentType.Equals(AgentType.Slave)) {
-                cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise" +
+                cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime" +
                     " FROM dbo.tblCTSlaveVersion WITH(NOLOCK) WHERE slaveIdentifier = @slave ORDER BY CTID DESC");
                 cmd.Parameters.Add("@slave", SqlDbType.VarChar, 100).Value = slaveIdentifier;
             } else {
-                cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise FROM dbo.tblCTVersion ORDER BY CTID DESC");
+                cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime FROM dbo.tblCTVersion ORDER BY CTID DESC");
             }
 
             DataTable result = SqlQuery(dbName, cmd);
@@ -819,14 +821,15 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public DataTable GetPendingCTSlaveVersions(string dbName) {
-            string query = string.Format(
-                        @"SELECT * FROM tblCTSlaveVersion
+        public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier) {
+            string query = @"SELECT * FROM tblCTSlaveVersion
                             WHERE CTID > 
                             (
-                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE syncBitWise = {0}
-                            )", Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum());
+                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE syncBitWise = @bitwise
+                            )";
             SqlCommand cmd = new SqlCommand(query);
+            cmd.Parameters.Add("@bitwise", SqlDbType.Int).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 500).Value = slaveIdentifier;
             return SqlQuery(dbName, cmd);
         }
 

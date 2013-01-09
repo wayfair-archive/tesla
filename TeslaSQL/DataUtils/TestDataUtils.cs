@@ -96,7 +96,7 @@ namespace TeslaSQL.DataUtils {
             return toReturn;
         }
 
-        public DataTable GetPendingCTSlaveVersions(string dbName) {
+        public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier) {
             throw new NotImplementedException("still have to implement");
         }
 
