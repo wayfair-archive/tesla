@@ -136,7 +136,7 @@ namespace TeslaSQL.Agents {
         private IList<ChangeTrackingBatch> GetIncompleteBatches() {
             var batches = new List<ChangeTrackingBatch>();
             logger.Log("Retrieving information on last run for slave " + Config.slave, LogLevel.Debug);
-            var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(Config.relayDB);
+            var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(Config.relayDB, Config.slave);
             if (incompleteBatches.Rows.Count > 0) {
                 foreach (DataRow row in incompleteBatches.Rows) {
                     batches.Add(new ChangeTrackingBatch(row));
@@ -460,7 +460,7 @@ namespace TeslaSQL.Agents {
                         //hard coding timeout at 1 hour for bulk copy
                         logger.Log("Copying table " + tLocal.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
                         var sw = Stopwatch.StartNew();
-                        dataCopy.CopyTable(sourceCTDB, sourceCTTable, tLocal.schemaName, destCTDB, 36000, destCTTable);
+                        dataCopy.CopyTable(sourceCTDB, sourceCTTable, tLocal.schemaName, destCTDB, Config.dataCopyTimeout, destCTTable, CTID);
                         logger.Log("CopyTable: " + sw.Elapsed, LogLevel.Trace);
                     } catch (DoesNotExistException) {
                         //this is a totally normal and expected case since we only publish changetables when data actually changed

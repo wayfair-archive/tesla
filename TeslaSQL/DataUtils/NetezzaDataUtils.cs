@@ -26,13 +26,14 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
-        internal DataTable SqlQuery(string dbName, OleDbCommand cmd, int timeout = 30) {
+        internal DataTable SqlQuery(string dbName, OleDbCommand cmd, int? timeout = null) {
+            int commandTimeout = timeout ?? Config.queryTimeout;
             string connStr = buildConnString(dbName);
 
             using (OleDbConnection conn = new OleDbConnection(connStr)) {
                 conn.Open();
                 cmd.Connection = conn;
-                cmd.CommandTimeout = timeout;
+                cmd.CommandTimeout = commandTimeout;
 
                 DataSet ds = new DataSet();
                 OleDbDataAdapter da = new OleDbDataAdapter(cmd);
@@ -51,7 +52,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>The value in the first column and row, as the specified type</returns>
-        private T SqlQueryToScalar<T>(string dbName, OleDbCommand cmd, int timeout = 30) {
+        private T SqlQueryToScalar<T>(string dbName, OleDbCommand cmd, int? timeout = null) {
             DataTable result = SqlQuery(dbName, cmd, timeout);
             //return result in first column and first row as specified type
             return (T)result.Rows[0][0];
@@ -64,7 +65,8 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        internal int SqlNonQuery(string dbName, OleDbCommand cmd, int timeout = 600) {
+        internal int SqlNonQuery(string dbName, OleDbCommand cmd, int? timeout = null) {
+            int commandTimeout = timeout ?? Config.queryTimeout;
             //build connection string based on server/db info passed in
             string connStr = buildConnString(dbName);
             int numrows;
@@ -73,7 +75,7 @@ namespace TeslaSQL.DataUtils {
                 //open database connection
                 conn.Open();
                 cmd.Connection = conn;
-                cmd.CommandTimeout = timeout;
+                cmd.CommandTimeout = commandTimeout;
                 numrows = cmd.ExecuteNonQuery();
             }
             return numrows;
@@ -147,11 +149,13 @@ namespace TeslaSQL.DataUtils {
                 foreach (var id in cmds) {
                     id.delete.Transaction = trans;
                     id.delete.Connection = conn;
+                    id.delete.CommandTimeout = Config.queryTimeout;
                     logger.Log(id.delete.CommandText, LogLevel.Trace);
                     int deleted = id.delete.ExecuteNonQuery();
                     logger.Log("Rows deleted: " + deleted, LogLevel.Info);
                     id.insert.Transaction = trans;
                     id.insert.Connection = conn;
+                    id.insert.CommandTimeout = Config.queryTimeout;
                     logger.Log(id.insert.CommandText, LogLevel.Trace);
                     int inserted = id.insert.ExecuteNonQuery();
                     logger.Log("Rows deleted: " + inserted, LogLevel.Info);
@@ -286,7 +290,7 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-        public DataTable GetPendingCTSlaveVersions(string dbName) {
+        public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
