@@ -136,6 +136,7 @@
     <Compile Include="SchemaChange.cs" />
     <Compile Include="SimpleEmailClient.cs" />
     <Compile Include="DataUtils\TestDataUtils.cs" />
+    <Compile Include="Tests\Agents\TestMasterMaintenance.cs" />
     <Compile Include="Tests\Agents\TestAgent.cs" />
     <Compile Include="Tests\Agents\TestMaster.cs" />
     <Compile Include="Tests\Agents\TestShardCoordinator.cs" />

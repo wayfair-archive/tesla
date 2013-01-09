@@ -41,6 +41,7 @@ namespace TeslaSQL {
             relayUser = ValidateNullableIdentifier(c.relayUser);
             relayPassword = c.relayPassword;
             changeRetentionHours = c.changeRetentionHours;
+            batchRecordRetentionDays = c.batchRecordRetentionDays;
             maxBatchSize = c.maxBatchSize;
             batchConsolidationThreshold = c.batchConsolidationThreshold;
             statsdHost = c.statsdHost;
@@ -349,8 +350,15 @@ namespace TeslaSQL {
 
         public static string errorTable { get; set; }
 
-        //how many hours to retain changes for in the relay server
+        /// <summary>
+        /// how many hours to retain changes for in the relay server
+        /// </summary>
         public static int changeRetentionHours { get; set; }
+
+        /// <summary>
+        /// how many days to retain records in CTVersion tables
+        /// </summary>
+        public static int batchRecordRetentionDays { get; set; }
 
         //username to use when connecting to the master
         public static string masterUser { get; set; }
@@ -501,6 +509,7 @@ namespace TeslaSQL {
         public string relayUser { get; set; }
         public string relayPassword { get; set; }
         public int changeRetentionHours { get; set; }
+        public int batchRecordRetentionDays { get; set; }
         public int maxBatchSize { get; set; }
         public string thresholdIgnoreStartTime { get; set; }
         public string thresholdIgnoreEndTime { get; set; }
@@ -523,6 +532,7 @@ namespace TeslaSQL {
         public RefreshView[] refreshViews { get; set; }
         public string bcpPath { get; set; }
         public string nzLoadScriptPath { get; set; }
+        
 
         [XmlArrayItem("magicHour")]
         public string[] magicHours { get; set; }

@@ -453,6 +453,19 @@ namespace TeslaSQL.DataUtils {
         public int GetExpectedRowCounts(string ctDbName, long ctid) {
             throw new NotImplementedException();
         }
+
+
+        public IEnumerable<TTable> GetTables(string p) {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<int> GetOldCTIDs(string p, DateTime chopDate, AgentType agentType) {
+            throw new NotImplementedException();
+        }
+
+        public void DeleteOldCTVersions(string p, DateTime chopDate, AgentType agentType) {
+            throw new NotImplementedException();
+        }
     }
 }
 
