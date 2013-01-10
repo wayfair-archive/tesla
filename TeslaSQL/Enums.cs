@@ -66,9 +66,9 @@ namespace TeslaSQL {
         PublishSchemaChanges = 1,
         CaptureChanges = 2,
         UploadChanges = 4,
-        DownloadChanges = 8,
-        ApplySchemaChanges = 16,
-        ConsolidateBatches = 32,
+        ApplySchemaChanges = 8,
+        ConsolidateBatches = 16,
+        DownloadChanges = 32,
         ApplyChanges = 64,
         SyncHistoryTables = 128
     }

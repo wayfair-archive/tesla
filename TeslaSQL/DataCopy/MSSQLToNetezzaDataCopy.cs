@@ -34,17 +34,18 @@ namespace TeslaSQL.DataCopy {
             DirectoryInfo dir = new DirectoryInfo(directory);
             if (!dir.Exists) {
                 dir.Create();
-            } 
+            }
         }
 
-        public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null, Int64? CTID = null) {
+        public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null, string originalTableName = null) {
             //by default the dest table will have the same name as the source table
             destTableName = (destTableName == null) ? sourceTableName : destTableName;
+            originalTableName = originalTableName ?? sourceTableName;
 
             //drop table at destination and create from source schema
-            CopyTableDefinition(sourceDB, sourceTableName, schema, destDB, destTableName, CTID ?? 0);
+            CopyTableDefinition(sourceDB, sourceTableName, schema, destDB, destTableName, originalTableName);
 
-            var cols = GetColumns(sourceDB, sourceTableName, schema, CTID ?? 0);            
+            var cols = GetColumns(sourceDB, sourceTableName, schema, originalTableName);
             var bcpSelect = string.Format("SELECT {0} FROM {1}..{2};",
                                           string.Join(",", cols.Select(col => col.ColExpression())),
                                           sourceDB, sourceTableName);
@@ -73,7 +74,7 @@ namespace TeslaSQL.DataCopy {
             bcp.Start();
             bcp.WaitForExit();
             if (bcp.ExitCode != 0) {
-                string err =bcp.StandardError.ReadToEnd();
+                string err = bcp.StandardError.ReadToEnd();
                 logger.Log(err, LogLevel.Critical);
                 throw new Exception("BCP error: " + err);
             }
@@ -84,7 +85,7 @@ namespace TeslaSQL.DataCopy {
                                               nzServer,
                                               Config.nzLoadScriptPath,
                                               destDB.ToLower(),
-                                              sourceTableName);
+                                              destTableName);
 
             var plink = new Process();
             plink.StartInfo.FileName = Config.plinkPath;
@@ -94,7 +95,7 @@ namespace TeslaSQL.DataCopy {
             plink.StartInfo.RedirectStandardOutput = true;
             plink.Start();
             plink.WaitForExit();
-            
+
             if (plink.ExitCode != 0) {
                 string err = plink.StandardError.ReadToEnd();
                 logger.Log(err, LogLevel.Critical);
@@ -103,7 +104,7 @@ namespace TeslaSQL.DataCopy {
             string output = plink.StandardOutput.ReadToEnd();
             if (Regex.IsMatch(output, "Cannot open input file .* No such file or directory")
                 || !output.Contains("completed successfully")) {
-                    throw new Exception("Netezza load failed: " + output);
+                throw new Exception("Netezza load failed: " + output);
             }
             if (output.Contains("Disconnected: User aborted at host key verification")) {
                 throw new Exception("Error connecting to Netezza server: Please verify host key");
@@ -113,7 +114,7 @@ namespace TeslaSQL.DataCopy {
         struct Col {
             public string name;
             public string typeName;
-            public Microsoft.SqlServer.Management.Smo.DataType dataType; 
+            public Microsoft.SqlServer.Management.Smo.DataType dataType;
 
             public Col(string name, string typeName, Microsoft.SqlServer.Management.Smo.DataType dataType) {
                 this.name = name;
@@ -149,8 +150,8 @@ namespace TeslaSQL.DataCopy {
             }
         }
 
-        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, Int64? CTID) {
-            var cols = GetColumns(sourceDB, sourceTableName, schema, CTID ?? 0);
+        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, string originalTableName = null) {
+            var cols = GetColumns(sourceDB, sourceTableName, schema, originalTableName ?? sourceTableName);
             string nzCreate = string.Format(
                 @"CREATE TABLE {0}
                             (
@@ -165,7 +166,7 @@ namespace TeslaSQL.DataCopy {
 
         }
 
-        private List<Col> GetColumns(string sourceDB, string sourceTableName, string schema, Int64 CTID) {
+        private List<Col> GetColumns(string sourceDB, string sourceTableName, string schema, string originalTableName) {
             var table = sourceDataUtils.GetSmoTable(sourceDB, sourceTableName, schema);
 
             var shortenedTypes = new HashSet<SqlDataType> {
@@ -195,7 +196,7 @@ namespace TeslaSQL.DataCopy {
                 if (shortenedTypes.Contains(col.DataType.SqlDataType)) {
                     ColumnModifier mod = null;
                     //see if there are any column modifiers which override our length defaults
-                    IEnumerable<TableConf> tables = Config.tables.Where(t => t.ToCTName(CTID) == table.Name);                    
+                    IEnumerable<TableConf> tables = Config.tables.Where(t => t.Name == originalTableName);
                     ColumnModifier[] modifiers = tables.FirstOrDefault().columnModifiers;
                     if (modifiers != null) {
                         IEnumerable<ColumnModifier> mods = modifiers.Where(c => ((c.columnName == col.Name) && (c.type == "ShortenField")));

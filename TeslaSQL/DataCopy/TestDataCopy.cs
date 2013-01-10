@@ -15,7 +15,7 @@ namespace TeslaSQL.DataCopy {
             this.destDataUtils = destDataUtils;
         }
 
-        public void CopyTable(string sourceDB, string table, string schema, string destDB, int timeout, string destTableName = null, Int64? CTID = null) {
+        public void CopyTable(string sourceDB, string table, string schema, string destDB, int timeout, string destTableName = null, string originalTableName = null) {
             //by default the dest table will have the same name as the source table
             destTableName = (destTableName == null) ? table : destTableName;
             //create a copy of the source table (data and schema)
@@ -28,7 +28,7 @@ namespace TeslaSQL.DataCopy {
         }
 
 
-        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, Int64? CTID = null) {
+        public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, string originalTableName = null) {
             throw new NotImplementedException();
         }
     }

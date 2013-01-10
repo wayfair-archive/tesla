@@ -14,7 +14,7 @@ namespace TeslaSQL.DataUtils {
         public Logger logger;
         public TServer server;
 
-        public NetezzaDataUtils(Logger logger, TServer server) {            
+        public NetezzaDataUtils(Logger logger, TServer server) {
             this.logger = logger;
             this.server = server;
         }
@@ -32,6 +32,7 @@ namespace TeslaSQL.DataUtils {
 
             using (OleDbConnection conn = new OleDbConnection(connStr)) {
                 conn.Open();
+
                 cmd.Connection = conn;
                 cmd.CommandTimeout = commandTimeout;
 
@@ -101,7 +102,7 @@ namespace TeslaSQL.DataUtils {
                 default:
                     throw new NotImplementedException("Netezza is only supported as a slave!");
             }
-            return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass + ";Provider=NZOLEDB;";
+            return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass + ";Provider=NZOLEDB;Connect Timeout=60;";
         }
 
         public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
@@ -195,7 +196,7 @@ namespace TeslaSQL.DataUtils {
                 logger.Log(sql, LogLevel.Debug);
             } else {
                 logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
-                sql = string.Format("CREATE TABLE {0} AS SELECT {1} AS CTHistID, * FROM {2}", t.historyName,t.ctid, t.ctName);
+                sql = string.Format("CREATE TABLE {0} AS SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
             }
             var cmd = new OleDbCommand(sql);

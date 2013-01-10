@@ -122,7 +122,7 @@ namespace TeslaSQL.DataUtils {
                     break;
             }
 
-            return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass;
+            return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass + ";Connection Timeout=60;";
         }
 
 
@@ -444,7 +444,7 @@ namespace TeslaSQL.DataUtils {
             //attempt to get smo table object
             try {
                 t_smo = GetSmoTable(dbName, table, schema);
-            } catch (DoesNotExistException) {                
+            } catch (DoesNotExistException) {
                 logger.Log("Unable to get field list for " + dbName + "." + schema + "." + table + " because it does not exist", LogLevel.Debug);
                 return dict;
             }
@@ -702,10 +702,10 @@ namespace TeslaSQL.DataUtils {
             logger.Log("table " + table.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
             var rowCounts = new RowCounts(inserted, deleted);
             if (archiveTable != null) {
-                 inserted = s[1].Rows[0].Field<int>("insertcount");
-                 deleted = s[1].Rows[0].Field<int>("deletecount");
-                 logger.Log("table " + archiveTable.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
-                 rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
+                inserted = s[1].Rows[0].Field<int>("insertcount");
+                deleted = s[1].Rows[0].Field<int>("deletecount");
+                logger.Log("table " + archiveTable.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
+                rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
             }
             return rowCounts;
         }
@@ -823,13 +823,14 @@ namespace TeslaSQL.DataUtils {
 
         public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier) {
             string query = @"SELECT * FROM tblCTSlaveVersion
-                            WHERE CTID > 
+                            WHERE slaveIdentifier = @slaveidentifier AND CTID >
                             (
-                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE syncBitWise = @bitwise
+                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE slaveIdentifier = @slaveidentifier AND syncBitWise = @bitwise
                             )";
             SqlCommand cmd = new SqlCommand(query);
             cmd.Parameters.Add("@bitwise", SqlDbType.Int).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
             cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 500).Value = slaveIdentifier;
+            logger.Log("Running query: " + cmd.CommandText + "... slaveidentifiers is " + slaveIdentifier, LogLevel.Debug);
             return SqlQuery(dbName, cmd);
         }
 
@@ -935,23 +936,23 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-       public int GetExpectedRowCounts(string ctDbName, long ctid) {
+        public int GetExpectedRowCounts(string ctDbName, long ctid) {
             string sql = string.Format("SELECT SUM(CtiExpectedRows) FROM tblCTTableInfo_{0};", ctid);
             var cmd = new SqlCommand(sql);
             return SqlQueryToScalar<int>(ctDbName, cmd);
         }
 
 
-       public IEnumerable<TTable> GetTables(string p) {
-           throw new NotImplementedException();
-       }
+        public IEnumerable<TTable> GetTables(string p) {
+            throw new NotImplementedException();
+        }
 
-       public IEnumerable<int> GetOldCTIDs(string p, DateTime chopDate, AgentType agentType) {
-           throw new NotImplementedException();
-       }
+        public IEnumerable<int> GetOldCTIDs(string p, DateTime chopDate, AgentType agentType) {
+            throw new NotImplementedException();
+        }
 
-       public void DeleteOldCTVersions(string p, DateTime chopDate, AgentType agentType) {
-           throw new NotImplementedException();
-       }
+        public void DeleteOldCTVersions(string p, DateTime chopDate, AgentType agentType) {
+            throw new NotImplementedException();
+        }
     }
 }

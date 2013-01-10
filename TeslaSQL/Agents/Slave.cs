@@ -163,11 +163,11 @@ namespace TeslaSQL.Agents {
             }
 
             logger.Log("Populating table list", LogLevel.Debug);
-            List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.slaveCTDB, ctb.CTID);
+            List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.relayDB, ctb.CTID);
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Debug);
-                SetFieldListsSlave(Config.slaveCTDB, Config.tables, ctb);
+                SetFieldListsSlave(Config.relayDB, Config.tables, ctb);
                 sw = Stopwatch.StartNew();
                 RowCounts total = ApplyChanges(Config.tables, Config.slaveDB, existingCTTables, ctb.CTID);
                 RecordRowCounts(total, ctb);
@@ -211,9 +211,10 @@ namespace TeslaSQL.Agents {
 
             foreach (ChangeTrackingBatch batch in batches) {
                 logger.Log("Populating list of changetables for CTID : " + batch.CTID, LogLevel.Debug);
-                existingCTTables = existingCTTables.Concat(PopulateTableList(Config.tables, Config.slaveCTDB, batch.CTID)).ToList();
+                existingCTTables = existingCTTables.Concat(PopulateTableList(Config.tables, Config.relayDB, batch.CTID)).ToList();
             }
-            SetFieldListsSlave(Config.slaveDB, Config.tables, endBatch);
+            logger.Log("Capturing field lists", LogLevel.Debug);
+            SetFieldListsSlave(Config.relayDB, Config.tables, endBatch);
 
             foreach (ChangeTrackingBatch batch in batches) {
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
@@ -274,11 +275,11 @@ namespace TeslaSQL.Agents {
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
                 consolidatedTables.Add(lastChangeTable);
                 TableConf tLocal = table;
-                IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.slaveType.Value, sourceDataUtils, sourceDataUtils, logger);
+                IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
                 Action act = () => {
                     try {
                         dataCopy.CopyTable(Config.relayDB, lastChangeTable.ctName, tLocal.schemaName, Config.relayDB, Config.dataCopyTimeout, lastChangeTable.consolidatedName);
-                        foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid)) {
+                        foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid).Skip(1)) {
                             sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, Config.relayDB, tLocal.schemaName);
                         }
                         sourceDataUtils.RemoveDuplicatePrimaryKeyChangeRows(tLocal, lastChangeTable.consolidatedName, Config.relayDB);
@@ -297,16 +298,20 @@ namespace TeslaSQL.Agents {
 
         private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
             foreach (var table in tables) {
+                logger.Log("Setting field lists for " + table.ToCTName(batch.CTID), LogLevel.Trace);
                 var cols = sourceDataUtils.GetFieldList(dbName, table.ToCTName(batch.CTID), table.schemaName);
 
                 //this is hacky but these aren't columns we actually care about, but we expect them to be there
                 cols.Remove("SYS_CHANGE_VERSION");
                 cols.Remove("SYS_CHANGE_OPERATION");
+                logger.Log("Getting primary keys from info table for " + table.ToCTName(batch.CTID), LogLevel.Trace);
                 var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch, dbName);
                 foreach (var pk in pks) {
                     cols[pk] = true;
                 }
+                logger.Log("SetFieldLists for " + table.ToCTName(batch.CTID), LogLevel.Trace);
                 SetFieldList(table, cols);
+                logger.Log("SetFieldLists success " + table.ToCTName(batch.CTID), LogLevel.Trace);
             }
         }
 
@@ -460,7 +465,7 @@ namespace TeslaSQL.Agents {
                         //hard coding timeout at 1 hour for bulk copy
                         logger.Log("Copying table " + tLocal.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
                         var sw = Stopwatch.StartNew();
-                        dataCopy.CopyTable(sourceCTDB, sourceCTTable, tLocal.schemaName, destCTDB, Config.dataCopyTimeout, destCTTable, CTID);
+                        dataCopy.CopyTable(sourceCTDB, sourceCTTable, tLocal.schemaName, destCTDB, Config.dataCopyTimeout, destCTTable, tLocal.Name);
                         logger.Log("CopyTable: " + sw.Elapsed, LogLevel.Trace);
                     } catch (DoesNotExistException) {
                         //this is a totally normal and expected case since we only publish changetables when data actually changed
