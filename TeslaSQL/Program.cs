@@ -157,7 +157,7 @@ namespace TeslaSQL {
                     return masterMaintenance;
                 case AgentType.RelayMaintenance:
                     sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
-                    var relayMaintenance = new RelayMaintenance(sourceDataUtils);
+                    var relayMaintenance = new RelayMaintenance(sourceDataUtils,logger);
                     return relayMaintenance;
                 case AgentType.SlaveMaintenance:
                     sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, (SqlFlavor)Config.slaveType);

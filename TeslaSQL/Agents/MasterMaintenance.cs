@@ -37,7 +37,7 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             var chopDate = DateTime.Now - new TimeSpan(Config.changeRetentionHours, 0, 0);
-           var ctids = destDataUtils.GetOldCTIDsMaster(Config.relayDB, chopDate);
+            var ctids = destDataUtils.GetOldCTIDsMaster(Config.relayDB, chopDate);
 
             var tables = sourceDataUtils.GetTables(Config.masterCTDB);
             logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
@@ -55,7 +55,6 @@ namespace TeslaSQL.Agents {
                 if (ctids.Contains(tableCtid)) {
                     sourceDataUtils.DropTableIfExists(Config.masterCTDB, table.name, table.schema);
                 }
-                destDataUtils.DeleteOldCTVersionsMaster(Config.masterCTDB, chopDate);
             }
         }
     }

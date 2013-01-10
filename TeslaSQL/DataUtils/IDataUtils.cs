@@ -341,7 +341,11 @@ namespace TeslaSQL.DataUtils {
         /// <returns></returns>
         IEnumerable<long> GetOldCTIDsMaster(string dbName, DateTime chopDate);
 
-        void DeleteOldCTVersionsMaster(string dbName, DateTime chopDate);
+        void DeleteOldCTVersions(string dbName, DateTime chopDate);
+
+        void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate);
+
+        IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate);
     }
     public struct TTable {
         public readonly string name;

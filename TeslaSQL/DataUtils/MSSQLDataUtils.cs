@@ -222,8 +222,8 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void CreateShardCTVersion(string dbName, long ctid, long startVersion) {
-            string query = "INSERT INTO dbo.tblCTVersion (ctid, syncStartVersion, syncBitWise)";
-            query += " VALUES (@ctid,@syncStartVersion, 0)";
+            string query = "INSERT INTO dbo.tblCTVersion (ctid, syncStartVersion, syncStartTime, syncBitWise)";
+            query += " VALUES (@ctid,@syncStartVersion, GETDATE(), 0)";
 
             SqlCommand cmd = new SqlCommand(query);
 
@@ -957,11 +957,35 @@ namespace TeslaSQL.DataUtils {
             }
             return ctids;
         }
-        public void DeleteOldCTVersionsMaster(string dbName, DateTime chopDate) {
+        public IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate) {
+            string sql = @"SELECT ctid, MAX(syncstoptime) AS maxstop
+                           FROM [CT_csn_cttest].[dbo].[tblCTSlaveVersion]
+                           GROUP BY CTID
+                           HAVING MAX(syncstoptime) < @chopDate";
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
+            var res = SqlQuery(dbName, cmd);
+            var ctids = new List<long>();
+            foreach (DataRow row in res.Rows) {
+                ctids.Add(row.Field<long>("ctid"));
+            }
+            return ctids;
+        }
+
+        public void DeleteOldCTVersions(string dbName, DateTime chopDate) {
             string sql = "DELETE FROM tblCTVersion WHERE syncStartTime < @chopDate";
             var cmd = new SqlCommand(sql);
             cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
             SqlNonQuery(dbName, cmd);
         }
+
+        public void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate) {
+            string sql = "DELETE FROM tblCTSlaveVersion WHERE ISNULL(syncStopTime,syncStartTime) < @chopDate";
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
+            SqlNonQuery(dbName, cmd);
+        }
+
+
     }
 }
