@@ -9,11 +9,10 @@ namespace TeslaSQL.Agents {
     /// <summary>
     /// Cleans up old data on the master
     /// </summary>
-   public class MasterMaintenance : Agent {
-
+    public class MasterMaintenance : Agent {
         //base keyword invokes the base class's constructor
-        public MasterMaintenance(IDataUtils dataUtils, Logger logger)
-            : base(dataUtils, null, logger) {
+        public MasterMaintenance(IDataUtils dataUtils, IDataUtils destDataUtils, Logger logger)
+            : base(dataUtils, destDataUtils, logger) {
         }
         public MasterMaintenance() { }
 
@@ -23,12 +22,12 @@ namespace TeslaSQL.Agents {
                 throw new Exception("MasterMaintenance agent requires a valid SQL flavor for master");
             }
             if (Config.masterCTDB == null) {
-                throw new Exception("MasterMaintenace agent requires masterCTDB to be set");
+                throw new Exception("MasterMaintenance agent requires masterCTDB to be set");
             }
             if (Config.batchRecordRetentionDays <= 0) {
-                throw new Exception("MasterMaintenace agent requires batchConsolidationThreshold to be set and positive");
+                throw new Exception("MasterMaintenance agent requires batchConsolidationThreshold to be set and positive");
             }
-            if ( Config.changeRetentionHours <= 0) {
+            if (Config.changeRetentionHours <= 0) {
                 throw new Exception("MasterMaintenance agent requires changeRetentionHours to be set and positive");
             }
             if (Config.batchRecordRetentionDays * 24 < Config.changeRetentionHours) {
@@ -38,9 +37,10 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             var chopDate = DateTime.Now - new TimeSpan(Config.changeRetentionHours, 0, 0);
-            IEnumerable<int> ctids = sourceDataUtils.GetOldCTIDs(Config.masterCTDB, chopDate, AgentType.MasterMaintenance);
+            var ctids = destDataUtils.GetOldCTIDsMaster(Config.relayDB, chopDate);
 
             var tables = sourceDataUtils.GetTables(Config.masterCTDB);
+            logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
             foreach (var table in tables) {
                 int lastUnderscore = table.name.LastIndexOf('_');
                 if (lastUnderscore == -1) {
@@ -55,7 +55,6 @@ namespace TeslaSQL.Agents {
                 if (ctids.Contains(tableCtid)) {
                     sourceDataUtils.DropTableIfExists(Config.masterCTDB, table.name, table.schema);
                 }
-                sourceDataUtils.DeleteOldCTVersions(Config.masterCTDB, chopDate, AgentType.MasterMaintenance);
             }
         }
     }
