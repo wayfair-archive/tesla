@@ -9,10 +9,9 @@ namespace TeslaSQL.Agents {
     /// Cleans up old data on the relay server
     /// </summary>
     class RelayMaintenance : Agent {
-        private IDataUtils relayDataUtils;
+        private IDataUtils relayDataUtils { get { return this.sourceDataUtils;}}
         public RelayMaintenance(IDataUtils dataUtils, Logger logger)
             : base(dataUtils, null, logger) {
-            relayDataUtils = sourceDataUtils;
         }
 
         public override void ValidateConfig() {
@@ -43,32 +42,12 @@ namespace TeslaSQL.Agents {
                 allDbs = allDbs.Concat(Config.shardDatabases);
             }
             foreach (string db in allDbs) {
-                DeleteOldTables(chopDate, ctids, db);
+                var tables = relayDataUtils.GetTables(db);
+                logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
+                MaintenanceHelper.DeleteOldTables(ctids, tables, relayDataUtils, db);
                 relayDataUtils.DeleteOldCTVersions(db, rowChopDate);
             }
             relayDataUtils.DeleteOldCTSlaveVersions(Config.relayDB, rowChopDate);
-        }
-
-        private void DeleteOldTables(DateTime chopDate, IEnumerable<long> ctids, string db) {
-            var tables = relayDataUtils.GetTables(db);
-            logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
-            foreach (var table in tables) {
-                //we want all tables that are tblsomethingsomething_<CTID>
-                int lastUnderscore = table.name.LastIndexOf('_');
-                if (lastUnderscore == -1) {
-                    continue;
-                }
-                string end = table.name.Substring(lastUnderscore + 1);
-
-                int tableCtid;
-                if (!int.TryParse(end, out tableCtid)) {
-                    continue;
-                }
-                //and <CTID> has to be in the list to delete
-                if (ctids.Contains(tableCtid)) {
-                    relayDataUtils.DropTableIfExists(db, table.name, table.schema);
-                }
-            }
         }
     }
 }

@@ -103,6 +103,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Agents\Agent.cs" />
+    <Compile Include="Agents\MaintenanceHelper.cs" />
     <Compile Include="Agents\Master.cs" />
     <Compile Include="Agents\MasterMaintenance.cs" />
     <Compile Include="Agents\Notifier.cs" />

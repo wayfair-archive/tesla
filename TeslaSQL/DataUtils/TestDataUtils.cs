@@ -590,5 +590,10 @@ namespace TeslaSQL.DataUtils {
         public void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate, IEnumerable<long> ctids) {
             throw new NotImplementedException();
         }
+
+
+        public IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier) {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -230,10 +230,21 @@ namespace TeslaSQL.DataUtils {
         /// <returns>True if it is enabled, false if it's not.</returns>
         bool IsChangeTrackingEnabled(string dbName, string table, string schema);
 
+        /// <summary>
+        /// Logs an error to the database. These errors are intended to be picked up and emailed out wholesale, to avoid spam.
+        /// </summary>
+        /// <param name="message">error to log</param>
         void LogError(string message);
 
+        /// <summary>
+        /// Returns a list of errors that have not been marked sent
+        /// </summary>
+        /// <returns>DataTable containing at least the fields "CelError" and "CelId"</returns>
         DataTable GetUnsentErrors();
 
+        /// <summary>
+        /// Marks as sent the errors corresponding to the passed in list of IDs.
+        /// </summary>
         void MarkErrorsSent(IEnumerable<int> celIds);
 
         /// <summary>
@@ -314,6 +325,9 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB);
 
+        /// <summary>
+        /// Gets the change track batch associated with the given CTID.
+        /// </summary>
         ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid);
 
         /// <summary>
@@ -321,31 +335,64 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         void RevertCTBatch(string dbName, Int64 ctid);
 
+        /// <summary>
+        /// Merges the table from the sourceDB into the corresponding merged table in the destDB
+        /// </summary>
         void MergeCTTable(TableConf table, string destDB, string sourceDB, Int64 CTID);
 
+        /// <summary>
+        /// In sharded solutions, the shards have to have their batches coordinated. 
+        /// This method is creates a new version for a shard, so that the shard doesn't need to be aware that it is a part of sharding
+        /// except that it knows not to create new versions for itself.
+        /// </summary>
+        /// <param name="db">Shard's DB</param>
+        /// <param name="startVersion">the change tracking version for this batch</param>
         void CreateShardCTVersion(string db, long ctid, Int64 startVersion);
 
+        /// <summary>
+        /// The primary keys for tables are not defined in their corresponding change tables, for reasons of performance and consolidation,
+        /// so in order to merge correctly, we need these lists defined elsewhere. These are defined in "info tables" for each batch,
+        /// and this method returns the primary key columns.
+        /// </summary>
         IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database);
 
+        /// <summary>
+        /// Tallies the total amount of expected rows from all the tables in the change tracking batch corresponding to the specified CTID.
+        /// </summary>
         int GetExpectedRowCounts(string ctDbName, long ctid);
 
 
-
-        IEnumerable<TTable> GetTables(string p);
+        /// <summary>
+        /// Returns all tables in the given DB
+        /// </summary>
+        IEnumerable<TTable> GetTables(string dbName);
 
         /// <summary>
-        /// returns a list of CTIDs started before chopDate
+        /// This is actually run on the Relay, but returns a list of CTIDs started before chopDate
         /// </summary>
-        /// <param name="p"></param>
-        /// <param name="chopDate"></param>
-        /// <returns></returns>
+        /// <param name="chopDate">Cut-off date. Batches started before this will be eliminated.</param>
         IEnumerable<long> GetOldCTIDsMaster(string dbName, DateTime chopDate);
-
-        void DeleteOldCTVersions(string dbName, DateTime chopDate);
-
-        void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate);
-
+        /// <summary>
+        /// Gets the CTIDs that the relay maintenance agent has determined need to go
+        /// </summary>
+        /// <param name="chopDate">Cut-off date. Batches finished before this time will be eliminated.</param>
+        /// <returns></returns>
         IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate);
+        /// <summary>
+        /// This is actually run on the Relay, but it gets CTIDs that are safe to drop for a slave
+        /// </summary>
+        /// <param name="chopDate">Cut-off date. Batches finished before this time will be eliminated</param>
+        /// <param name="slaveIdentifier">The hostname of this slave.</param>
+        IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier);
+
+        /// <summary>
+        /// Deletes CT Versions completed before chopDate
+        /// </summary>
+        void DeleteOldCTVersions(string dbName, DateTime chopDate);
+        /// <summary>
+        /// Deletes Slave CT Versions completed before chopDate
+        /// </summary>
+        void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate);
     }
     public struct TTable {
         public readonly string name;
