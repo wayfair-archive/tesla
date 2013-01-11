@@ -199,25 +199,24 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public int SelectIntoCTTable(string sourceCTDB, string masterColumnList, string ctTableName,
-            string sourceDB, string schemaName, string tableName, Int64 startVersion, string pkList, Int64 stopVersion, string notNullPkList, int timeout) {
+        public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch ctb, int queryTimeout) {
             /*
              * There is no way to have column lists or table names be parametrized/dynamic in sqlcommands other than building the string
              * manually like this. However, the table name and column list fields are trustworthy because they have already been compared to
              * actual database objects at this point. The database names are also validated to be legal database identifiers.
              * Only the start and stop versions are actually parametrizable.
              */
-            string query = "SELECT " + masterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
-            query += " INTO " + schemaName + "." + ctTableName;
-            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + schemaName + "." + tableName + ", @startversion) CT";
-            query += " LEFT OUTER JOIN " + sourceDB + "." + schemaName + "." + tableName + " P ON " + pkList;
+            string query = "SELECT " + table.            masterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
+            query += " INTO " + table.schemaName+ "." + table.ToCTName(ctb.CTID);
+            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.schemaName + "." + table.Name + ", @startversion) CT";
+            query += " LEFT OUTER JOIN " + sourceDB + "." + table.schemaName + "." + table.Name + " P ON " + table.pkList;
             query += " WHERE (SYS_CHANGE_VERSION <= @stopversion OR SYS_CHANGE_CREATION_VERSION <= @stopversion)";
-            query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + notNullPkList + ")";
+            query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + table.notNullPKList + ")";
 
             SqlCommand cmd = new SqlCommand(query);
 
-            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = startVersion;
-            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = stopVersion;
+            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = ctb.syncStartVersion;
+            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.syncStopVersion;
 
             return SqlNonQuery(sourceCTDB, cmd, 1200);
         }

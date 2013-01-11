@@ -99,7 +99,7 @@ namespace TeslaSQL.Agents {
                 }
 
                 logger.Log("Beginning creation of CT tables", LogLevel.Debug);
-                changesCaptured = CreateChangeTables(Config.tables, Config.masterDB, Config.masterCTDB, ctb.syncStartVersion, ctb.syncStopVersion, ctb.CTID);
+                changesCaptured = CreateChangeTables(Config.tables, Config.masterDB, Config.masterCTDB, ctb);
                 logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
 
                 destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
@@ -256,26 +256,64 @@ namespace TeslaSQL.Agents {
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
         /// <param name="CTID">CT batch ID this is being run for</param>
-        protected IDictionary<string, Int64> CreateChangeTables(TableConf[] tables, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
+        protected IDictionary<string, Int64> CreateChangeTables(TableConf[] tables, string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
             var changesCaptured = new ConcurrentDictionary<string, Int64>();
-            var actions = new List<Action>();            
+            var actions = new List<Action>();
             foreach (TableConf t in tables) {
                 //local variables inside the loop required for the action to bind properly
                 TableConf table = t;
-                KeyValuePair<string, Int64> result;
+                long rowsAffected;
                 Action act = () => {
                     logger.Log("Creating changetable for " + table.schemaName + "." + table.Name, LogLevel.Debug);
-                    result = CreateChangeTable(table, sourceDB, sourceCTDB, startVersion, stopVersion, CTID);
-                    changesCaptured.TryAdd(result.Key, result.Value);
-                    logger.Log(result.Value + " changes captured for table " + table.schemaName + "." + table.Name, LogLevel.Trace);
+                     rowsAffected = CreateChangeTable(table, sourceDB, sourceCTDB, batch);
+                    changesCaptured.TryAdd(table.schemaName + "." + table.Name, rowsAffected);
+                    logger.Log(rowsAffected + " changes captured for table " + table.schemaName + "." + table.Name, LogLevel.Trace);
                 };
                 actions.Add(act);
-            }            
+            }
             var options = new ParallelOptions();
             options.MaxDegreeOfParallelism = Config.maxThreads;
             logger.Log("Parallel invocation of " + actions.Count + " change captures", LogLevel.Trace);
             Parallel.Invoke(options, actions.ToArray());
             return changesCaptured;
+        }
+
+
+        /// <summary>
+        /// Creates changetable for an individual table
+        /// </summary>
+        /// <param name="t">Config table object to create changes for</param>
+        /// <param name="sourceDB">Database the source data lives in</param>
+        /// <param name="sourceCTDB">Database the changetables should go to</param>
+        /// <param name="startVersion">Change tracking version to start with</param>
+        /// <param name="stopVersion">Change tracking version to stop at</param>
+        /// <param name="CTID">CT batch ID this is being run for</param>
+        protected long CreateChangeTable(TableConf t, string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
+            string ctTableName = t.ToCTName(batch.CTID);
+            string reason;
+            //TODO is it important to record this correctly in the CT table?
+            long minValid = sourceDataUtils.GetMinValidVersion(sourceDB, t.Name, t.schemaName);
+            if (batch.syncStartVersion < minValid) {
+                batch.syncStartVersion = minValid;
+            }
+            if (!ValidateSourceTable(sourceDB, t.Name, t.schemaName, batch.syncStartVersion, out reason)) {
+                string message = "Change table creation impossible because : " + reason;
+                if (t.stopOnError) {
+                    throw new Exception(message);
+                } else {
+                    logger.Log(message, LogLevel.Error);
+                    return 0;
+                }
+            }
+
+            logger.Log("Dropping table " + ctTableName + " if it exists", LogLevel.Trace);
+            bool tExisted = sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, t.schemaName);
+
+            logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
+            Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, t, sourceDB, batch, Config.queryTimeout);
+
+            logger.Log("Rows affected for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
+            return rowsAffected;
         }
 
         /// <summary>
@@ -299,50 +337,10 @@ namespace TeslaSQL.Agents {
                 reason = "Change tracking is not enabled on " + table;
                 logger.Log(reason, LogLevel.Trace);
                 return false;
-            } else if (startVersion < sourceDataUtils.GetMinValidVersion(dbName, table, schemaName)) {
-                reason = "Start version of " + startVersion + " is less than CHANGE_TRACKING_MIN_VALID_VERSION for table " + table;
-                logger.Log(reason, LogLevel.Trace);
-                return false;
             }
             logger.Log("Table " + table + " seems valid for change tracking", LogLevel.Trace);
             reason = "";
             return true;
-        }
-
-
-        /// <summary>
-        /// Creates changetable for an individual table
-        /// </summary>
-        /// <param name="t">Config table object to create changes for</param>
-        /// <param name="sourceDB">Database the source data lives in</param>
-        /// <param name="sourceCTDB">Database the changetables should go to</param>
-        /// <param name="startVersion">Change tracking version to start with</param>
-        /// <param name="stopVersion">Change tracking version to stop at</param>
-        /// <param name="CTID">CT batch ID this is being run for</param>
-        protected KeyValuePair<string, Int64> CreateChangeTable(TableConf t, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
-            //TODO handle case where startVersion is 0, change it to CHANGE_TRACKING_MIN_VALID_VERSION?
-            string ctTableName = CTTableName(t.Name, CTID);
-            string reason;
-
-            if (!ValidateSourceTable(sourceDB, t.Name, t.schemaName, startVersion, out reason)) {
-                string message = "Change table creation impossible because : " + reason;
-                if (t.stopOnError) {
-                    throw new Exception(message);
-                } else {
-                    logger.Log(message, LogLevel.Error);
-                    return new KeyValuePair<string, Int64>(t.schemaName + "." + t.Name, 0);
-                }
-            }
-
-            logger.Log("Dropping table " + ctTableName + " if it exists", LogLevel.Trace);
-            bool tExisted = sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, t.schemaName);
-
-            logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
-            Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, t.modifiedMasterColumnList, ctTableName,
-                sourceDB, t.schemaName, t.Name, startVersion, t.pkList, stopVersion, t.notNullPKList, Config.queryTimeout);
-
-            logger.Log("Rows affected for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
-            return new KeyValuePair<string, Int64>(t.schemaName + "." + t.Name, rowsAffected);
         }
 
 
@@ -368,8 +366,8 @@ namespace TeslaSQL.Agents {
                     Action act = () => PublishChangeTable(localT, sourceCTDB, destCTDB, CTID);
                     actions.Add(act);
                 }
-            }            
-            logger.Log("Parallel invocation of " + actions.Count + " changetable publishes", LogLevel.Trace);   
+            }
+            logger.Log("Parallel invocation of " + actions.Count + " changetable publishes", LogLevel.Trace);
             var options = new ParallelOptions();
             options.MaxDegreeOfParallelism = Config.maxThreads;
             Parallel.Invoke(options, actions.ToArray());

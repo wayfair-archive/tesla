@@ -353,10 +353,6 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public int SelectIntoCTTable(string sourceCTDB, string masterColumnList, string ctTableName,
-            string sourceDB, string schemaName, string tableName, Int64 startVersion, string pkList, Int64 stopVersion, string notNullPkList, int timeout) {
-            throw new NotImplementedException("Netezza is only supported as a slave!");
-        }
 
 
         public Int64 CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
@@ -522,7 +518,12 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
 
+
+        public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout) {
+            throw new NotImplementedException("Netezza is only supported as a slave!");
+        }
         #endregion
+
     }
 }
 

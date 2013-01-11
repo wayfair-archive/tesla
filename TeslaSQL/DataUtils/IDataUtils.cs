@@ -63,31 +63,15 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// Generates and runs SELECT INTO query to create a changetable
         /// </summary>
-        /// <param name="sourceCTDB">Source CT database name</param>
-        /// <param name="schemaName">Source schema name</param>
-        /// <param name="masterColumnList">column list for the select statement</param>
-        /// <param name="ctTableName">CT table name</param>
-        /// <param name="sourceDB">Source database name</param>
-        /// <param name="tableName">Table name</param>
-        /// <param name="startVersion">syncStartVersion for the batch</param>
-        /// <param name="pkList">Primary key list for join condition</param>
-        /// <param name="stopVersion">syncStopVersion for the batch</param>
-        /// <param name="notNullPkList">Primary key list for where clause</param>
-        /// <param name="timeout">How long this is allowed to run for (seconds)</param>
         /// <returns>Int representing the number of rows affected (number of changes captured)</returns>
-        int SelectIntoCTTable(string sourceCTDB, string masterColumnList, string ctTableName,
-            string sourceDB, string schemaName, string tableName, Int64 startVersion, string pkList, Int64 stopVersion, string notNullPkList, int timeout);
+        int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout);
 
         /// <summary>
         /// Creates a row in tblCTSlaveVersion
         /// </summary>
         /// <param name="dbName">Database name to write to</param>
         /// <param name="slaveIdentifier">Slave identifier string (usually hostname)</param>
-        /// <param name="CTID">Batch number (generated on master)</param>
-        /// <param name="syncStartVersion">Version number the batch starts at</param>
-        /// <param name="syncStopVersion">Version number the batch ends at</param>
-        /// <param name="syncBitWise">Current bitwise value for the batch</param>
-        /// <param name="syncStartTime">Time the batch started on the master</param>
+        /// <param name="ctb">Change tracking batch</param>
         void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier);
 
         /// <summary>

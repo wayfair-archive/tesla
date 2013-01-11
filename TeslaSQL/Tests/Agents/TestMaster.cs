@@ -17,21 +17,21 @@ namespace TeslaSQL.Tests.Agents {
         Dictionary<string, Int64> changesCaptured = new Dictionary<string, Int64> {
                 {"dbo.test1", 1},
                 {"dbo.test2", 0}
-            }; 
+            };
 
-        public void SetFixture(MasterTestFixture fixture) {           
+        public void SetFixture(MasterTestFixture fixture) {
             this.sourceDataUtils = fixture.sourceDataUtils;
             this.destDataUtils = fixture.destDataUtils;
             ((TestDataUtils)sourceDataUtils).ReloadData("test1");
-            ((TestDataUtils)destDataUtils).ReloadData("test1");            
+            ((TestDataUtils)destDataUtils).ReloadData("test1");
             SetFieldLists("testdb", Config.tables, sourceDataUtils);
         }
 
         [Fact]
-        public void TestInitializeBatch_LastBatchSuccessful() {                      
+        public void TestInitializeBatch_LastBatchSuccessful() {
             DataTable tblCTVersion = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTVersion", "RELAY.CT_testdb"];
             DataRow row = tblCTVersion.Rows[tblCTVersion.Rows.Count - 1];
-            
+
             Int64 CTID = row.Field<Int64>("CTID");
             row["syncBitWise"] = SyncBitWise.UploadChanges;
             row["syncStartVersion"] = 1000;
@@ -41,7 +41,7 @@ namespace TeslaSQL.Tests.Agents {
             ChangeTrackingBatch actual = InitializeBatch(2500);
             Assert.True(actual.Equals(expected));
             //undo any writes
-            ((TestDataUtils)destDataUtils).ReloadData("test1"); 
+            ((TestDataUtils)destDataUtils).ReloadData("test1");
         }
 
         [Fact]
@@ -101,9 +101,12 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestCreateChangeTables() {
-            IDictionary<string, Int64> result = CreateChangeTables(Config.tables, "testdb", "CT_testdb", 1000, 2000, 101);
+            IDictionary<string, Int64> result = CreateChangeTables(Config.tables, "testdb", "CT_testdb", new ChangeTrackingBatch(101, 1000, 2000, 0));
+            foreach (var kvp in result) {
+                Console.WriteLine(kvp.Key + ": " + kvp.Value);
+            }
             Assert.Equal(1, result["dbo.test1"]);
-            Assert.Equal(0, result["dbo.test2"]);            
+            Assert.Equal(0, result["dbo.test2"]);
         }
 
         [Fact]
@@ -121,24 +124,24 @@ namespace TeslaSQL.Tests.Agents {
         }
 
         [Fact]
-        public void TestPublishTableInfo() {        
+        public void TestPublishTableInfo() {
             //undo changes
             ((TestDataUtils)destDataUtils).ReloadData("test1");
-            ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);                     
+            ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);
             PublishTableInfo(Config.tables, "CT_testdb", changesCaptured, ctb.CTID);
             DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[0];
             Assert.True(actual.Field<string>("CtiTableName") == "test1"
                 && actual.Field<string>("CtiSchemaName") == "dbo"
                 && actual.Field<string>("CtiPKList") == "column1"
                 && actual.Field<int>("CtiExpectedRows") == 1);
-            
+
             actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[1];
             Assert.True(actual.Field<string>("CtiTableName") == "test2"
                 && actual.Field<string>("CtiSchemaName") == "dbo"
                 && actual.Field<string>("CtiPKList") == "column1"
-                && actual.Field<int>("CtiExpectedRows") == 0); 
-        }         
-       
+                && actual.Field<int>("CtiExpectedRows") == 0);
+        }
+
         [Fact]
         public void TestGetRowCounts_NonZero() {
             var rowCounts = GetRowCounts(Config.tables, "CT_testdb", 101);
@@ -191,7 +194,7 @@ namespace TeslaSQL.Tests.Agents {
         public void TestResizeBatch_ThresholdMidnight_InThresholdAfterMidnight() {
             //threshold time wraps around midnight and we are in the ignore window (after midnight)
             Assert.Equal(1500, ResizeBatch(500, 1500, 1500, 500, new TimeSpan(23, 45, 0), new TimeSpan(1, 30, 0), new DateTime(2000, 1, 1, 0, 30, 0)));
-        }      
+        }
     }
 
     public class MasterTestFixture {
