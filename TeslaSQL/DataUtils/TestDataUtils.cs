@@ -123,7 +123,7 @@ namespace TeslaSQL.DataUtils {
             return minValidVersions.Select("table = '" + schema + "." + table + "'")[0].Field<Int64>("version");
         }
 
-        public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch ctb, int timeout) {
+        public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch ctb, int timeout, long? overrideStartVersion) {
             //no good way to fake this with DataTables so just return and make sure we are also unit testing the
             //methods that generate these sfield lists
             return testData.Tables[table.schemaName + "." + table.ToCTName(ctb.CTID), GetTableSpace(sourceCTDB)].Rows.Count;

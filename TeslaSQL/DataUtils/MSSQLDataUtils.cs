@@ -199,7 +199,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch ctb, int queryTimeout) {
+        public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch ctb, int queryTimeout, long? overrideStartVersion = null) {
             /*
              * There is no way to have column lists or table names be parametrized/dynamic in sqlcommands other than building the string
              * manually like this. However, the table name and column list fields are trustworthy because they have already been compared to
@@ -214,8 +214,8 @@ namespace TeslaSQL.DataUtils {
             query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + table.notNullPKList + ")";
 
             SqlCommand cmd = new SqlCommand(query);
-
-            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = ctb.syncStartVersion;
+            
+            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = (overrideStartVersion.HasValue ? overrideStartVersion.Value : ctb.syncStartVersion);
             cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.syncStopVersion;
 
             return SqlNonQuery(sourceCTDB, cmd, 1200);
@@ -821,7 +821,6 @@ namespace TeslaSQL.DataUtils {
             ScriptingOptions scriptOptions = new ScriptingOptions();
             scriptOptions.ScriptBatchTerminator = true;
             scriptOptions.NoCollation = true;
-
             //get smo table object
             Table t_smo = GetSmoTable(dbName, table, schema);
 

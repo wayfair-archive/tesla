@@ -64,7 +64,7 @@ namespace TeslaSQL.DataUtils {
         /// Generates and runs SELECT INTO query to create a changetable
         /// </summary>
         /// <returns>Int representing the number of rows affected (number of changes captured)</returns>
-        int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout);
+        int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout, long? startVersionOverride = null);
 
         /// <summary>
         /// Creates a row in tblCTSlaveVersion

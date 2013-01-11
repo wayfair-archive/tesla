@@ -106,6 +106,7 @@ namespace TeslaSQL {
 
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
+
             try {
                 Agent a = CreateAgent(Config.agentType, logger);
                 logger.Log("Running agent of type " + Config.agentType, LogLevel.Info);
@@ -157,7 +158,7 @@ namespace TeslaSQL {
                     return masterMaintenance;
                 case AgentType.RelayMaintenance:
                     sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
-                    var relayMaintenance = new RelayMaintenance(sourceDataUtils,logger);
+                    var relayMaintenance = new RelayMaintenance(sourceDataUtils, logger);
                     return relayMaintenance;
                 case AgentType.SlaveMaintenance:
                     sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);

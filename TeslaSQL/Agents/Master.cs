@@ -265,7 +265,7 @@ namespace TeslaSQL.Agents {
                 long rowsAffected;
                 Action act = () => {
                     logger.Log("Creating changetable for " + table.schemaName + "." + table.Name, LogLevel.Debug);
-                     rowsAffected = CreateChangeTable(table, sourceDB, sourceCTDB, batch);
+                    rowsAffected = CreateChangeTable(table, sourceDB, sourceCTDB, batch);
                     changesCaptured.TryAdd(table.schemaName + "." + table.Name, rowsAffected);
                     logger.Log(rowsAffected + " changes captured for table " + table.schemaName + "." + table.Name, LogLevel.Trace);
                 };
@@ -282,35 +282,32 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// Creates changetable for an individual table
         /// </summary>
-        /// <param name="t">Config table object to create changes for</param>
+        /// <param name="table">Config table object to create changes for</param>
         /// <param name="sourceDB">Database the source data lives in</param>
         /// <param name="sourceCTDB">Database the changetables should go to</param>
         /// <param name="batch">Batch to work on</param>
-        protected long CreateChangeTable(TableConf t, string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
-            string ctTableName = t.ToCTName(batch.CTID);
+        protected long CreateChangeTable(TableConf table, string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
+            string ctTableName = table.ToCTName(batch.CTID);
             string reason;
-            //TODO is it important to record this correctly in the CT table?
-            long minValid = sourceDataUtils.GetMinValidVersion(sourceDB, t.Name, t.schemaName);
-            if (batch.syncStartVersion < minValid) {
-                batch.syncStartVersion = minValid;
-            }
-            if (!ValidateSourceTable(sourceDB, t.Name, t.schemaName, batch.syncStartVersion, out reason)) {
+            if (!ValidateSourceTable(sourceDB, table.Name, table.schemaName, batch.syncStartVersion, out reason)) {
                 string message = "Change table creation impossible because : " + reason;
-                if (t.stopOnError) {
+                if (table.stopOnError) {
                     throw new Exception(message);
                 } else {
                     logger.Log(message, LogLevel.Error);
                     return 0;
                 }
             }
+            long minValid = sourceDataUtils.GetMinValidVersion(sourceDB, table.Name, table.schemaName);
+            long tableStartVersion = Math.Max(batch.syncStartVersion, minValid);
 
             logger.Log("Dropping table " + ctTableName + " if it exists", LogLevel.Trace);
-            bool tExisted = sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, t.schemaName);
+            bool tExisted = sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, table.schemaName);
 
             logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
-            Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, t, sourceDB, batch, Config.queryTimeout);
+            Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, table, sourceDB, batch, Config.queryTimeout, tableStartVersion);
 
-            logger.Log("Rows affected for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
+            logger.Log("Rows affected for table " + table.schemaName + "." + table.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
             return rowsAffected;
         }
 

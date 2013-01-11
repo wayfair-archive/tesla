@@ -519,7 +519,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout) {
+        public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout, long? startVersionOverride) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
         #endregion
