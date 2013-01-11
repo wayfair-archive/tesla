@@ -102,9 +102,6 @@ namespace TeslaSQL.Tests.Agents {
         [Fact]
         public void TestCreateChangeTables() {
             IDictionary<string, Int64> result = CreateChangeTables(Config.tables, "testdb", "CT_testdb", new ChangeTrackingBatch(101, 1000, 2000, 0));
-            foreach (var kvp in result) {
-                Console.WriteLine(kvp.Key + ": " + kvp.Value);
-            }
             Assert.Equal(1, result["dbo.test1"]);
             Assert.Equal(0, result["dbo.test2"]);
         }

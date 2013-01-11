@@ -15,7 +15,6 @@ using System.Collections.Concurrent;
 #endregion
 
 namespace TeslaSQL.Agents {
-    //TODO throughout this class add error handling for tables that shouldn't stop on error
     public class Slave : Agent {
         public Slave(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger)
             : base(sourceDataUtils, destDataUtils, logger) {
@@ -34,11 +33,13 @@ namespace TeslaSQL.Agents {
                 throw new Exception("Slave agent requires a valid SQL flavor for relay and slave");
             }
         }
-        public string TimingKey {
+
+        private string TimingKey {
             get {
                 return string.Format("db.mssql_changetracking_counters.TeslaRunDuration{0}.{1}.{2}", Config.slave.Replace('.', '_'), AgentType.Slave, Config.slaveDB);
             }
         }
+
         public override void Run() {
             DateTime start = DateTime.Now;
             logger.Log("Initializing CT batch", LogLevel.Trace);
@@ -47,7 +48,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("No incomplete batches - initializing new", LogLevel.Debug);
                 batches = InitializeBatch();
             } else if (HasMagicHour() && !FullRunTime(DateTime.Now) && batches.All(ctb => (ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) > 0)) {
-                logger.Log("Magic hours are defined and we are not in one: applying schema changes only", LogLevel.Info);
+                logger.Log("Magic hours are defined and we have applied changes since the most recent one: applying schema changes only", LogLevel.Info);
                 batches = InitializeBatch();
                 foreach (var batch in batches) {
                     ApplySchemaChangesAndWrite(batch);
@@ -68,6 +69,7 @@ namespace TeslaSQL.Agents {
                 }
                 logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + Config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
             } else {
+                logger.Log("Running multi batch", LogLevel.Debug);
                 RunMultiBatch(batches);
             }
 
@@ -218,7 +220,7 @@ namespace TeslaSQL.Agents {
 
             foreach (ChangeTrackingBatch batch in batches) {
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
-                    logger.Log("Applying schema changes", LogLevel.Debug);
+                    logger.Log("Applying schema changes for batch " + batch.CTID, LogLevel.Debug);
                     ApplySchemaChanges(Config.tables, Config.relayDB, Config.slaveDB, batch.CTID);
                     sourceDataUtils.WriteBitWise(Config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 }
@@ -270,6 +272,7 @@ namespace TeslaSQL.Agents {
             var consolidatedTables = new List<ChangeTable>();
             foreach (var table in Config.tables) {
                 if (!lu.ContainsKey(table.Name)) {
+                    logger.Log("No changes captured for " + table.Name, LogLevel.Info);
                     continue;
                 }
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
@@ -278,8 +281,11 @@ namespace TeslaSQL.Agents {
                 IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
                 Action act = () => {
                     try {
+                        logger.Log("Copying " + lastChangeTable.ctName, LogLevel.Debug);
                         dataCopy.CopyTable(Config.relayDB, lastChangeTable.ctName, tLocal.schemaName, Config.relayDB, Config.dataCopyTimeout, lastChangeTable.consolidatedName);
+                        //skipping the first one because dataCopy.CopyTable already copied it).
                         foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid).Skip(1)) {
+                            logger.Log("Consolidating " + changeTable.ctName, LogLevel.Debug);
                             sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, Config.relayDB, tLocal.schemaName);
                         }
                         sourceDataUtils.RemoveDuplicatePrimaryKeyChangeRows(tLocal, lastChangeTable.consolidatedName, Config.relayDB);
@@ -355,26 +361,7 @@ namespace TeslaSQL.Agents {
         }
 
         private RowCounts ApplyChanges(TableConf[] tableConf, string slaveDB, List<ChangeTable> tables, Int64 CTID) {
-            var hasArchive = new Dictionary<TableConf, TableConf>();
-            foreach (var table in tableConf) {
-                if (tables.Any(s => s.name == table.Name)) {
-                    if (hasArchive.ContainsKey(table)) {
-                        //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
-                        continue;
-                    }
-                    if (table.Name.EndsWith("Archive")) {
-                        string nonArchiveTableName = CTTableName(table.Name.Substring(0, table.Name.Length - table.Name.LastIndexOf("Archive")), CTID);
-                        if (tables.Any(s => s.name == nonArchiveTableName)) {
-                            var nonArchiveTable = tableConf.First(t => t.Name == nonArchiveTableName);
-                            hasArchive[nonArchiveTable] = table;
-                        } else {
-                            hasArchive[table] = null;
-                        }
-                    } else {
-                        hasArchive[table] = null;
-                    }
-                }
-            }
+            var hasArchive = ValidTablesAndArchives(tableConf, tables, CTID);
             var actions = new List<Action>();
             var counts = new ConcurrentDictionary<string, RowCounts>();
             foreach (var tableArchive in hasArchive) {
@@ -398,6 +385,34 @@ namespace TeslaSQL.Agents {
             Parallel.Invoke(options, actions.ToArray());
             RowCounts total = counts.Values.Aggregate(new RowCounts(0, 0), (a, b) => new RowCounts(a.Inserted + b.Inserted, a.Deleted + b.Deleted));
             return total;
+        }
+
+        protected Dictionary<TableConf, TableConf> ValidTablesAndArchives(IEnumerable<TableConf> confTables, IEnumerable<ChangeTable> changeTables, Int64 CTID) {
+            var hasArchive = new Dictionary<TableConf, TableConf>();
+            foreach (var confTable in confTables) {
+                if (changeTables.Any(s => s.name == confTable.Name)) {
+                    if (hasArchive.ContainsKey(confTable)) {
+                        //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
+                        continue;
+                    }
+                    if (confTable.Name.EndsWith("Archive")) {
+                        //if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
+                        string nonArchiveTableName = confTable.Name.Substring(0, confTable.Name.Length - confTable.Name.LastIndexOf("Archive"));
+                        if (changeTables.Any(s => s.name == nonArchiveTableName)) {
+                            //if the non-archive table has any changes, we grab the associated table configuration and pair them
+                            var nonArchiveTable = confTables.First(t => t.Name == nonArchiveTableName);
+                            hasArchive[nonArchiveTable] = confTable;
+                        } else {
+                            //otherwise we just go ahead and treat the archive CT table as a normal table
+                            hasArchive[confTable] = null;
+                        }
+                    } else {
+                        //if the table doesn't end with "Archive," there's no archive table for it to pair up with.
+                        hasArchive[confTable] = null;
+                    }
+                }
+            }
+            return hasArchive;
         }
 
 

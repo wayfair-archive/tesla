@@ -285,9 +285,7 @@ namespace TeslaSQL.Agents {
         /// <param name="t">Config table object to create changes for</param>
         /// <param name="sourceDB">Database the source data lives in</param>
         /// <param name="sourceCTDB">Database the changetables should go to</param>
-        /// <param name="startVersion">Change tracking version to start with</param>
-        /// <param name="stopVersion">Change tracking version to stop at</param>
-        /// <param name="CTID">CT batch ID this is being run for</param>
+        /// <param name="batch">Batch to work on</param>
         protected long CreateChangeTable(TableConf t, string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
             string ctTableName = t.ToCTName(batch.CTID);
             string reason;

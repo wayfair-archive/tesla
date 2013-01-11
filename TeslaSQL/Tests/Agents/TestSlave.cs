@@ -9,7 +9,7 @@ using TeslaSQL.DataCopy;
 using TeslaSQL.Agents;
 using Moq;
 namespace TeslaSQL.Tests.Agents {
-    public class TestSlave : Slave{
+    public class TestSlave : Slave {
         /// <summary>
         /// Subclass so that we can implement the IUseFixture feature
         /// </summary>
@@ -257,7 +257,7 @@ namespace TeslaSQL.Tests.Agents {
                 destDataUtils.testData = new DataSet();
                 //this method, conveniently, sets up the datatable schema we need
                 sourceDataUtils.CreateSchemaChangeTable("CT_testdb", 1);
-   
+
                 Config.tables = tables;
                 Config.relayDB = "CT_testdb";
                 Config.logLevel = LogLevel.Critical;
@@ -297,7 +297,7 @@ namespace TeslaSQL.Tests.Agents {
                     new DateTime(now.Year, now.Month, now.Day, 3, 1, 0),
                     true
                     ));
-            
+
             foreach (var test in testCases) {
                 Config.magicHours = test.magicHours;
                 var mockDataUtils = new Mock<IDataUtils>();
@@ -306,6 +306,38 @@ namespace TeslaSQL.Tests.Agents {
                 sourceDataUtils = mockDataUtils.Object;
                 Assert.Equal(FullRunTime(test.now), test.isFullRunTime);
             }
+        }
+
+        [Fact]
+        public void TestValidTablesAndArchives() {
+            int ctid = 1;
+            string schema = "sch";
+            string slaveName = "slave";
+            var tableConf = new List<TableConf>();
+            var tables = new HashSet<ChangeTable>();
+            var table = new TableConf();
+            table.Name = "tblName";
+            var aTable = new TableConf();
+            aTable.Name = "tblNameArchive";
+            tableConf.Add(aTable);
+            tableConf.Add(table);
+
+            tables.Add(new ChangeTable(aTable.Name, ctid, schema, slaveName));
+            tables.Add(new ChangeTable(table.Name, ctid, schema, slaveName));
+
+            var s = ValidTablesAndArchives(tableConf, tables, ctid);
+             Assert.True(s.ContainsKey(table));
+            Assert.True(s[table] != null);
+            Assert.True(s[table] == aTable);
+
+            //double checking that order of table objects doesn't matter
+            tableConf.Clear();
+            tableConf.Add(table);
+            tableConf.Add(aTable);
+            s = ValidTablesAndArchives(tableConf, tables, ctid);
+            Assert.True(s.ContainsKey(table));
+            Assert.True(s[table] != null);
+            Assert.True(s[table] == aTable);
         }
     }
 }

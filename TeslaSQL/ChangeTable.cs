@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 
 namespace TeslaSQL {
+    /// <summary>
+    /// Represents a change table in the ChangeTracking database
+    /// </summary>
     public class ChangeTable {
         public readonly string name;
         public readonly Int64? ctid;
