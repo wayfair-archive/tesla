@@ -270,8 +270,7 @@ namespace TeslaSQL.Agents {
                     logger.Log(result.Value + " changes captured for table " + table.schemaName + "." + table.Name, LogLevel.Trace);
                 };
                 actions.Add(act);
-            }
-            Console.WriteLine(Config.maxThreads);
+            }            
             var options = new ParallelOptions();
             options.MaxDegreeOfParallelism = Config.maxThreads;
             logger.Log("Parallel invocation of " + actions.Count + " change captures", LogLevel.Trace);
