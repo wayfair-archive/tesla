@@ -9,10 +9,9 @@ namespace TeslaSQL.Agents {
     /// Cleans up old data on the relay server
     /// </summary>
     class RelayMaintenance : Agent {
-        private IDataUtils relayDataUtils;
+        private IDataUtils relayDataUtils { get { return this.sourceDataUtils;}}
         public RelayMaintenance(IDataUtils dataUtils, Logger logger)
             : base(dataUtils, null, logger) {
-            relayDataUtils = sourceDataUtils;
         }
 
         public override void ValidateConfig() {

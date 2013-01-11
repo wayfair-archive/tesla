@@ -160,8 +160,9 @@ namespace TeslaSQL {
                     var relayMaintenance = new RelayMaintenance(sourceDataUtils,logger);
                     return relayMaintenance;
                 case AgentType.SlaveMaintenance:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, (SqlFlavor)Config.slaveType);
-                    var slaveMaintenance = new SlaveMaintenance(sourceDataUtils);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, Config.slaveType.Value);
+                    var slaveMaintenance = new SlaveMaintenance(sourceDataUtils, destDataUtils, logger);
                     return slaveMaintenance;
             }
             throw new Exception("Invalid agent type: " + agentType);

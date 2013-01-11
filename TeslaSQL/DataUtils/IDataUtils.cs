@@ -330,22 +330,29 @@ namespace TeslaSQL.DataUtils {
         int GetExpectedRowCounts(string ctDbName, long ctid);
 
 
-
-        IEnumerable<TTable> GetTables(string p);
+        /// <summary>
+        /// Returns all tables in the given DB
+        /// </summary>
+        IEnumerable<TTable> GetTables(string dbName);
 
         /// <summary>
-        /// returns a list of CTIDs started before chopDate
+        /// This is actually run on the Relay, but returns a list of CTIDs started before chopDate
         /// </summary>
         /// <param name="p"></param>
         /// <param name="chopDate"></param>
         /// <returns></returns>
         IEnumerable<long> GetOldCTIDsMaster(string dbName, DateTime chopDate);
 
+        IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate);
+        /// <summary>
+        /// This is actually run on the Relay, but it gets CTIDs that are safe to drop for a slave
+        /// </summary>
+        IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier);
+
         void DeleteOldCTVersions(string dbName, DateTime chopDate);
 
         void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate);
 
-        IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate);
     }
     public struct TTable {
         public readonly string name;

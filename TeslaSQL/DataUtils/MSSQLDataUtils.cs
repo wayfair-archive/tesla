@@ -973,6 +973,22 @@ namespace TeslaSQL.DataUtils {
             return ctids;
         }
 
+        public IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier) {
+            string sql = @"SELECT ctid 
+                           FROM [CT_csn_cttest].[dbo].[tblCTSlaveVersion]
+                           WHERE slaveIdentifier = @slaveIdentifier
+                           AND syncstoptime < @chopDate";
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@slaveIdentifier", SqlDbType.VarChar, 500).Value = slaveIdentifier;
+            cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
+            var res = SqlQuery(dbName, cmd);
+            var ctids = new List<long>();
+            foreach (DataRow row in res.Rows) {
+                ctids.Add(row.Field<long>("ctid"));
+            }
+            return ctids;
+        }
+
 
         public void DeleteOldCTVersions(string dbName, DateTime chopDate) {
             string sql = "DELETE FROM tblCTVersion WHERE syncStartTime < @chopDate";
@@ -987,5 +1003,7 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
             SqlNonQuery(dbName, cmd);
         }
+
+
     }
 }

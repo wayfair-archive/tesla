@@ -272,10 +272,27 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
+        public IEnumerable<TTable> GetTables(string dbName) {
+            var tables = new List<TTable>();
+            using (var con = new OleDbConnection(buildConnString(dbName))) {
+                con.Open();
+                //this dark magic is (sort of) documented here 
+                //http://msdn.microsoft.com/en-us/library/system.data.oledb.oledbschemaguid.tables.aspx
+                var t = con.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, new object[] { null, null, null, "TABLE" });
+                foreach (DataRow row in t.Rows) {
+                    string tableName = row.Field<string>("TABLE_NAME");
+                    string schema = row.Field<string>("TABLE_SCHEMA");
+                    tables.Add(new TTable(tableName, schema));
+                }
+            }
+            return tables;
+        }
 
         #region unimplemented
 
-
+        public IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier) {
+            throw new NotImplementedException();
+        }
 
         public DataRow GetLastCTBatch(string dbName, AgentType agentType, string slaveIdentifier = "") {
             throw new NotImplementedException("Netezza is only supported as a slave!");
@@ -452,16 +469,11 @@ namespace TeslaSQL.DataUtils {
         public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database) {
             throw new NotImplementedException();
         }
-        #endregion
-
 
         public int GetExpectedRowCounts(string ctDbName, long ctid) {
             throw new NotImplementedException();
         }
 
-        public IEnumerable<TTable> GetTables(string p) {
-            throw new NotImplementedException();
-        }
 
         public IEnumerable<long> GetOldCTIDsMaster(string p, DateTime chopDate) {
             throw new NotImplementedException();
@@ -484,6 +496,8 @@ namespace TeslaSQL.DataUtils {
         public IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate) {
             throw new NotImplementedException();
         }
+
+        #endregion
     }
 }
 
