@@ -42,7 +42,7 @@ namespace TeslaSQL.Agents {
 
             var tables = sourceDataUtils.GetTables(Config.masterCTDB);
             logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
-            MaintenanceHelper.DeleteOldTables(ctids, tables, sourceDataUtils);
+            MaintenanceHelper.DeleteOldTables(ctids, tables, sourceDataUtils, Config.masterCTDB);
         }
     }
 }
