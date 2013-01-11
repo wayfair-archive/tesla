@@ -125,7 +125,7 @@ namespace TeslaSQL.Agents {
                 var table = tableDb.Key;
                 var firstDB = tableDb.Value.FirstOrDefault(t => t.Value.Count > 0).Key;
                 if (firstDB == null) {
-                    logger.Log("No shard has CT changes for table " + table.Name, LogLevel.Debug);
+                    logger.Log("No shard has CT changes for table " + table.name, LogLevel.Debug);
                     continue;
                 }
                 tablesWithChanges.Add(table);

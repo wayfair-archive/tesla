@@ -46,10 +46,10 @@ namespace TeslaSQL.Agents {
             Dictionary<string, bool> dict;
             foreach (TableConf t in tableConfArray) {
                 try {
-                    dict = dataUtils.GetFieldList(database, t.Name, t.schemaName);
+                    dict = dataUtils.GetFieldList(database, t.name, t.schemaName);
                     SetFieldList(t, dict);
                 } catch (Exception e) {
-                    HandleException(e, t, "Error setting field lists for table " + t.schemaName + "." + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace);
+                    HandleException(e, t, "Error setting field lists for table " + t.schemaName + "." + t.name + ": " + e.Message + " - Stack Trace:" + e.StackTrace);
                }
             }
         }
@@ -69,7 +69,7 @@ namespace TeslaSQL.Agents {
                 }
             }
             st.Stop();
-            logger.Log("SetFieldList Elapsed time for table " + t.schemaName + "." + t.Name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
+            logger.Log("SetFieldList Elapsed time for table " + t.schemaName + "." + t.name + ": " + Convert.ToString(st.ElapsedMilliseconds), LogLevel.Trace);
         }        
 
         protected void HandleException(Exception e, TableConf table, string message = "") {
@@ -101,9 +101,9 @@ namespace TeslaSQL.Agents {
             Dictionary<string, Int64> rowCounts = new Dictionary<string, Int64>();
 
             foreach (TableConf t in tables) {
-                logger.Log("Getting rowcount for table " + t.schemaName + "." + CTTableName(t.Name, CTID), LogLevel.Trace);
+                logger.Log("Getting rowcount for table " + t.schemaName + "." + CTTableName(t.name, CTID), LogLevel.Trace);
                 try {
-                    rowCounts.Add(t.fullName, sourceDataUtils.GetTableRowCount(sourceCTDB, CTTableName(t.Name, CTID), t.schemaName));
+                    rowCounts.Add(t.fullName, sourceDataUtils.GetTableRowCount(sourceCTDB, CTTableName(t.name, CTID), t.schemaName));
                     logger.Log("Successfully retrieved rowcount of " + Convert.ToString(rowCounts[t.fullName]), LogLevel.Trace);
                 } catch (DoesNotExistException) {
                     logger.Log("CT table does not exist, using rowcount of 0", LogLevel.Trace);
@@ -117,7 +117,7 @@ namespace TeslaSQL.Agents {
             logger.Log("creating tableinfo table for ctid=" + CTID, LogLevel.Info);
             destDataUtils.CreateTableInfoTable(relayDB, CTID);
             foreach (var t in tableConf) {
-                logger.Log("Publishing info for " + t.Name, LogLevel.Trace);
+                logger.Log("Publishing info for " + t.name, LogLevel.Trace);
                 destDataUtils.PublishTableInfo(relayDB, t, CTID, changesCaptured[t.fullName]);
             }
         }

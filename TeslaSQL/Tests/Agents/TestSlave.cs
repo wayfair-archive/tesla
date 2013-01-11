@@ -242,11 +242,11 @@ namespace TeslaSQL.Tests.Agents {
                 tables = new TableConf[2];
                 //first table has no column list
                 tables[0] = new TableConf();
-                tables[0].Name = "test1";
+                tables[0].name = "test1";
 
                 //second one has column list
                 tables[1] = new TableConf();
-                tables[1].Name = "test2";
+                tables[1].name = "test2";
                 tables[1].columnList = new string[2] { "column1", "column2" };
 
                 sourceDataUtils = new TestDataUtils(TServer.RELAY);
@@ -316,14 +316,14 @@ namespace TeslaSQL.Tests.Agents {
             var tableConf = new List<TableConf>();
             var tables = new HashSet<ChangeTable>();
             var table = new TableConf();
-            table.Name = "tblName";
+            table.name = "tblName";
             var aTable = new TableConf();
-            aTable.Name = "tblNameArchive";
+            aTable.name = "tblNameArchive";
             tableConf.Add(aTable);
             tableConf.Add(table);
 
-            tables.Add(new ChangeTable(aTable.Name, ctid, schema, slaveName));
-            tables.Add(new ChangeTable(table.Name, ctid, schema, slaveName));
+            tables.Add(new ChangeTable(aTable.name, ctid, schema, slaveName));
+            tables.Add(new ChangeTable(table.name, ctid, schema, slaveName));
 
             var s = ValidTablesAndArchives(tableConf, tables, ctid);
              Assert.True(s.ContainsKey(table));

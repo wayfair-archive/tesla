@@ -10,7 +10,7 @@ namespace TeslaSQL {
     [XmlType("table")]
     public class TableConf {
         [XmlElement("name")]
-        public string Name { get; set; }
+        public string name { get; set; }
 
         [XmlElement("schemaName")]
         public string schemaName { get; set; }
@@ -125,12 +125,12 @@ namespace TeslaSQL {
         [XmlIgnore]
         public string fullName {
             get {
-                return schemaName + "." + Name;
+                return schemaName + "." + name;
             }
         }
 
         public string ToCTName(Int64 CTID) {
-            return "tblCT" + Name + "_" + CTID;
+            return "tblCT" + name + "_" + CTID;
         }
         public string ToFullCTName(Int64 CTID) {
             return string.Format("[{0}].[{1}]", schemaName, ToCTName(CTID));

@@ -271,11 +271,11 @@ namespace TeslaSQL.Agents {
             }
             var consolidatedTables = new List<ChangeTable>();
             foreach (var table in Config.tables) {
-                if (!lu.ContainsKey(table.Name)) {
-                    logger.Log("No changes captured for " + table.Name, LogLevel.Info);
+                if (!lu.ContainsKey(table.name)) {
+                    logger.Log("No changes captured for " + table.name, LogLevel.Info);
                     continue;
                 }
-                var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
+                var lastChangeTable = lu[table.name].OrderByDescending(c => c.ctid).First();
                 consolidatedTables.Add(lastChangeTable);
                 TableConf tLocal = table;
                 IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
@@ -336,7 +336,7 @@ namespace TeslaSQL.Agents {
         private void SyncHistoryTables(TableConf[] tableConf, string slaveCTDB, string slaveDB, List<ChangeTable> existingCTTables) {
             var actions = new List<Action>();
             foreach (var t in existingCTTables) {
-                var s = tableConf.First(tc => tc.Name.Equals(t.name, StringComparison.InvariantCultureIgnoreCase));
+                var s = tableConf.First(tc => tc.name.Equals(t.name, StringComparison.InvariantCultureIgnoreCase));
                 if (!s.recordHistoryTable) {
                     logger.Log("Skipping writing history table for " + t.name + " because it is not configured", LogLevel.Debug);
                     continue;
@@ -368,11 +368,11 @@ namespace TeslaSQL.Agents {
                 KeyValuePair<TableConf, TableConf> tLocal = tableArchive;
                 Action act = () => {
                     try {
-                        logger.Log("Applying changes for table " + tLocal.Key.Name + (hasArchive == null ? "" : " (and archive)"), LogLevel.Debug);
+                        logger.Log("Applying changes for table " + tLocal.Key.name + (hasArchive == null ? "" : " (and archive)"), LogLevel.Debug);
                         var sw = Stopwatch.StartNew();
                         var rc = destDataUtils.ApplyTableChanges(tLocal.Key, tLocal.Value, Config.slaveDB, CTID, Config.slaveCTDB);
-                        counts[tLocal.Key.Name] = rc;
-                        logger.Log("ApplyTableChanges " + tLocal.Key.Name + ": " + sw.Elapsed, LogLevel.Trace);
+                        counts[tLocal.Key.name] = rc;
+                        logger.Log("ApplyTableChanges " + tLocal.Key.name + ": " + sw.Elapsed, LogLevel.Trace);
                     } catch (Exception e) {
                         HandleException(e, tLocal.Key);
                     }
@@ -390,17 +390,17 @@ namespace TeslaSQL.Agents {
         protected Dictionary<TableConf, TableConf> ValidTablesAndArchives(IEnumerable<TableConf> confTables, IEnumerable<ChangeTable> changeTables, Int64 CTID) {
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var confTable in confTables) {
-                if (changeTables.Any(s => s.name == confTable.Name)) {
+                if (changeTables.Any(s => s.name == confTable.name)) {
                     if (hasArchive.ContainsKey(confTable)) {
                         //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
                         continue;
                     }
-                    if (confTable.Name.EndsWith("Archive")) {
+                    if (confTable.name.EndsWith("Archive")) {
                         //if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
-                        string nonArchiveTableName = confTable.Name.Substring(0, confTable.Name.Length - confTable.Name.LastIndexOf("Archive"));
+                        string nonArchiveTableName = confTable.name.Substring(0, confTable.name.Length - confTable.name.LastIndexOf("Archive"));
                         if (changeTables.Any(s => s.name == nonArchiveTableName)) {
                             //if the non-archive table has any changes, we grab the associated table configuration and pair them
-                            var nonArchiveTable = confTables.First(t => t.Name == nonArchiveTableName);
+                            var nonArchiveTable = confTables.First(t => t.name == nonArchiveTableName);
                             hasArchive[nonArchiveTable] = confTable;
                         } else {
                             //otherwise we just go ahead and treat the archive CT table as a normal table
@@ -425,7 +425,7 @@ namespace TeslaSQL.Agents {
         private List<ChangeTable> PopulateTableList(TableConf[] tables, string dbName, Int64 CTID) {
             var tableList = new List<ChangeTable>();
             foreach (TableConf t in tables) {
-                var ct = new ChangeTable(t.Name, CTID, t.schemaName, Config.slave);
+                var ct = new ChangeTable(t.name, CTID, t.schemaName, Config.slave);
                 try {
                     if (sourceDataUtils.CheckTableExists(dbName, ct.ctName, t.schemaName)) {
                         tableList.Add(ct);
@@ -455,7 +455,7 @@ namespace TeslaSQL.Agents {
             var actions = new List<Action>();
             foreach (TableConf t in tables) {
                 IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.slaveType.Value, sourceDataUtils, destDataUtils, logger);
-                var ct = new ChangeTable(t.Name, CTID, t.schemaName, Config.slave);
+                var ct = new ChangeTable(t.name, CTID, t.schemaName, Config.slave);
                 string sourceCTTable = isConsolidated ? ct.consolidatedName : ct.ctName;
                 string destCTTable = ct.ctName;
                 TableConf tLocal = t;
@@ -464,7 +464,7 @@ namespace TeslaSQL.Agents {
                         //hard coding timeout at 1 hour for bulk copy
                         logger.Log("Copying table " + tLocal.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
                         var sw = Stopwatch.StartNew();
-                        dataCopy.CopyTable(sourceCTDB, sourceCTTable, tLocal.schemaName, destCTDB, Config.dataCopyTimeout, destCTTable, tLocal.Name);
+                        dataCopy.CopyTable(sourceCTDB, sourceCTTable, tLocal.schemaName, destCTDB, Config.dataCopyTimeout, destCTTable, tLocal.name);
                         logger.Log("CopyTable: " + sw.Elapsed, LogLevel.Trace);
                     } catch (DoesNotExistException) {
                         //this is a totally normal and expected case since we only publish changetables when data actually changed
@@ -494,14 +494,14 @@ namespace TeslaSQL.Agents {
             foreach (DataRow row in result.Rows) {
                 var schemaChange = new SchemaChange(row);
                 //String.Compare method returns 0 if the strings are equal
-                table = tables.SingleOrDefault(item => String.Compare(item.Name, schemaChange.tableName, ignoreCase: true) == 0);
+                table = tables.SingleOrDefault(item => String.Compare(item.name, schemaChange.tableName, ignoreCase: true) == 0);
 
                 if (table == null) {
                     logger.Log("Ignoring schema change for table " + row.Field<string>("CscTableName") + " because it isn't in config", LogLevel.Debug);
                     continue;
                 }
                 logger.Log("Processing schema change (CscID: " + row.Field<int>("CscID") +
-                    ") of type " + schemaChange.eventType + " for table " + table.Name, LogLevel.Info);
+                    ") of type " + schemaChange.eventType + " for table " + table.name, LogLevel.Info);
 
                 if (table.columnList == null || table.columnList.Contains(schemaChange.columnName, StringComparer.OrdinalIgnoreCase)) {
                     logger.Log("Schema change applies to a valid column, so we will apply it", LogLevel.Info);

@@ -264,10 +264,10 @@ namespace TeslaSQL.Agents {
                 TableConf table = t;
                 long rowsAffected;
                 Action act = () => {
-                    logger.Log("Creating changetable for " + table.schemaName + "." + table.Name, LogLevel.Debug);
+                    logger.Log("Creating changetable for " + table.schemaName + "." + table.name, LogLevel.Debug);
                     rowsAffected = CreateChangeTable(table, sourceDB, sourceCTDB, batch);
-                    changesCaptured.TryAdd(table.schemaName + "." + table.Name, rowsAffected);
-                    logger.Log(rowsAffected + " changes captured for table " + table.schemaName + "." + table.Name, LogLevel.Trace);
+                    changesCaptured.TryAdd(table.schemaName + "." + table.name, rowsAffected);
+                    logger.Log(rowsAffected + " changes captured for table " + table.schemaName + "." + table.name, LogLevel.Trace);
                 };
                 actions.Add(act);
             }
@@ -289,7 +289,7 @@ namespace TeslaSQL.Agents {
         protected long CreateChangeTable(TableConf table, string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
             string ctTableName = table.ToCTName(batch.CTID);
             string reason;
-            if (!ValidateSourceTable(sourceDB, table.Name, table.schemaName, batch.syncStartVersion, out reason)) {
+            if (!ValidateSourceTable(sourceDB, table.name, table.schemaName, batch.syncStartVersion, out reason)) {
                 string message = "Change table creation impossible because : " + reason;
                 if (table.stopOnError) {
                     throw new Exception(message);
@@ -298,7 +298,7 @@ namespace TeslaSQL.Agents {
                     return 0;
                 }
             }
-            long minValid = sourceDataUtils.GetMinValidVersion(sourceDB, table.Name, table.schemaName);
+            long minValid = sourceDataUtils.GetMinValidVersion(sourceDB, table.name, table.schemaName);
             long tableStartVersion = Math.Max(batch.syncStartVersion, minValid);
 
             logger.Log("Dropping table " + ctTableName + " if it exists", LogLevel.Trace);
@@ -307,7 +307,7 @@ namespace TeslaSQL.Agents {
             logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
             Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, table, sourceDB, batch, Config.queryTimeout, tableStartVersion);
 
-            logger.Log("Rows affected for table " + table.schemaName + "." + table.Name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
+            logger.Log("Rows affected for table " + table.schemaName + "." + table.name + ": " + Convert.ToString(rowsAffected), LogLevel.Debug);
             return rowsAffected;
         }
 
@@ -355,7 +355,7 @@ namespace TeslaSQL.Agents {
 
             var actions = new List<Action>();
             foreach (TableConf t in tables) {
-                if (changesCaptured[t.schemaName + "." + t.Name] > 0) {
+                if (changesCaptured[t.schemaName + "." + t.name] > 0) {
                     //we need to define a local variable in this scope for it to be appropriately evaluated in the action
                     TableConf localT = t;
                     Action act = () => PublishChangeTable(localT, sourceCTDB, destCTDB, CTID);
@@ -370,15 +370,15 @@ namespace TeslaSQL.Agents {
 
         protected void PublishChangeTable(TableConf table, string sourceCTDB, string destCTDB, Int64 CTID) {
             IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)Config.masterType, (SqlFlavor)Config.relayType, sourceDataUtils, destDataUtils, logger);
-            logger.Log("Publishing changes for table " + table.schemaName + "." + table.Name, LogLevel.Trace);
+            logger.Log("Publishing changes for table " + table.schemaName + "." + table.name, LogLevel.Trace);
             try {
-                dataCopy.CopyTable(sourceCTDB, CTTableName(table.Name, CTID), table.schemaName, destCTDB, Config.dataCopyTimeout);
-                logger.Log("Publishing changes succeeded for " + table.schemaName + "." + table.Name, LogLevel.Trace);
+                dataCopy.CopyTable(sourceCTDB, CTTableName(table.name, CTID), table.schemaName, destCTDB, Config.dataCopyTimeout);
+                logger.Log("Publishing changes succeeded for " + table.schemaName + "." + table.name, LogLevel.Trace);
             } catch (Exception e) {
                 if (table.stopOnError) {
                     throw;
                 } else {
-                    logger.Log("Copying change data for table " + table.schemaName + "." + table.Name + " failed with error: " + e.Message, LogLevel.Error);
+                    logger.Log("Copying change data for table " + table.schemaName + "." + table.name + " failed with error: " + e.Message, LogLevel.Error);
                 }
             }
         }

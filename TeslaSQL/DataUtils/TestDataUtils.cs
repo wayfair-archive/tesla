@@ -468,7 +468,7 @@ namespace TeslaSQL.DataUtils {
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
             DataTable table = testData.Tables["dbo.tblCTTableInfo_" + Convert.ToString(CTID), GetTableSpace(dbName)];
             DataRow row = table.NewRow();
-            row["CtiTableName"] = t.Name;
+            row["CtiTableName"] = t.name;
             row["CtiSchemaName"] = t.schemaName;
             row["CtiPKList"] = string.Join(",", t.columns.Where(c => c.isPk));
             row["CtiExpectedRows"] = expectedRows;

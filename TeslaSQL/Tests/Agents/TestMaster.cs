@@ -201,11 +201,11 @@ namespace TeslaSQL.Tests.Agents {
         public MasterTestFixture() {
             var tables = new TableConf[2];
             tables[0] = new TableConf();
-            tables[0].Name = "test1";
+            tables[0].name = "test1";
             tables[0].schemaName = "dbo";
 
             tables[1] = new TableConf();
-            tables[1].Name = "test2";
+            tables[1].name = "test2";
             tables[1].schemaName = "dbo";
 
             sourceDataUtils = new TestDataUtils(TServer.MASTER);

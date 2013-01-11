@@ -208,8 +208,8 @@ namespace TeslaSQL.DataUtils {
              */
             string query = "SELECT " + table.            masterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
             query += " INTO " + table.schemaName+ "." + table.ToCTName(ctb.CTID);
-            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.schemaName + "." + table.Name + ", @startversion) CT";
-            query += " LEFT OUTER JOIN " + sourceDB + "." + table.schemaName + "." + table.Name + " P ON " + table.pkList;
+            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.schemaName + "." + table.name + ", @startversion) CT";
+            query += " LEFT OUTER JOIN " + sourceDB + "." + table.schemaName + "." + table.name + " P ON " + table.pkList;
             query += " WHERE (SYS_CHANGE_VERSION <= @stopversion OR SYS_CHANGE_CREATION_VERSION <= @stopversion)";
             query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + table.notNullPKList + ")";
 
@@ -692,7 +692,7 @@ namespace TeslaSQL.DataUtils {
             SqlCommand cmd = new SqlCommand(
                String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows)
                   VALUES (@tableName, @schemaName, @pkList, @expectedRows)", CTID));
-            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = t.Name;
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = t.name;
             cmd.Parameters.Add("@schemaName", SqlDbType.VarChar, 500).Value = t.schemaName;
             cmd.Parameters.Add("@pkList", SqlDbType.VarChar, 500).Value = string.Join(",", t.columns.Where(c => c.isPk));
             cmd.Parameters.Add("@expectedRows", SqlDbType.Int).Value = expectedRows;
@@ -743,12 +743,12 @@ namespace TeslaSQL.DataUtils {
             var s = TransactionQuery(tableSql, dbName, Config.queryTimeout);
             int inserted = s[0].Rows[0].Field<int>("insertcount");
             int deleted = s[0].Rows[0].Field<int>("deletecount");
-            logger.Log("table " + table.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
+            logger.Log("table " + table.name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
             var rowCounts = new RowCounts(inserted, deleted);
             if (archiveTable != null) {
                 inserted = s[1].Rows[0].Field<int>("insertcount");
                 deleted = s[1].Rows[0].Field<int>("deletecount");
-                logger.Log("table " + archiveTable.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
+                logger.Log("table " + archiveTable.name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
                 rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
             }
             return rowCounts;
@@ -771,7 +771,7 @@ namespace TeslaSQL.DataUtils {
                   SELECT @insertcount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE'); 
                   SELECT @deletecount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE');",
                           dbName,
-                          table.Name,
+                          table.name,
                           table.ToFullCTName(ctid),
                           table.pkList,
                           table.mergeUpdateList.Length > 2 ? table.mergeUpdateList : table.pkList.Replace("AND", ","),
@@ -939,7 +939,7 @@ namespace TeslaSQL.DataUtils {
         public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database) {
             string sql = string.Format(@"SELECT CtipkList FROM {0} WHERE CtiTableName = @tableName", batch.infoTable);
             SqlCommand cmd = new SqlCommand(sql);
-            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 5000).Value = table.Name;
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 5000).Value = table.name;
             var res = SqlQueryToScalar<string>(database, cmd);
             return res.Split(new char[] { ',' });
         }

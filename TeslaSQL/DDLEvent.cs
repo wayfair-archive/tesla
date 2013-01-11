@@ -78,7 +78,7 @@ namespace TeslaSQL {
 
             //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
             //Get table config object
-            TableConf t = tables.SingleOrDefault(item => String.Compare(item.Name, tableName, ignoreCase: true) == 0);
+            TableConf t = tables.SingleOrDefault(item => String.Compare(item.name, tableName, ignoreCase: true) == 0);
 
             if (t == null) {
                 //the DDL event applies to a table not in our so we just ignore it

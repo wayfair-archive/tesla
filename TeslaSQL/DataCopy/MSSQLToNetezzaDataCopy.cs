@@ -196,7 +196,7 @@ namespace TeslaSQL.DataCopy {
                 if (shortenedTypes.Contains(col.DataType.SqlDataType)) {
                     ColumnModifier mod = null;
                     //see if there are any column modifiers which override our length defaults
-                    IEnumerable<TableConf> tables = Config.tables.Where(t => t.Name == originalTableName);
+                    IEnumerable<TableConf> tables = Config.tables.Where(t => t.name == originalTableName);
                     ColumnModifier[] modifiers = tables.FirstOrDefault().columnModifiers;
                     if (modifiers != null) {
                         IEnumerable<ColumnModifier> mods = modifiers.Where(c => ((c.columnName == col.Name) && (c.type == "ShortenField")));

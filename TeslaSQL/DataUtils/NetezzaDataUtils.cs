@@ -190,11 +190,11 @@ namespace TeslaSQL.DataUtils {
         private InsertDelete BuildApplyCommand(TableConf table, string dbName, string CTDBName, long ctid) {
             string delete = string.Format(@"DELETE FROM {0} P
                                           WHERE EXISTS (SELECT 1 FROM {1}..{2} CT WHERE {3});",
-                                          table.Name, CTDBName, table.ToCTName(ctid), table.pkList);
+                                          table.name, CTDBName, table.ToCTName(ctid), table.pkList);
 
             string insert = string.Format(@"INSERT INTO {0} ({1}) 
                               SELECT {1} FROM {2}..{3} CT WHERE NOT EXISTS (SELECT 1 FROM {0} P WHERE {4}) AND CT.sys_change_operation IN ( 'I', 'U' );",
-                                          table.Name, table.netezzaColumnList, CTDBName, table.ToCTName(ctid), table.pkList);
+                                          table.name, table.netezzaColumnList, CTDBName, table.ToCTName(ctid), table.pkList);
             var deleteCmd = new OleDbCommand(delete);
             var insertCmd = new OleDbCommand(insert);
             return new InsertDelete(insertCmd, deleteCmd);
