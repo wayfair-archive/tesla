@@ -337,7 +337,7 @@ namespace TeslaSQL.Agents {
                 logger.Log(reason, LogLevel.Trace);
                 return false;
             } else if (startVersion < sourceDataUtils.GetMinValidVersion(dbName, table, schemaName)) {
-                reason = "Change tracking is far enough out of date that the syncStartVersion is less than the current minimum valid CT version";
+                reason = "Change tracking is far enough out of date that the syncStartVersion is less than the current minimum valid CT version on " + table;
                 logger.Log(reason, LogLevel.Trace);
                 return false;
             }
