@@ -10,6 +10,7 @@ using System.Diagnostics;
 using TeslaSQL.DataUtils;
 using TeslaSQL.DataCopy;
 using TeslaSQL.Agents;
+using Moq;
 
 namespace TeslaSQL.Tests.Agents {
     public class TestMaster : Master, IUseFixture<MasterTestFixture> {
@@ -104,6 +105,57 @@ namespace TeslaSQL.Tests.Agents {
             IDictionary<string, Int64> result = CreateChangeTables(Config.tables, "testdb", "CT_testdb", new ChangeTrackingBatch(101, 1000, 2000, 0));
             Assert.Equal(1, result["dbo.test1"]);
             Assert.Equal(0, result["dbo.test2"]);
+        }
+
+        [Fact]
+        public void TestOverrideZeroStartVersion() {
+            var table = new TableConf();
+            table.name = "tableName";
+            table.schemaName = "schmea";
+            string db = "db";
+            string ctdb = "ctdb";
+            var batch = new ChangeTrackingBatch(1, 0, 10, 0);
+
+            var sourceUtils = new Mock<IDataUtils>();
+            this.sourceDataUtils = sourceUtils.Object;
+            sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.name, table.schemaName))
+                       .Returns(5).Verifiable();
+            sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.name, It.IsAny<string>()))
+                        .Returns(true);
+            sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.name, table.schemaName))
+                        .Returns(true);
+            sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.name, table.schemaName))
+                        .Returns(true);
+
+            CreateChangeTable(table, db, ctdb, batch);
+            sourceUtils.Verify(
+                (ut) => ut.GetMinValidVersion(db, table.name, table.schemaName),
+                Times.Exactly(2));
+        }
+        [Fact]
+        public void TestNoOverrideNonZeroStartVersion() {
+            var table = new TableConf();
+            table.name = "tableName";
+            table.schemaName = "schmea";
+            string db = "db";
+            string ctdb = "ctdb";
+            var batch = new ChangeTrackingBatch(1, 1, 10, 0);
+
+            var sourceUtils = new Mock<IDataUtils>();
+            this.sourceDataUtils = sourceUtils.Object;
+            sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.name, table.schemaName))
+                       .Returns(5).Verifiable();
+            sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.name, It.IsAny<string>()))
+                        .Returns(true);
+            sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.name, table.schemaName))
+                        .Returns(true);
+            sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.name, table.schemaName))
+                        .Returns(true);
+
+            CreateChangeTable(table, db, ctdb, batch);
+            sourceUtils.Verify(
+                (ut) => ut.GetMinValidVersion(db, table.name, table.schemaName),
+                Times.Exactly(1), "GetMinValidVersion should only be called once (in the validation method)");
         }
 
         [Fact]
