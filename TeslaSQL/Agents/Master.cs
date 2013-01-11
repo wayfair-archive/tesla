@@ -289,7 +289,13 @@ namespace TeslaSQL.Agents {
         protected long CreateChangeTable(TableConf table, string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
             string ctTableName = table.ToCTName(batch.CTID);
             string reason;
-            if (!ValidateSourceTable(sourceDB, table.name, table.schemaName, batch.syncStartVersion, out reason)) {
+
+            long tableStartVersion = batch.syncStartVersion;
+            if (batch.syncStartVersion == 0) {
+                tableStartVersion = sourceDataUtils.GetMinValidVersion(sourceDB, table.name, table.schemaName);
+            }
+
+            if (!ValidateSourceTable(sourceDB, table.name, table.schemaName, tableStartVersion, out reason)) {
                 string message = "Change table creation impossible because : " + reason;
                 if (table.stopOnError) {
                     throw new Exception(message);
@@ -298,8 +304,6 @@ namespace TeslaSQL.Agents {
                     return 0;
                 }
             }
-            long minValid = sourceDataUtils.GetMinValidVersion(sourceDB, table.name, table.schemaName);
-            long tableStartVersion = Math.Max(batch.syncStartVersion, minValid);
 
             logger.Log("Dropping table " + ctTableName + " if it exists", LogLevel.Trace);
             bool tExisted = sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, table.schemaName);
@@ -330,6 +334,10 @@ namespace TeslaSQL.Agents {
                 return false;
             } else if (!sourceDataUtils.IsChangeTrackingEnabled(dbName, table, schemaName)) {
                 reason = "Change tracking is not enabled on " + table;
+                logger.Log(reason, LogLevel.Trace);
+                return false;
+            } else if (startVersion < sourceDataUtils.GetMinValidVersion(dbName, table, schemaName)) {
+                reason = "Change tracking is far enough out of date that the syncStartVersion is less than the current minimum valid CT version";
                 logger.Log(reason, LogLevel.Trace);
                 return false;
             }
