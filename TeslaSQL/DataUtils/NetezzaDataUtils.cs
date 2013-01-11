@@ -36,6 +36,7 @@ namespace TeslaSQL.DataUtils {
                 cmd.Connection = conn;
                 cmd.CommandTimeout = commandTimeout;
 
+                LogCommand(cmd);
                 DataSet ds = new DataSet();
                 OleDbDataAdapter da = new OleDbDataAdapter(cmd);
                 //this is where the query is run
@@ -77,9 +78,20 @@ namespace TeslaSQL.DataUtils {
                 conn.Open();
                 cmd.Connection = conn;
                 cmd.CommandTimeout = commandTimeout;
+                LogCommand(cmd);
                 numrows = cmd.ExecuteNonQuery();
             }
             return numrows;
+        }
+
+        private void LogCommand(OleDbCommand cmd) {
+            string query = cmd.CommandText;
+
+            foreach (OleDbParameter p in cmd.Parameters) {
+                query = query.Replace(p.ParameterName, "'" + p.Value.ToString() + "'");
+            }
+
+            logger.Log("Executing query: " + query, LogLevel.Debug);
         }
 
 
@@ -211,14 +223,38 @@ namespace TeslaSQL.DataUtils {
 
         public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             columnName = MapReservedWord(columnName);
-            if (CheckColumnExists(dbName, schema, table, columnName)) {
-                return;
+            if (!CheckColumnExists(dbName, schema, table, columnName)) {
+                dataType = DataType.MapDataType(Config.relayType.Value, SqlFlavor.Netezza, dataType);
+                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table, columnName, dataType);
+                var cmd = new OleDbCommand(sql);
+                SqlNonQuery(dbName, cmd);
+                RefreshViews(dbName, table);
             }
-            dataType = DataType.MapDataType(Config.relayType.Value, SqlFlavor.Netezza, dataType);
-            string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table, columnName, dataType);
-            var cmd = new OleDbCommand(sql);
-            SqlNonQuery(dbName, cmd);
-            RefreshViews(dbName, table);
+            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table + "_History", columnName, dataType);
+                var cmd = new OleDbCommand(sql);
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(dbName, cmd);
+                RefreshViews(dbName, table + "_History");
+            }
+        }
+
+        public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
+            columnName = MapReservedWord(columnName);
+            if (CheckColumnExists(dbName, schema, table, columnName)) {
+                string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", table, columnName);
+                var cmd = new OleDbCommand(sql);
+                SqlNonQuery(dbName, cmd);
+                RefreshViews(dbName, table);
+            }
+
+            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+                string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", columnName);
+                var cmd = new OleDbCommand(sql);
+                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
+                SqlNonQuery(dbName, cmd);
+                RefreshViews(dbName, table + "_History");
+            }
         }
 
         private void RefreshViews(string dbName, string tableName) {
@@ -234,17 +270,6 @@ namespace TeslaSQL.DataUtils {
                 throw new Exception("Please check any pending schema changes to be applied on Netezza before refreshing the view::" + dbName + ".." + refresh.viewName);
             }
 
-        }
-
-        public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
-            columnName = MapReservedWord(columnName);
-            if (!CheckColumnExists(dbName, schema, table, columnName)) {
-                return;
-            }
-            string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", table, columnName);
-            var cmd = new OleDbCommand(sql);
-            SqlNonQuery(dbName, cmd);
-            RefreshViews(dbName, table);
         }
 
         public bool CheckColumnExists(string dbName, string schema, string table, string column) {

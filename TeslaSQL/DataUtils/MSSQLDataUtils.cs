@@ -43,7 +43,7 @@ namespace TeslaSQL.DataUtils {
                 conn.Open();
                 cmd.Connection = conn;
                 cmd.CommandTimeout = commandTimeout;
-
+                LogCommand(cmd);
                 DataSet ds = new DataSet();
                 SqlDataAdapter da = new SqlDataAdapter(cmd);
                 //this is where the query is run
@@ -88,9 +88,25 @@ namespace TeslaSQL.DataUtils {
                 conn.Open();
                 cmd.Connection = conn;
                 cmd.CommandTimeout = commandTimeout;
+                LogCommand(cmd);
                 numrows = cmd.ExecuteNonQuery();
             }
             return numrows;
+        }
+
+
+        /// <summary>
+        /// Log the command to be run
+        /// </summary>
+        /// <param name="cmd">SqlCommand to be run</param>
+        private void LogCommand(SqlCommand cmd) {
+            string query = cmd.CommandText;
+
+            foreach (SqlParameter p in cmd.Parameters) {
+                query = query.Replace(p.ParameterName, "'" + p.Value.ToString() + "'");
+            }
+
+            logger.Log("Executing query: " + query, LogLevel.Debug);
         }
 
 
@@ -193,15 +209,15 @@ namespace TeslaSQL.DataUtils {
              */
             string query = "SELECT " + masterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
             query += " INTO " + schemaName + "." + ctTableName;
-            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + schemaName + "." + tableName + ", @startVersion) CT";
+            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + schemaName + "." + tableName + ", @startversion) CT";
             query += " LEFT OUTER JOIN " + sourceDB + "." + schemaName + "." + tableName + " P ON " + pkList;
-            query += " WHERE (SYS_CHANGE_VERSION <= @stopVersion OR SYS_CHANGE_CREATION_VERSION <= @stopversion)";
+            query += " WHERE (SYS_CHANGE_VERSION <= @stopversion OR SYS_CHANGE_CREATION_VERSION <= @stopversion)";
             query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + notNullPkList + ")";
 
             SqlCommand cmd = new SqlCommand(query);
 
-            cmd.Parameters.Add("@startVersion", SqlDbType.BigInt).Value = startVersion;
-            cmd.Parameters.Add("@stopVersion", SqlDbType.BigInt).Value = stopVersion;
+            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = startVersion;
+            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = stopVersion;
 
             return SqlNonQuery(sourceCTDB, cmd, 1200);
         }
@@ -351,7 +367,7 @@ namespace TeslaSQL.DataUtils {
             string query = "UPDATE dbo.tblCTVersion set syncStopVersion = @stopversion WHERE CTID = @ctid";
             SqlCommand cmd = new SqlCommand(query);
 
-            cmd.Parameters.Add("@stopVersion", SqlDbType.BigInt).Value = syncStopVersion;
+            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = syncStopVersion;
             cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
 
             int res = SqlNonQuery(dbName, cmd);
@@ -388,7 +404,7 @@ namespace TeslaSQL.DataUtils {
                 throw new DoesNotExistException("Table " + view + " does not exist");
             }
         }
-        
+
         public IEnumerable<TTable> GetTables(string dbName) {
             var tables = new List<TTable>();
             var db = GetSmoDatabase(dbName);
@@ -596,7 +612,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //check for history table, if it is configured and contains the column we need to modify that too
-            if (t.recordHistoryTable && CheckTableExists(dbName, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
                 cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
@@ -614,7 +630,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //modify on history table if that exists too
-            if (t.recordHistoryTable && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History ALTER COLUMN " + columnName + " " + dataType);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
@@ -630,7 +646,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //add column to history table if the table exists and the column doesn't
-            if (t.recordHistoryTable && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History ADD " + columnName + " " + dataType);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
@@ -646,7 +662,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //if history table exists and column exists, drop it there too
-            if (t.recordHistoryTable && CheckTableExists(dbName, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History DROP COLUMN " + columnName);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);

@@ -7,6 +7,7 @@
     </appender>
     <appender name="RollingFile" type="log4net.Appender.RollingFileAppender">
         <file value="D:\tesla\tesla.log" />
+        <rollingStyle value="Size" />
         <appendToFile value="true" />
         <maximumFileSize value="10MB" />
         <maxSizeRollBackups value="2" />
@@ -35,6 +36,6 @@
     </logger>
     <logger name="graylog">
         <appender-ref ref="GelfUdpAppender" />
-      <level value="DEBUG" />
+      <level value="ALL" />
     </logger>
 </log4net>

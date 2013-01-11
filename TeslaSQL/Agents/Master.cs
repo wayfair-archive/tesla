@@ -320,9 +320,6 @@ namespace TeslaSQL.Agents {
         /// <param name="stopVersion">Change tracking version to stop at</param>
         /// <param name="CTID">CT batch ID this is being run for</param>
         protected KeyValuePair<string, Int64> CreateChangeTable(TableConf t, string sourceDB, string sourceCTDB, Int64 startVersion, Int64 stopVersion, Int64 CTID) {
-            //TODO check tblCTInitialize and change startVersion if necessary? need to decide if we are keeping tblCTInitialize at all
-            //alternative to keeping it is to have it live only on a slave which then keeps track of which batches it has applied for that table separately from the CT runs
-
             //TODO handle case where startVersion is 0, change it to CHANGE_TRACKING_MIN_VALID_VERSION?
             string ctTableName = CTTableName(t.Name, CTID);
             string reason;
