@@ -440,22 +440,6 @@ namespace TeslaSQL.Agents {
         }
 
         /// <summary>
-        /// Given a table name and CTID, returns the CT table name
-        /// </summary>
-        /// <param name="table">Table name</param>
-        /// <param name="CTID">Change tracking batch iD</param>
-        /// <returns>CT table name</returns>
-        public string CTTableName(string table, Int64? CTID = null) {
-            if (CTID != null) {
-                return "tblCT" + table + "_" + Convert.ToString(CTID);
-            } else {
-                //consolidated table always has the same name
-                return "tblCT" + table + "_" + Config.slave;
-            }
-        }
-
-
-        /// <summary>
         /// Copies change tables from the master to the relay server
         /// </summary>
         /// <param name="tables">Array of table config objects</param>
