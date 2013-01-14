@@ -33,7 +33,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="CTID">Current CTID</param>
         /// <param name="syncBitWise">syncBitWise value to compare against</param>
         /// <returns>Datetime representing last succesful run</returns>
-        DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type);
+        DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type, string slaveIdentifier = null);
 
         /// <summary>
         /// Gets the CHANGE_TRACKING_CURRENT_VERSION() for a database

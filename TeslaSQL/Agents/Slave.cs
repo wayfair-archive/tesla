@@ -118,7 +118,7 @@ namespace TeslaSQL.Agents {
         }
 
         private DateTime GetLastRunTime() {
-            return sourceDataUtils.GetLastStartTime(Config.relayDB, long.MaxValue, Convert.ToInt32(SyncBitWise.SyncHistoryTables), AgentType.Slave);
+            return sourceDataUtils.GetLastStartTime(Config.relayDB, long.MaxValue, Convert.ToInt32(SyncBitWise.SyncHistoryTables), AgentType.Slave, Config.slave);
         }
 
         /// <summary>
@@ -174,6 +174,8 @@ namespace TeslaSQL.Agents {
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
             Stopwatch sw;
             ApplySchemaChangesAndWrite(ctb);
+            //marking this field so that all completed slave batches will have the same values
+            sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 logger.Log("Downloading changes", LogLevel.Debug);
                 sw = Stopwatch.StartNew();
@@ -347,9 +349,7 @@ namespace TeslaSQL.Agents {
                 var sw = Stopwatch.StartNew();
                 ApplySchemaChanges(Config.tables, Config.relayDB, Config.slaveDB, ctb.CTID);
                 logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
-                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
-                //marking this field so that all completed slave batches will have the same values
-                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
+                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);                
             }
         }
 

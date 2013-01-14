@@ -101,7 +101,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type) {
+        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type, string slaveIdentifier = null) {
             DateTime maxDate = DateTime.Now.AddDays(-1);
             DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
             DataRow[] result = tblCTVersion.Select("CTID < " + Convert.ToString(CTID));

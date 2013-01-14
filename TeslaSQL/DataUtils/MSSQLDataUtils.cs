@@ -171,13 +171,23 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type) {
-            string tableName = type == AgentType.Slave ? "tblCTSlaveVersion" : "tblCTVersion";
-            SqlCommand cmd = new SqlCommand(
-                "select MAX(syncStartTime) as maxStart FROM dbo." + tableName + " WITH(NOLOCK)"
+        public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type, string slaveIdentifier = null) {
+            SqlCommand cmd;
+            if (slaveIdentifier != null) {
+                cmd = new SqlCommand(
+                "select MAX(syncStartTime) as maxStart FROM dbo.tblCTSlaveVersion WITH(NOLOCK)"
+                + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID and slaveIdentifier = @slaveidentifier");
+                cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
+                cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
+                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 500).Value = slaveIdentifier;
+            } else {
+                cmd = new SqlCommand(
+                "select MAX(syncStartTime) as maxStart FROM dbo.tblCTVersion WITH(NOLOCK)"
                 + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID");
-            cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
-            cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
+                cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
+                cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
+            }
+
             DateTime? lastStartTime = SqlQueryToScalar<DateTime?>(dbName, cmd);
             if (lastStartTime == null) {
                 return DateTime.Now.AddDays(-1);
