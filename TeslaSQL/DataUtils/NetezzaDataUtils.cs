@@ -333,7 +333,7 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-        public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier) {
+        public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier, int bitwise) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 

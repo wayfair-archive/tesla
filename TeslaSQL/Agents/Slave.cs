@@ -16,6 +16,9 @@ using System.Collections.Concurrent;
 
 namespace TeslaSQL.Agents {
     public class Slave : Agent {
+        private static readonly int SCHEMACHANGECOMPLETE = 15;
+        public static readonly int BATCHCOMPLETE = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+
         public Slave(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger)
             : base(sourceDataUtils, destDataUtils, logger) {
 
@@ -43,25 +46,46 @@ namespace TeslaSQL.Agents {
         public override void Run() {
             DateTime start = DateTime.Now;
             logger.Log("Initializing CT batch", LogLevel.Trace);
-            var batches = GetIncompleteBatches();
-            if (batches.Count == 0 && (!HasMagicHour() || FullRunTime(DateTime.Now))) {
-                logger.Log("No incomplete batches - initializing new", LogLevel.Debug);
-                batches = InitializeBatch();
-            } else if (HasMagicHour() && !FullRunTime(DateTime.Now) && batches.All(ctb => (ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) > 0)) {
-                logger.Log("Magic hours are defined and we have applied changes since the most recent one: applying schema changes only", LogLevel.Info);
-                batches = InitializeBatch();
-                foreach (var batch in batches) {
-                    logger.SetProperty("CTID", batch.CTID);
-                    ApplySchemaChangesAndWrite(batch);
+            if (HasMagicHour()) {
+                var batches = GetIncompleteBatches(SCHEMACHANGECOMPLETE);
+                ApplyBatchedSchemaChanges(batches);
+                if (batches.Count > 0 && FullRunTime(batches.Last().syncStartTime.Value)) {
+                    ProcessBatches(batches);
+                } else {
+                    //get incomplete batches
+                    batches = InitializeBatch();
+                    ApplyBatchedSchemaChanges(batches);
+                    batches = GetIncompleteBatches(BATCHCOMPLETE);
+                    if (batches.Count > 0 && FullRunTime(batches.Last().syncStartTime.Value)) {
+                        ProcessBatches(batches);
+                    } else {
+                        logger.Log("Schema changes for all pending batches complete and magic hour not yet reached", LogLevel.Debug);
+                    }
                 }
-                logger.Timing(TimingKey, (int)(DateTime.Now - start).TotalMinutes);
-                return;
+            } else {
+                var batches = GetIncompleteBatches(BATCHCOMPLETE);
+                if (batches.Count == 0) {
+                    batches = InitializeBatch();
+                }
+                ProcessBatches(batches);
             }
 
+            logger.Log("Slave agent work complete", LogLevel.Info);
+            logger.Timing(TimingKey, (int)(DateTime.Now - start).TotalMinutes);
+            return;
+        }
+
+        private void ApplyBatchedSchemaChanges(IList<ChangeTrackingBatch> batches) {
+            foreach (var batch in batches) {
+                ApplySchemaChangesAndWrite(batch);
+            }
+        }
+
+        private void ProcessBatches(IList<ChangeTrackingBatch> batches) {
             /**
-             * If you run a batch as Multi, and that batch fails, and before the next run,
-             * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
-             */
+            * If you run a batch as Multi, and that batch fails, and before the next run,
+            * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
+            */
             if (Config.batchConsolidationThreshold == 0 || batches.Count < Config.batchConsolidationThreshold) {
                 foreach (var batch in batches) {
                     logger.SetProperty("CTID", batch.CTID);
@@ -73,12 +97,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("Running multi batch", LogLevel.Debug);
                 RunMultiBatch(batches);
             }
-
-            logger.Log("Slave agent work complete", LogLevel.Info);
-            logger.Timing(TimingKey, (int)(DateTime.Now - start).TotalMinutes);
-            return;
         }
-
 
         protected bool FullRunTime(DateTime now) {
             DateTime lastRun = GetLastRunTime();
@@ -136,10 +155,10 @@ namespace TeslaSQL.Agents {
             return batches;
         }
 
-        private IList<ChangeTrackingBatch> GetIncompleteBatches() {
+        private IList<ChangeTrackingBatch> GetIncompleteBatches(int bitwise) {
             var batches = new List<ChangeTrackingBatch>();
             logger.Log("Retrieving information on last run", LogLevel.Debug);
-            var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(Config.relayDB, Config.slave);
+            var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(Config.relayDB, Config.slave, bitwise);
             if (incompleteBatches.Rows.Count > 0) {
                 foreach (DataRow row in incompleteBatches.Rows) {
                     batches.Add(new ChangeTrackingBatch(row));

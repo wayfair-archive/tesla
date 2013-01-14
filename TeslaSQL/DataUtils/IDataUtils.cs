@@ -24,7 +24,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="syncBitWise">Only include versions containing this bit</param>
         DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise);
 
-        DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier);
+        DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier, int bitwise);
 
         /// <summary>
         /// Gets the start time of the last successful CT batch before the specified CTID

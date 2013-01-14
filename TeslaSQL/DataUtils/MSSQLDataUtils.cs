@@ -870,14 +870,14 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier) {
+        public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier, int bitwise) {
             string query = @"SELECT * FROM tblCTSlaveVersion
                             WHERE slaveIdentifier = @slaveidentifier AND CTID >
                             (
                             	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE slaveIdentifier = @slaveidentifier AND syncBitWise = @bitwise
-                            )";
+                            ) ORDER BY CTID";
             SqlCommand cmd = new SqlCommand(query);
-            cmd.Parameters.Add("@bitwise", SqlDbType.Int).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            cmd.Parameters.Add("@bitwise", SqlDbType.Int).Value = bitwise;
             cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 500).Value = slaveIdentifier;
             logger.Log("Running query: " + cmd.CommandText + "... slaveidentifiers is " + slaveIdentifier, LogLevel.Debug);
             return SqlQuery(dbName, cmd);
