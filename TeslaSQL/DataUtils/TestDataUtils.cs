@@ -597,7 +597,7 @@ namespace TeslaSQL.DataUtils {
 
 
         public bool IsBeingInitialized(string sourceCTDB, TableConf table) {
-            throw new NotImplementedException();
+            return false;
         }
 
         public long? GetInitializeStartVersion(string sourceCTDB, TableConf table) {

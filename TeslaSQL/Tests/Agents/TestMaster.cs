@@ -111,15 +111,16 @@ namespace TeslaSQL.Tests.Agents {
         public void TestOverrideZeroStartVersion() {
             var table = new TableConf();
             table.name = "tableName";
-            table.schemaName = "schmea";
+            table.schemaName = "schema";
             string db = "db";
             string ctdb = "ctdb";
+            long minValidVersion = 5;
             var batch = new ChangeTrackingBatch(1, 0, 10, 0);
 
             var sourceUtils = new Mock<IDataUtils>();
             this.sourceDataUtils = sourceUtils.Object;
             sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.name, table.schemaName))
-                       .Returns(5).Verifiable();
+                       .Returns(minValidVersion).Verifiable();
             sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.name, It.IsAny<string>()))
                         .Returns(true);
             sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.name, table.schemaName))
@@ -129,8 +130,8 @@ namespace TeslaSQL.Tests.Agents {
 
             CreateChangeTable(table, db, ctdb, batch);
             sourceUtils.Verify(
-                (ut) => ut.GetMinValidVersion(db, table.name, table.schemaName),
-                Times.Exactly(2));
+                (ut) => ut.SelectIntoCTTable(ctdb, It.IsAny<TableConf>(), db, It.IsAny<ChangeTrackingBatch>(), It.IsAny<int>(), minValidVersion)
+                    );
         }
         [Fact]
         public void TestNoOverrideNonZeroStartVersion() {
@@ -144,18 +145,25 @@ namespace TeslaSQL.Tests.Agents {
             var sourceUtils = new Mock<IDataUtils>();
             this.sourceDataUtils = sourceUtils.Object;
             sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.name, table.schemaName))
-                       .Returns(5).Verifiable();
+                       .Returns(5);
             sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.name, It.IsAny<string>()))
                         .Returns(true);
             sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.name, table.schemaName))
                         .Returns(true);
             sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.name, table.schemaName))
                         .Returns(true);
+            sourceUtils.Setup((ut) => ut.IsBeingInitialized(ctdb, It.IsAny<TableConf>()))
+                        .Returns(false);
+            sourceUtils.Setup((ut) => ut.GetInitializeStartVersion(ctdb, It.IsAny<TableConf>()))
+                        .Returns(new long?());
 
             CreateChangeTable(table, db, ctdb, batch);
+            //sourceUtils.Verify(
+            //    (ut) => ut.SelectIntoCTTable(It.IsAny<string>(), It.IsAny<TableConf>(), It.IsAny<string>(
             sourceUtils.Verify(
-                (ut) => ut.GetMinValidVersion(db, table.name, table.schemaName),
-                Times.Exactly(1), "GetMinValidVersion should only be called once (in the validation method)");
+                (ut) => ut.SelectIntoCTTable(ctdb, It.IsAny<TableConf>(), db, It.IsAny<ChangeTrackingBatch>(), It.IsAny<int>(), batch.syncStartVersion),
+                Times.Never(),
+                "Should not select into CT table when the start version is less than minValidVersion");
         }
 
         [Fact]

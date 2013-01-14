@@ -307,7 +307,7 @@ namespace TeslaSQL.Agents {
                 tableStartVersion = initializeVersion.Value;
             }
 
-            if (!ValidateSourceTable(sourceDB, table.name, table.schemaName, tableStartVersion, out reason)) {
+            if (!ValidateSourceTable(sourceDB, table.name, table.schemaName, tableStartVersion, minValidVersion, out reason)) {
                 string message = "Change table creation impossible because : " + reason;
                 if (table.stopOnError) {
                     throw new Exception(message);
@@ -335,7 +335,7 @@ namespace TeslaSQL.Agents {
         /// <param name="startVersion">Start version to compare to min_valid_version</param>
         /// <param name="reason">Outputs a reason for why the table isn't valid, if it isn't valid.</param>
         /// <returns>Bool indicating whether it's safe to pull changes for this table</returns>
-        protected bool ValidateSourceTable(string dbName, string table, string schemaName, Int64 startVersion, out string reason) {
+        protected bool ValidateSourceTable(string dbName, string table, string schemaName, Int64 startVersion, Int64 minValidVersion, out string reason) {
             if (!sourceDataUtils.CheckTableExists(dbName, table, schemaName)) {
                 reason = "Table " + table + " does not exist in the source database";
                 logger.Log(reason, LogLevel.Trace);
@@ -348,7 +348,7 @@ namespace TeslaSQL.Agents {
                 reason = "Change tracking is not enabled on " + table;
                 logger.Log(reason, LogLevel.Trace);
                 return false;
-            } else if (startVersion < sourceDataUtils.GetMinValidVersion(dbName, table, schemaName)) {
+            } else if (startVersion < minValidVersion) {
                 reason = "Change tracking is far enough out of date that the syncStartVersion is less than the current minimum valid CT version on " + table;
                 logger.Log(reason, LogLevel.Trace);
                 return false;
