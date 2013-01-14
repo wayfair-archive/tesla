@@ -57,7 +57,8 @@ namespace TeslaSQL.Agents {
                 logger.Log("Last batch completed and there is no new batch to work on.", LogLevel.Info);
                 return;
             }
-            logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
+
+            logger.Log(new { CTID = ctb.CTID, message = "Working on CTID " + ctb.CTID }, LogLevel.Debug);
             DateTime previousSyncStartTime;
             IDictionary<string, Int64> changesCaptured;
 

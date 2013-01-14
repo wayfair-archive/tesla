@@ -35,11 +35,11 @@ namespace TeslaSQL {
             var repo = LogManager.GetRepository();
             var app = repo.GetAppenders().FirstOrDefault(a => a.Name == "RollingFile");
             if (app != null) {
-               var coerce = app as RollingFileAppender;
-               if (coerce != null) {
-                   coerce.File = file;
-                   coerce.ActivateOptions();
-               }
+                var coerce = app as RollingFileAppender;
+                if (coerce != null) {
+                    coerce.File = file;
+                    coerce.ActivateOptions();
+                }
             }
         }
 
@@ -89,14 +89,31 @@ namespace TeslaSQL {
             statsd.Increment(key, magnitude, sampleRate);
             Log(String.Format("Increment: {0}, {1} @{2}", key, magnitude, sampleRate), LogLevel.Trace);
         }
+
+        /// <summary>
+        /// Sets log4net thread context based on config variables. These get logged as custom fields in gelf.
+        /// </summary>
+        public void SetContext() {
+            log4net.ThreadContext.Properties["AgentType"] = Config.agentType;
+            log4net.ThreadContext.Properties["Master"] = Config.master;
+            log4net.ThreadContext.Properties["Relay"] = Config.relayServer;
+            log4net.ThreadContext.Properties["Slave"] = Config.slave;
+            log4net.ThreadContext.Properties["MasterDB"] = Config.masterDB;
+            log4net.ThreadContext.Properties["RelayDB"] = Config.relayDB;
+            log4net.ThreadContext.Properties["SlaveDB"] = Config.slaveDB;
+        }
+
         /// <summary>
         /// Logs information and writes it to the console
         /// </summary>
         /// <param name="message">The message to log</param>
         /// <param name="level">LogLevel value, gets compared to the configured logLevel variable</param>
         public void Log(object message, LogLevel level) {
+            //set thread context properties
+            SetContext();
             switch (level) {
                 case LogLevel.Trace:
+                    //log4net has no Trace so Trace and Debug are the same
                     foreach (var log in logs) { log.Debug(message); }
                     break;
                 case LogLevel.Debug:
