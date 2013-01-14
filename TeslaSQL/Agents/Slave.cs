@@ -44,7 +44,7 @@ namespace TeslaSQL.Agents {
             DateTime start = DateTime.Now;
             logger.Log("Initializing CT batch", LogLevel.Trace);
             var batches = GetIncompleteBatches();
-            if (batches.Count == 0) {
+            if (batches.Count == 0 && (!HasMagicHour() || FullRunTime(DateTime.Now))) {
                 logger.Log("No incomplete batches - initializing new", LogLevel.Debug);
                 batches = InitializeBatch();
             } else if (HasMagicHour() && !FullRunTime(DateTime.Now) && batches.All(ctb => (ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) > 0)) {
