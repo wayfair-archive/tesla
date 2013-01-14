@@ -1039,16 +1039,11 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
-        public void CleanUpInitializeTable(string dbName, long syncStartVersion) {
-            //            string sql = @"DELETE FROM tblCTInitialize
-            //                           WHERE inProgress = 0 
-            //                           AND nextSynchVersion < @syncStartVersion
-            //                           AND iniFinishTime < (
-            //                               SELECT MAX(syncStartTime) FROM tblCTVersion
-            //                               WHERE syncStopTime IS NOT NULL
-            //                           )";
-            //            var cmd = new SqlCommand(sql);
-            //            cmd.Parameters.Add("@syncStartVersion", SqlDbType.BigInt).Value = syncStartVersion;
+        public void CleanUpInitializeTable(string dbName) {
+            string sql = @"DELETE FROM tblCTInitialize
+                                       WHERE inProgress = 0";
+            var cmd = new SqlCommand(sql);
+            SqlNonQuery(dbName, cmd);
         }
     }
 }

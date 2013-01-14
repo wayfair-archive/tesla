@@ -57,7 +57,6 @@ namespace TeslaSQL.Agents {
                 return;
             }
 
-
             /**
              * If you run a batch as Multi, and that batch fails, and before the next run,
              * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
@@ -130,14 +129,14 @@ namespace TeslaSQL.Agents {
                 return batches;
             }
             ctb = new ChangeTrackingBatch(lastBatch);
-            logger.Log("Last batch failed, retrying CTID " + ctb.CTID, LogLevel.Warn);
+            logger.Log(new { message = "Last batch failed, retrying", CTID = ctb.CTID }, LogLevel.Warn);
             batches.Add(ctb);
             return batches;
         }
 
         private IList<ChangeTrackingBatch> GetIncompleteBatches() {
             var batches = new List<ChangeTrackingBatch>();
-            logger.Log("Retrieving information on last run for slave " + Config.slave, LogLevel.Debug);
+            logger.Log("Retrieving information on last run", LogLevel.Debug);
             var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(Config.relayDB, Config.slave);
             if (incompleteBatches.Rows.Count > 0) {
                 foreach (DataRow row in incompleteBatches.Rows) {

@@ -605,7 +605,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void CleanUpInitializeTable(string dbName, long syncStartVersion) {
+        public void CleanUpInitializeTable(string dbName) {
             throw new NotImplementedException();
         }
     }

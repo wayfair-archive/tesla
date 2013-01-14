@@ -126,7 +126,7 @@ namespace TeslaSQL.Agents {
             var elapsed = DateTime.Now - start;
             logger.Timing(TimingKey, (int)elapsed.TotalMinutes);
 
-            sourceDataUtils.CleanUpInitializeTable(Config.masterCTDB, ctb.CTID);
+            sourceDataUtils.CleanUpInitializeTable(Config.masterCTDB);
 
             return;
         }
