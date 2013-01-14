@@ -222,18 +222,24 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public Int64 CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
+        public ChangeTrackingBatch CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
             //create new row in tblCTVersion, output the CTID
             string query = "INSERT INTO dbo.tblCTVersion (syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
-            query += " OUTPUT inserted.CTID";
+            query += " OUTPUT inserted.CTID, inserted.syncStartTime";
             query += " VALUES (@startVersion, @stopVersion, GETDATE(), 0)";
 
             SqlCommand cmd = new SqlCommand(query);
 
             cmd.Parameters.Add("@startVersion", SqlDbType.BigInt).Value = syncStartVersion;
             cmd.Parameters.Add("@stopVersion", SqlDbType.BigInt).Value = syncStopVersion;
-
-            return SqlQueryToScalar<Int64>(dbName, cmd);
+            var res = SqlQuery(dbName, cmd);
+            return new ChangeTrackingBatch(
+                res.Rows[0].Field<Int64>("CTID"),
+                syncStartVersion,
+                syncStopVersion,
+                0,
+                res.Rows[0].Field<DateTime>("syncStartTime")
+                );
         }
 
         public void CreateShardCTVersion(string dbName, long ctid, long startVersion) {
@@ -1039,10 +1045,12 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
-        public void CleanUpInitializeTable(string dbName) {
+        public void CleanUpInitializeTable(string dbName, DateTime syncStartTime) {
             string sql = @"DELETE FROM tblCTInitialize
-                                       WHERE inProgress = 0";
+                           WHERE inProgress = 0
+                           AND iniFinishTime < @syncStartTime";
             var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@syncStartTime", SqlDbType.DateTime).Value = syncStartTime;
             SqlNonQuery(dbName, cmd);
         }
     }

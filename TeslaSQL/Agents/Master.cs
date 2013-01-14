@@ -126,7 +126,7 @@ namespace TeslaSQL.Agents {
             var elapsed = DateTime.Now - start;
             logger.Timing(TimingKey, (int)elapsed.TotalMinutes);
 
-            sourceDataUtils.CleanUpInitializeTable(Config.masterCTDB);
+            sourceDataUtils.CleanUpInitializeTable(Config.masterCTDB, ctb.syncStartTime.Value);
 
             return;
         }
@@ -140,38 +140,36 @@ namespace TeslaSQL.Agents {
         /// <returns>boolean, which lets the agent know whether or not it should continue creating changetables</returns>
         protected ChangeTrackingBatch InitializeBatch(Int64 currentVersion) {
             logger.Log("Retrieving information about the most recently worked on batch from tblCTVersion", LogLevel.Trace);
-            var lastbatch = destDataUtils.GetLastCTBatch(Config.relayDB, AgentType.Master);
+            var lastBatch = destDataUtils.GetLastCTBatch(Config.relayDB, AgentType.Master);
 
-            if (lastbatch == null) {
+            if (lastBatch == null) {
                 logger.Log("No existing batches found, tblCTVersion was empty", LogLevel.Debug);
                 //TODO figure out a better way to handle this case, determine an appropriate syncStartVersion. Perhaps use 0 and specially handle that using
                 //CHANGE_TRACKING_MIN_VALID_VERSION?
                 throw new Exception("Unable to determine appropriate syncStartVersion - version table seems to be empty.");
             }
 
-            if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
+            if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.UploadChanges)) > 0) {
                 if (Config.sharding) {
                     return null;
                 }
                 logger.Log("Last batch succeeded, creating a new one where that left off", LogLevel.Debug);
-                Int64 syncStartVersion = lastbatch.Field<Int64>("syncStopVersion");
-                Int64 CTID = destDataUtils.CreateCTVersion(Config.relayDB, syncStartVersion, currentVersion);
-                logger.Log("Created CTID " + CTID, LogLevel.Debug);
-                return new ChangeTrackingBatch(CTID, syncStartVersion, currentVersion, 0);
-            } else if ((lastbatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
+                Int64 syncStartVersion = lastBatch.Field<Int64>("syncStopVersion");
+                var batch = destDataUtils.CreateCTVersion(Config.relayDB, syncStartVersion, currentVersion);
+                logger.Log(new { message = "Created new CT batch", CTID = batch.CTID }, LogLevel.Debug);
+                return batch;
+            } else if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 logger.Log("Last batch failed before creating CT tables. Updating syncStopVersion to avoid falling too far behind", LogLevel.Debug);
-                destDataUtils.UpdateSyncStopVersion(Config.relayDB, currentVersion, lastbatch.Field<Int64>("CTID"));
+                destDataUtils.UpdateSyncStopVersion(Config.relayDB, currentVersion, lastBatch.Field<Int64>("CTID"));
                 logger.Log("New syncStopVersion is the current change tracking version on the master, " + Convert.ToString(currentVersion), LogLevel.Trace);
-                return new ChangeTrackingBatch(lastbatch.Field<Int64>("CTID"),
-                    lastbatch.Field<Int64>("syncStartVersion"),
+                return new ChangeTrackingBatch(lastBatch.Field<Int64>("CTID"),
+                    lastBatch.Field<Int64>("syncStartVersion"),
                     currentVersion,
-                    lastbatch.Field<Int32>("syncBitWise"));
+                    lastBatch.Field<Int32>("syncBitWise"),
+                    lastBatch.Field<DateTime>("syncStartTime"));
             } else {
                 logger.Log("Previous batch failed overall but did create its changetables, so we'll try to publish them once again", LogLevel.Debug);
-                return new ChangeTrackingBatch(lastbatch.Field<Int64>("CTID"),
-                    lastbatch.Field<Int64>("syncStartVersion"),
-                    lastbatch.Field<Int64>("syncStopVersion"),
-                    lastbatch.Field<Int32>("syncBitWise"));
+                return new ChangeTrackingBatch(lastBatch);
             }
         }
 

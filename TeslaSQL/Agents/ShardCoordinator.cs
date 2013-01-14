@@ -96,7 +96,7 @@ namespace TeslaSQL.Agents {
 
         private ChangeTrackingBatch CreateNewVersionsForShards(ChangeTrackingBatch batch) {
             logger.Log("Creating new CT versions for slaves", LogLevel.Info);
-            Int64 ctid = sourceDataUtils.CreateCTVersion(Config.relayDB, 0, 0);
+            Int64 ctid = sourceDataUtils.CreateCTVersion(Config.relayDB, 0, 0).CTID;
             foreach (var db in shardDatabases) {
                 var b = new ChangeTrackingBatch(sourceDataUtils.GetLastCTBatch(db, AgentType.ShardCoordinator));
                 sourceDataUtils.CreateShardCTVersion(db, ctid, b.syncStopVersion);

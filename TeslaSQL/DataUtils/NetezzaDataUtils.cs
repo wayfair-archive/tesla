@@ -355,7 +355,7 @@ namespace TeslaSQL.DataUtils {
 
 
 
-        public Int64 CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
+        public ChangeTrackingBatch CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
@@ -535,7 +535,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void CleanUpInitializeTable(string dbName) {
+        public void CleanUpInitializeTable(string dbName, DateTime syncStartTime) {
             throw new NotImplementedException();
         }
     }

@@ -129,7 +129,7 @@ namespace TeslaSQL.DataUtils {
             return testData.Tables[table.schemaName + "." + table.ToCTName(ctb.CTID), GetTableSpace(sourceCTDB)].Rows.Count;
         }
 
-        public Int64 CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
+        public ChangeTrackingBatch CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
             DataTable tblCTVersion = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
             DataRow row = tblCTVersion.NewRow();
             //this will be generated automatically since it's an auto increment column
@@ -142,7 +142,7 @@ namespace TeslaSQL.DataUtils {
             //add it to the datatable
             tblCTVersion.Rows.Add(row);
             //commit the change
-            return CTID;
+            return new ChangeTrackingBatch(CTID, syncStartVersion, syncStopVersion, 0, DateTime.Now);
         }
 
 
@@ -605,7 +605,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void CleanUpInitializeTable(string dbName) {
+        public void CleanUpInitializeTable(string dbName, DateTime syncStartTime) {
             throw new NotImplementedException();
         }
     }
