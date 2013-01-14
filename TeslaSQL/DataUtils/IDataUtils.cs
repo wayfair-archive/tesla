@@ -377,6 +377,10 @@ namespace TeslaSQL.DataUtils {
         /// Deletes Slave CT Versions completed before chopDate
         /// </summary>
         void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate);
+
+        bool IsBeingInitialized(string sourceCTDB, TableConf table);
+
+        long? GetInitializeStartVersion(string sourceCTDB, TableConf table);
     }
     public struct TTable {
         public readonly string name;

@@ -524,6 +524,15 @@ namespace TeslaSQL.DataUtils {
         }
         #endregion
 
+
+
+        public bool IsBeingInitialized(string sourceCTDB, TableConf table) {
+            throw new NotImplementedException();
+        }
+
+        public long? GetInitializeStartVersion(string sourceCTDB, TableConf table) {
+            throw new NotImplementedException();
+        }
     }
 }
 

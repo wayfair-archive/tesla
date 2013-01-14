@@ -594,5 +594,14 @@ namespace TeslaSQL.DataUtils {
         public IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier) {
             throw new NotImplementedException();
         }
+
+
+        public bool IsBeingInitialized(string sourceCTDB, TableConf table) {
+            throw new NotImplementedException();
+        }
+
+        public long? GetInitializeStartVersion(string sourceCTDB, TableConf table) {
+            throw new NotImplementedException();
+        }
     }
 }

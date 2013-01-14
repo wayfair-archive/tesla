@@ -291,8 +291,18 @@ namespace TeslaSQL.Agents {
             string reason;
 
             long tableStartVersion = batch.syncStartVersion;
+            long minValidVersion = sourceDataUtils.GetMinValidVersion(sourceDB, table.name, table.schemaName);
             if (batch.syncStartVersion == 0) {
-                tableStartVersion = sourceDataUtils.GetMinValidVersion(sourceDB, table.name, table.schemaName);
+                tableStartVersion = minValidVersion;
+            }
+
+            if (sourceDataUtils.IsBeingInitialized(sourceCTDB, table)) {
+                return 0;
+            }
+
+            long? initializeVersion = sourceDataUtils.GetInitializeStartVersion(sourceCTDB, table);
+            if (initializeVersion.HasValue) {
+                tableStartVersion = initializeVersion.Value;
             }
 
             if (!ValidateSourceTable(sourceDB, table.name, table.schemaName, tableStartVersion, out reason)) {

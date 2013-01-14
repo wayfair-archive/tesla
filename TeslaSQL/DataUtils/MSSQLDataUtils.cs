@@ -1019,5 +1019,27 @@ namespace TeslaSQL.DataUtils {
         }
 
 
+
+
+        public bool IsBeingInitialized(string sourceCTDB, TableConf table) {
+            string sql = string.Format(@"SELECT 1 FROM tblCTInitialize WHERE tableName = @tableName AND inProgress = 1",
+                                       sourceCTDB);
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = table.name;
+            var res = SqlQuery(sourceCTDB, cmd);
+            return res.Rows.Count > 0;
+        }
+
+        public long? GetInitializeStartVersion(string sourceCTDB, TableConf table) {
+            string sql = @"SELECT nextSynchVersion FROM tblCTInitialize WHERE tableName = @tableName";
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = table.name;
+            var res = SqlQuery(sourceCTDB, cmd);
+            if (res.Rows.Count == 0) {
+                return null;
+            } else {
+                return res.Rows[0].Field<long>("nextSynchVersion");
+            }
+        }
     }
 }
