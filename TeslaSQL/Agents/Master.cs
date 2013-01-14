@@ -57,21 +57,23 @@ namespace TeslaSQL.Agents {
                 logger.Log("Last batch completed and there is no new batch to work on.", LogLevel.Info);
                 return;
             }
+            logger.SetProperty("CTID", ctb.CTID);
+            logger.Log(ctb, LogLevel.Debug);
 
-            logger.Log(new { CTID = ctb.CTID, message = "Working on CTID " + ctb.CTID }, LogLevel.Debug);
+            logger.Log("Working on CTID " + ctb.CTID , LogLevel.Debug);
             DateTime previousSyncStartTime;
             IDictionary<string, Int64> changesCaptured;
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
                 logger.Log("Beginning publish schema changes phase", LogLevel.Info);
 
-                logger.Log("Creating tblCTSchemaChange_<CTID> on relay server", LogLevel.Trace);
+                logger.Log("Creating tblCTSchemaChange_" + ctb.CTID + " on relay server", LogLevel.Trace);
                 destDataUtils.CreateSchemaChangeTable(Config.relayDB, ctb.CTID);
 
                 //get the start time of the last batch where we successfully uploaded changes
                 logger.Log("Finding start time of the most recent successful batch on relay server", LogLevel.Trace);
                 previousSyncStartTime = destDataUtils.GetLastStartTime(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
-                logger.Log("Retrieved previousSyncStartTime of " + Convert.ToString(previousSyncStartTime) + " from relay server", LogLevel.Trace);
+                logger.Log("Retrieved previousSyncStartTime of " + previousSyncStartTime + " from relay server", LogLevel.Trace);
 
                 logger.Log("Publishing schema changes from master to relay server", LogLevel.Debug);
                 PublishSchemaChanges(Config.tables, Config.masterDB, Config.relayDB, ctb.CTID, previousSyncStartTime);

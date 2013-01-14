@@ -93,7 +93,7 @@ namespace TeslaSQL {
         /// <summary>
         /// Sets log4net thread context based on config variables. These get logged as custom fields in gelf.
         /// </summary>
-        public void SetContext() {
+        private void SetContext() {
             log4net.ThreadContext.Properties["AgentType"] = Config.agentType;
             log4net.ThreadContext.Properties["Master"] = Config.master;
             log4net.ThreadContext.Properties["Relay"] = Config.relayServer;
@@ -101,6 +101,13 @@ namespace TeslaSQL {
             log4net.ThreadContext.Properties["MasterDB"] = Config.masterDB;
             log4net.ThreadContext.Properties["RelayDB"] = Config.relayDB;
             log4net.ThreadContext.Properties["SlaveDB"] = Config.slaveDB;
+        }
+
+        public void SetProperty(string name, object value) {
+            log4net.ThreadContext.Properties[name] = value;
+        }
+        public void RemoveProperty(string name) {
+            log4net.ThreadContext.Properties.Remove(name);
         }
 
         /// <summary>

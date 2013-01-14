@@ -51,6 +51,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("Magic hours are defined and we have applied changes since the most recent one: applying schema changes only", LogLevel.Info);
                 batches = InitializeBatch();
                 foreach (var batch in batches) {
+                    logger.SetProperty("CTID", batch.CTID);
                     ApplySchemaChangesAndWrite(batch);
                 }
                 logger.Timing(TimingKey, (int)(DateTime.Now - start).TotalMinutes);
@@ -63,6 +64,7 @@ namespace TeslaSQL.Agents {
              */
             if (Config.batchConsolidationThreshold == 0 || batches.Count < Config.batchConsolidationThreshold) {
                 foreach (var batch in batches) {
+                    logger.SetProperty("CTID", batch.CTID);
                     logger.Log("Running single batch " + batch.CTID, LogLevel.Debug);
                     RunSingleBatch(batch);
                 }
@@ -207,7 +209,7 @@ namespace TeslaSQL.Agents {
             var existingCTTables = new List<ChangeTable>();
 
             ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
-
+            logger.SetProperty("CTID", endBatch.CTID);
             //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
 
             foreach (ChangeTrackingBatch batch in batches) {

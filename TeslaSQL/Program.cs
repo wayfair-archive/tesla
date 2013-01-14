@@ -75,7 +75,7 @@ namespace TeslaSQL {
                 Console.WriteLine("Unable to initialize logging facility due to error: " + e.Message + ". Stack Trace: " + e.StackTrace);
                 Environment.Exit(1);
             }
-              if (parameters.logFile != null) {
+            if (parameters.logFile != null) {
                 Logger.SetLogFilePath(parameters.logFile);
             }
             logger.Log("Configuration file successfully loaded", LogLevel.Debug);
@@ -117,7 +117,7 @@ namespace TeslaSQL {
                 foreach (var e in ae.InnerExceptions) {
                     logger.Log(e.Message + '\n' + e.StackTrace, LogLevel.Critical);
                 }
-            
+
             } catch (Exception e) {
                 logger.Log("ERROR: " + e.Message + " - Stack Trace: " + e.StackTrace, LogLevel.Critical);
                 responseCode = 1;
