@@ -533,6 +533,11 @@ namespace TeslaSQL.DataUtils {
         public long? GetInitializeStartVersion(string sourceCTDB, TableConf table) {
             throw new NotImplementedException();
         }
+
+
+        public void CleanUpInitializeTable(string dbName, long syncStartVersion) {
+            throw new NotImplementedException();
+        }
     }
 }
 

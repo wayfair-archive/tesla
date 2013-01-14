@@ -206,15 +206,15 @@ namespace TeslaSQL.DataUtils {
              * actual database objects at this point. The database names are also validated to be legal database identifiers.
              * Only the start and stop versions are actually parametrizable.
              */
-            string query = "SELECT " + table.            masterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
-            query += " INTO " + table.schemaName+ "." + table.ToCTName(ctb.CTID);
+            string query = "SELECT " + table.masterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
+            query += " INTO " + table.schemaName + "." + table.ToCTName(ctb.CTID);
             query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.schemaName + "." + table.name + ", @startversion) CT";
             query += " LEFT OUTER JOIN " + sourceDB + "." + table.schemaName + "." + table.name + " P ON " + table.pkList;
             query += " WHERE (SYS_CHANGE_VERSION <= @stopversion OR SYS_CHANGE_CREATION_VERSION <= @stopversion)";
             query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + table.notNullPKList + ")";
 
             SqlCommand cmd = new SqlCommand(query);
-            
+
             cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = (overrideStartVersion.HasValue ? overrideStartVersion.Value : ctb.syncStartVersion);
             cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.syncStopVersion;
 
@@ -1018,9 +1018,6 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-
-
-
         public bool IsBeingInitialized(string sourceCTDB, TableConf table) {
             string sql = string.Format(@"SELECT 1 FROM tblCTInitialize WHERE tableName = @tableName AND inProgress = 1",
                                        sourceCTDB);
@@ -1040,6 +1037,18 @@ namespace TeslaSQL.DataUtils {
             } else {
                 return res.Rows[0].Field<long>("nextSynchVersion");
             }
+        }
+
+        public void CleanUpInitializeTable(string dbName, long syncStartVersion) {
+            //            string sql = @"DELETE FROM tblCTInitialize
+            //                           WHERE inProgress = 0 
+            //                           AND nextSynchVersion < @syncStartVersion
+            //                           AND iniFinishTime < (
+            //                               SELECT MAX(syncStartTime) FROM tblCTVersion
+            //                               WHERE syncStopTime IS NOT NULL
+            //                           )";
+            //            var cmd = new SqlCommand(sql);
+            //            cmd.Parameters.Add("@syncStartVersion", SqlDbType.BigInt).Value = syncStartVersion;
         }
     }
 }

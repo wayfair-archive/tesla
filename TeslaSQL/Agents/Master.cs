@@ -124,6 +124,9 @@ namespace TeslaSQL.Agents {
             logger.Log("Master agent work complete", LogLevel.Info);
             var elapsed = DateTime.Now - start;
             logger.Timing(TimingKey, (int)elapsed.TotalMinutes);
+
+            sourceDataUtils.CleanUpInitializeTable(Config.masterCTDB, ctb.CTID);
+
             return;
         }
 
