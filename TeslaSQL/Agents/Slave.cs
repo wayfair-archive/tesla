@@ -49,14 +49,14 @@ namespace TeslaSQL.Agents {
             if (HasMagicHour()) {
                 var batches = GetIncompleteBatches(SCHEMACHANGECOMPLETE);
                 ApplyBatchedSchemaChanges(batches);
-                if (batches.Count > 0 && FullRunTime(batches.Last().syncStartTime.Value)) {
+                if (batches.Count > 0 && IsFullRunTime(batches.Last().syncStartTime.Value)) {
                     ProcessBatches(batches);
                 } else {
                     //get incomplete batches
                     batches = InitializeBatch(SCHEMACHANGECOMPLETE);
                     ApplyBatchedSchemaChanges(batches);
                     batches = GetIncompleteBatches(BATCHCOMPLETE);
-                    if (batches.Count > 0 && FullRunTime(batches.Last().syncStartTime.Value)) {
+                    if (batches.Count > 0 && IsFullRunTime(batches.Last().syncStartTime.Value)) {
                         ProcessBatches(batches);
                     } else {
                         logger.Log("Schema changes for all pending batches complete and magic hour not yet reached", LogLevel.Debug);
@@ -83,9 +83,9 @@ namespace TeslaSQL.Agents {
 
         private void ProcessBatches(IList<ChangeTrackingBatch> batches) {
             /**
-            * If you run a batch as Multi, and that batch fails, and before the next run,
-            * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
-            */
+             * If you run a batch as Multi, and that batch fails, and before the next run,
+             * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
+             */
             if (Config.batchConsolidationThreshold == 0 || batches.Count < Config.batchConsolidationThreshold) {
                 foreach (var batch in batches) {
                     logger.SetProperty("CTID", batch.CTID);
@@ -99,7 +99,7 @@ namespace TeslaSQL.Agents {
             }
         }
 
-        protected bool FullRunTime(DateTime now) {
+        protected bool IsFullRunTime(DateTime now) {
             DateTime lastRun = GetLastRunTime();
             if (lastRun > now) { throw new Exception("Time went backwards"); }
             foreach (var magicHour in Config.magicHours) {
@@ -349,7 +349,7 @@ namespace TeslaSQL.Agents {
                 var sw = Stopwatch.StartNew();
                 ApplySchemaChanges(Config.tables, Config.relayDB, Config.slaveDB, ctb.CTID);
                 logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
-                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);                
+                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
             }
         }
 

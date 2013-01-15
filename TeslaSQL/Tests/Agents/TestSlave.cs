@@ -304,7 +304,7 @@ namespace TeslaSQL.Tests.Agents {
                 mockDataUtils.Setup(du => du.GetLastStartTime(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<AgentType>(), It.IsAny<string>()))
                     .Returns(test.lastRun);
                 sourceDataUtils = mockDataUtils.Object;
-                Assert.Equal(FullRunTime(test.now), test.isFullRunTime);
+                Assert.Equal(IsFullRunTime(test.now), test.isFullRunTime);
             }
         }
 

@@ -110,7 +110,7 @@ namespace TeslaSQL {
         public void RemoveProperty(string name) {
             log4net.ThreadContext.Properties.Remove(name);
         }
-
+        
         /// <summary>
         /// Logs information and writes it to the console
         /// </summary>

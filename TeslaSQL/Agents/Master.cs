@@ -60,7 +60,7 @@ namespace TeslaSQL.Agents {
             logger.SetProperty("CTID", ctb.CTID);
             logger.Log(ctb, LogLevel.Debug);
 
-            logger.Log("Working on CTID " + ctb.CTID , LogLevel.Debug);
+            logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
             DateTime previousSyncStartTime;
             IDictionary<string, Int64> changesCaptured;
 
@@ -89,12 +89,12 @@ namespace TeslaSQL.Agents {
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 logger.Log("Beginning capture changes phase", LogLevel.Info);
                 logger.Log("Resizing batch based on batch threshold", LogLevel.Trace);
-                Int64 resizedStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, Config.maxBatchSize,
+                Int64 resizedStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, Config.maxBatchSize, 
                     Config.thresholdIgnoreStartTime, Config.thresholdIgnoreEndTime, DateTime.Now);
 
                 if (resizedStopVersion != ctb.syncStopVersion) {
-                    logger.Log("Resized batch due to threshold. Stop version changed from " + Convert.ToString(ctb.syncStopVersion) +
-                        " to " + Convert.ToString(resizedStopVersion), LogLevel.Debug);
+                    logger.Log("Resized batch due to threshold. Stop version changed from " + ctb.syncStopVersion + 
+                        " to " + resizedStopVersion, LogLevel.Debug);
                     ctb.syncStopVersion = resizedStopVersion;
 
                     logger.Log("Writing new stopVersion back to tblCTVersion", LogLevel.Trace);
@@ -106,7 +106,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
 
                 destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
-                logger.Log("Wrote bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.CaptureChanges)) + " to tblCTVersion", LogLevel.Trace);
+                logger.Log("Wrote bitwise value of " + Convert.ToInt32(SyncBitWise.CaptureChanges) + " to tblCTVersion", LogLevel.Trace);
             } else {
                 logger.Log("CreateChangeTables succeeded on the previous run, running GetRowCounts instead to populate changesCaptured object", LogLevel.Debug);
                 changesCaptured = GetRowCounts(Config.tables, Config.masterCTDB, ctb.CTID);
@@ -122,7 +122,7 @@ namespace TeslaSQL.Agents {
 
             //this signifies the end of the master's responsibility for this batch
             destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
-            logger.Log("Wrote bitwise value of " + Convert.ToString(Convert.ToInt32(SyncBitWise.UploadChanges)) + " to tblCTVersion", LogLevel.Trace);
+            logger.Log("Wrote bitwise value of " + Convert.ToInt32(SyncBitWise.UploadChanges) + " to tblCTVersion", LogLevel.Trace);
 
             logger.Log("Master agent work complete", LogLevel.Info);
             var elapsed = DateTime.Now - start;
@@ -163,7 +163,7 @@ namespace TeslaSQL.Agents {
             } else if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
                 logger.Log("Last batch failed before creating CT tables. Updating syncStopVersion to avoid falling too far behind", LogLevel.Debug);
                 destDataUtils.UpdateSyncStopVersion(Config.relayDB, currentVersion, lastBatch.Field<Int64>("CTID"));
-                logger.Log("New syncStopVersion is the current change tracking version on the master, " + Convert.ToString(currentVersion), LogLevel.Trace);
+                logger.Log("New syncStopVersion is the current change tracking version on the master, " + currentVersion, LogLevel.Trace);
                 return new ChangeTrackingBatch(lastBatch.Field<Int64>("CTID"),
                     lastBatch.Field<Int64>("syncStartVersion"),
                     currentVersion,
@@ -394,7 +394,7 @@ namespace TeslaSQL.Agents {
             IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)Config.masterType, (SqlFlavor)Config.relayType, sourceDataUtils, destDataUtils, logger);
             logger.Log("Publishing changes for table " + table.schemaName + "." + table.name, LogLevel.Trace);
             try {
-                dataCopy.CopyTable(sourceCTDB, CTTableName(table.name, CTID), table.schemaName, destCTDB, Config.dataCopyTimeout);
+                dataCopy.CopyTable(sourceCTDB, table.ToCTName(CTID), table.schemaName, destCTDB, Config.dataCopyTimeout);
                 logger.Log("Publishing changes succeeded for " + table.schemaName + "." + table.name, LogLevel.Trace);
             } catch (Exception e) {
                 if (table.stopOnError) {
