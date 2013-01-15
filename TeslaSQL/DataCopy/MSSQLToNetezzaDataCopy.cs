@@ -71,10 +71,12 @@ namespace TeslaSQL.DataCopy {
             bcp.StartInfo.Arguments = bcpArgs;
             bcp.StartInfo.UseShellExecute = false;
             bcp.StartInfo.RedirectStandardError = true;
+            bcp.StartInfo.RedirectStandardOutput = true;
             bcp.Start();
             bcp.WaitForExit();
             if (bcp.ExitCode != 0) {
-                string err = bcp.StandardError.ReadToEnd();
+                string err = bcp.StandardOutput.ReadToEnd();
+                err += bcp.StandardError.ReadToEnd();
                 logger.Log(err, LogLevel.Critical);
                 throw new Exception("BCP error: " + err);
             }
