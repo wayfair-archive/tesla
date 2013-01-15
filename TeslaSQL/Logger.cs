@@ -101,6 +101,7 @@ namespace TeslaSQL {
             log4net.ThreadContext.Properties["MasterDB"] = Config.masterDB;
             log4net.ThreadContext.Properties["RelayDB"] = Config.relayDB;
             log4net.ThreadContext.Properties["SlaveDB"] = Config.slaveDB;
+            log4net.ThreadContext.Properties["Thread"] = System.Threading.Thread.CurrentThread.ManagedThreadId;
         }
 
         public void SetProperty(string name, object value) {
