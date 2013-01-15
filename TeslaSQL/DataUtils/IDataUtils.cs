@@ -338,7 +338,7 @@ namespace TeslaSQL.DataUtils {
         /// so in order to merge correctly, we need these lists defined elsewhere. These are defined in "info tables" for each batch,
         /// and this method returns the primary key columns.
         /// </summary>
-        IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database);
+        IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long CTID, string database);
 
         /// <summary>
         /// Tallies the total amount of expected rows from all the tables in the change tracking batch corresponding to the specified CTID.

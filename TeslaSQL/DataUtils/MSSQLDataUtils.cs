@@ -952,8 +952,8 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(destDB, cmd);
         }
 
-        public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, ChangeTrackingBatch batch, string database) {
-            string sql = string.Format(@"SELECT CtipkList FROM {0} WHERE CtiTableName = @tableName", batch.infoTable);
+        public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long CTID, string database) {
+            string sql = string.Format(@"SELECT CtipkList FROM tblCTTableInfo_{0} WHERE CtiTableName = @tableName", CTID);
             SqlCommand cmd = new SqlCommand(sql);
             cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 5000).Value = table.name;
             var res = SqlQueryToScalar<string>(database, cmd);

@@ -167,7 +167,7 @@ namespace TeslaSQL.Agents {
 
         private void SetFieldList(TableConf table, string database, ChangeTrackingBatch batch) {
             var cols = sourceDataUtils.GetFieldList(database, table.ToCTName(batch.CTID), table.schemaName);
-            var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch, database);
+            var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch.CTID, database);
             foreach (var pk in pks) {
                 cols[pk] = true;
             }

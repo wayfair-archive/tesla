@@ -47,23 +47,27 @@ namespace TeslaSQL.Agents {
             DateTime start = DateTime.Now;
             logger.Log("Initializing CT batch", LogLevel.Trace);
             if (HasMagicHour()) {
-                var batches = GetIncompleteBatches(SCHEMACHANGECOMPLETE);
+                var batches = GetIncompleteBatches();
                 ApplyBatchedSchemaChanges(batches);
-                if (batches.Count > 0 && FullRunTime(batches.Last().syncStartTime.Value)) {
-                    ProcessBatches(batches);
-                } else {
-                    //get incomplete batches
+                if (batches.All(b => b.syncBitWise == SCHEMACHANGECOMPLETE)) {
+                    //pull new batches
                     batches = InitializeBatch(SCHEMACHANGECOMPLETE);
                     ApplyBatchedSchemaChanges(batches);
-                    batches = GetIncompleteBatches(BATCHCOMPLETE);
+                    batches = GetIncompleteBatches();
                     if (batches.Count > 0 && FullRunTime(batches.Last().syncStartTime.Value)) {
+                        logger.Log("Magic hour criteria reached, processing batch(es)", LogLevel.Debug);
                         ProcessBatches(batches);
                     } else {
                         logger.Log("Schema changes for all pending batches complete and magic hour not yet reached", LogLevel.Debug);
                     }
+                } else if (batches.Count > 0 && FullRunTime(batches.Last().syncStartTime.Value)) {
+                    logger.Log("Magic hour criteria reached, retrying processing batch(es)", LogLevel.Debug);
+                    ProcessBatches(batches);
+                } else {
+                    logger.Log("No new batches published by master", LogLevel.Info);
                 }
             } else {
-                var batches = GetIncompleteBatches(BATCHCOMPLETE);
+                var batches = GetIncompleteBatches();
                 if (batches.Count == 0) {
                     batches = InitializeBatch(BATCHCOMPLETE);
                 }
@@ -136,7 +140,7 @@ namespace TeslaSQL.Agents {
                 return batches;
             }
 
-            if (lastBatch.Field<Int32>("syncBitWise") == bitwise) {
+            if ((lastBatch.Field<Int32>("syncBitWise") & bitwise) == bitwise) {
                 logger.Log("Last batch was successful, checking for new batches.", LogLevel.Debug);
 
                 DataTable pendingVersions = sourceDataUtils.GetPendingCTVersions(Config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
@@ -155,10 +159,10 @@ namespace TeslaSQL.Agents {
             return batches;
         }
 
-        private IList<ChangeTrackingBatch> GetIncompleteBatches(int bitwise) {
+        private IList<ChangeTrackingBatch> GetIncompleteBatches() {
             var batches = new List<ChangeTrackingBatch>();
             logger.Log("Retrieving information on last run", LogLevel.Debug);
-            var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(Config.relayDB, Config.slave, bitwise);
+            var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(Config.relayDB, Config.slave, BATCHCOMPLETE);
             if (incompleteBatches.Rows.Count > 0) {
                 foreach (DataRow row in incompleteBatches.Rows) {
                     batches.Add(new ChangeTrackingBatch(row));
@@ -191,7 +195,7 @@ namespace TeslaSQL.Agents {
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Debug);
-                SetFieldListsSlave(Config.relayDB, Config.tables, ctb);
+                SetFieldListsSlave(Config.relayDB, Config.tables, ctb, existingCTTables);
                 sw = Stopwatch.StartNew();
                 RowCounts total = ApplyChanges(Config.tables, Config.slaveDB, existingCTTables, ctb.CTID);
                 RecordRowCounts(total, ctb);
@@ -238,7 +242,7 @@ namespace TeslaSQL.Agents {
                 existingCTTables = existingCTTables.Concat(PopulateTableList(Config.tables, Config.relayDB, batch.CTID)).ToList();
             }
             logger.Log("Capturing field lists", LogLevel.Debug);
-            SetFieldListsSlave(Config.relayDB, Config.tables, endBatch);
+            SetFieldListsSlave(Config.relayDB, Config.tables, endBatch, existingCTTables);
 
             foreach (ChangeTrackingBatch batch in batches) {
                 if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
@@ -269,7 +273,8 @@ namespace TeslaSQL.Agents {
             }
             var lastChangedTables = new List<ChangeTable>();
             foreach (var group in existingCTTables.GroupBy(c => c.name)) {
-                lastChangedTables.Add(group.OrderByDescending(c => c.ctid).First());
+                var table = group.First();
+                lastChangedTables.Add(new ChangeTable(table.name, endBatch.CTID, table.schemaName, table.slaveName));
             }
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) == 0) {
                 SyncHistoryTables(Config.tables, Config.slaveCTDB, Config.slaveDB, lastChangedTables);
@@ -324,22 +329,23 @@ namespace TeslaSQL.Agents {
             return consolidatedTables;
         }
 
-        private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
+        private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch, List<ChangeTable> existingCTTables) {
             foreach (var table in tables) {
-                logger.Log("Setting field lists for " + table.ToCTName(batch.CTID), LogLevel.Trace);
-                var cols = sourceDataUtils.GetFieldList(dbName, table.ToCTName(batch.CTID), table.schemaName);
+                long lastCTIDWithChanges = (long)existingCTTables.Where(ct => ct.name == table.name).OrderBy(ct => ct.ctid).Last().ctid;
+                logger.Log("Setting field lists for " + table.name, LogLevel.Trace);
+                var cols = sourceDataUtils.GetFieldList(dbName, table.ToCTName(lastCTIDWithChanges), table.schemaName);
 
                 //this is hacky but these aren't columns we actually care about, but we expect them to be there
                 cols.Remove("SYS_CHANGE_VERSION");
                 cols.Remove("SYS_CHANGE_OPERATION");
-                logger.Log("Getting primary keys from info table for " + table.ToCTName(batch.CTID), LogLevel.Trace);
-                var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch, dbName);
+                logger.Log("Getting primary keys from info table for " + table.ToCTName(lastCTIDWithChanges), LogLevel.Trace);
+                var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, lastCTIDWithChanges, dbName);
                 foreach (var pk in pks) {
                     cols[pk] = true;
                 }
-                logger.Log("SetFieldLists for " + table.ToCTName(batch.CTID), LogLevel.Trace);
+                logger.Log(new { Table = table.name, message = "SetFieldLists starting" }, LogLevel.Trace);
                 SetFieldList(table, cols);
-                logger.Log("SetFieldLists success " + table.ToCTName(batch.CTID), LogLevel.Trace);
+                logger.Log(new { Table = table.name, message = "SetFieldLists success" }, LogLevel.Trace);
             }
         }
 
@@ -349,7 +355,8 @@ namespace TeslaSQL.Agents {
                 var sw = Stopwatch.StartNew();
                 ApplySchemaChanges(Config.tables, Config.relayDB, Config.slaveDB, ctb.CTID);
                 logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
-                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);                
+                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
+                ctb.syncBitWise += Convert.ToInt32(SyncBitWise.ApplySchemaChanges);
             }
         }
 
