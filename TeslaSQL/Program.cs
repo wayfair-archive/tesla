@@ -117,7 +117,7 @@ namespace TeslaSQL {
                 foreach (var e in ae.InnerExceptions) {
                     logger.Log(e.Message + '\n' + e.StackTrace, LogLevel.Critical);
                 }
-
+                responseCode = 1;
             } catch (Exception e) {
                 logger.Log("ERROR: " + e.Message + " - Stack Trace: " + e.StackTrace, LogLevel.Critical);
                 responseCode = 1;
