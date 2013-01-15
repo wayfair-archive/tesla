@@ -216,7 +216,7 @@ namespace TeslaSQL.DataUtils {
              * actual database objects at this point. The database names are also validated to be legal database identifiers.
              * Only the start and stop versions are actually parametrizable.
              */
-            string query = "SELECT " + table.masterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
+            string query = "SELECT " + table.modifiedMasterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
             query += " INTO " + table.schemaName + "." + table.ToCTName(ctb.CTID);
             query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.schemaName + "." + table.name + ", @startversion) CT";
             query += " LEFT OUTER JOIN " + sourceDB + "." + table.schemaName + "." + table.name + " P ON " + table.pkList;
