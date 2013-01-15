@@ -53,7 +53,7 @@ namespace TeslaSQL.Agents {
                     ProcessBatches(batches);
                 } else {
                     //get incomplete batches
-                    batches = InitializeBatch();
+                    batches = InitializeBatch(SCHEMACHANGECOMPLETE);
                     ApplyBatchedSchemaChanges(batches);
                     batches = GetIncompleteBatches(BATCHCOMPLETE);
                     if (batches.Count > 0 && FullRunTime(batches.Last().syncStartTime.Value)) {
@@ -65,7 +65,7 @@ namespace TeslaSQL.Agents {
             } else {
                 var batches = GetIncompleteBatches(BATCHCOMPLETE);
                 if (batches.Count == 0) {
-                    batches = InitializeBatch();
+                    batches = InitializeBatch(BATCHCOMPLETE);
                 }
                 ProcessBatches(batches);
             }
@@ -125,7 +125,7 @@ namespace TeslaSQL.Agents {
         /// Initializes version/batch info for a run
         /// </summary>
         /// <returns>List of change tracking batches to work on</returns>
-        private IList<ChangeTrackingBatch> InitializeBatch() {
+        private IList<ChangeTrackingBatch> InitializeBatch(int bitwise) {
             ChangeTrackingBatch ctb;
             IList<ChangeTrackingBatch> batches = new List<ChangeTrackingBatch>();
 
@@ -136,7 +136,7 @@ namespace TeslaSQL.Agents {
                 return batches;
             }
 
-            if ((lastBatch.Field<Int32>("syncBitWise") & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) > 0) {
+            if (lastBatch.Field<Int32>("syncBitWise") == bitwise) {
                 logger.Log("Last batch was successful, checking for new batches.", LogLevel.Debug);
 
                 DataTable pendingVersions = sourceDataUtils.GetPendingCTVersions(Config.relayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
