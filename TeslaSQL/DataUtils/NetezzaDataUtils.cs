@@ -165,13 +165,13 @@ namespace TeslaSQL.DataUtils {
                     id.delete.CommandTimeout = Config.queryTimeout;
                     logger.Log(id.delete.CommandText, LogLevel.Trace);
                     int deleted = id.delete.ExecuteNonQuery();
-                    logger.Log("Rows deleted: " + deleted, LogLevel.Info);
+                    logger.Log(new { Table = table, message = "Rows deleted: " + deleted }, LogLevel.Info);
                     id.insert.Transaction = trans;
                     id.insert.Connection = conn;
                     id.insert.CommandTimeout = Config.queryTimeout;
                     logger.Log(id.insert.CommandText, LogLevel.Trace);
                     int inserted = id.insert.ExecuteNonQuery();
-                    logger.Log("Rows deleted: " + inserted, LogLevel.Info);
+                    logger.Log(new { Table = table, message = "Rows inserted: " + inserted }, LogLevel.Info);
                     rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
                 }
                 trans.Commit();

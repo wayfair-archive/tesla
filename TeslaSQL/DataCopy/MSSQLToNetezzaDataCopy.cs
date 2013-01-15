@@ -59,13 +59,16 @@ namespace TeslaSQL.DataCopy {
             }
             string directory = Config.bcpPath.TrimEnd('\\') + @"\" + sourceDB.ToLower();
             CreateDirectoryIfNotExists(directory);
-            var bcpArgs = string.Format(@"""{0}"" queryout {1}\{2}.txt -T -c -S{3} -t""|"" -r\n",
+            string password = new cTripleDes().Decrypt(Config.relayPassword);
+            var bcpArgs = string.Format(@"""{0}"" queryout {1}\{2}.txt -c -S{3} -U {4} -P {5} -t""|"" -r\n",
                                             bcpSelect,
                                             directory,
                                             destTableName,
-                                            Config.relayServer
+                                            Config.relayServer,
+                                            Config.relayUser,
+                                            password
                                             );
-            logger.Log(bcpArgs, LogLevel.Trace);
+            logger.Log("BCP command: bcp " + bcpArgs.Replace(password, "********"), LogLevel.Trace);
             var bcp = new Process();
             bcp.StartInfo.FileName = "bcp";
             bcp.StartInfo.Arguments = bcpArgs;
@@ -80,15 +83,16 @@ namespace TeslaSQL.DataCopy {
                 logger.Log(err, LogLevel.Critical);
                 throw new Exception("BCP error: " + err);
             }
+            logger.Log("BCP successful for " + sourceTableName, LogLevel.Trace);
 
-            string plinkArgs = string.Format(@"-ssh -v -l {0} -i {1} {2} {3} {4} {5}",
+            string plinkArgs = string.Format(@"-ssh -v -batch -l {0} -i {1} {2} {3} {4} {5}",
                                               nzUser,
                                               nzPrivateKeyPath,
                                               nzServer,
                                               Config.nzLoadScriptPath,
                                               destDB.ToLower(),
                                               destTableName);
-
+            logger.Log("nzload command: " + Config.plinkPath + " " + plinkArgs, LogLevel.Trace);
             var plink = new Process();
             plink.StartInfo.FileName = Config.plinkPath;
             plink.StartInfo.Arguments = plinkArgs;
@@ -98,19 +102,21 @@ namespace TeslaSQL.DataCopy {
             plink.Start();
             plink.WaitForExit();
 
+            //plink seems to make odd decisions about what to put in stdout vs. stderr, so we just lump them together
+            string output = plink.StandardOutput.ReadToEnd() + "\r\n" + plink.StandardError.ReadToEnd();
             if (plink.ExitCode != 0) {
-                string err = plink.StandardError.ReadToEnd();
-                logger.Log(err, LogLevel.Critical);
-                throw new Exception("plink error: " + err);
+                logger.Log(output, LogLevel.Critical);
+                throw new Exception("plink error: " + output);
             }
-            string output = plink.StandardOutput.ReadToEnd();
+            if (output.Contains("Disconnected: User aborted at host key verification")) {
+                throw new Exception("Error connecting to Netezza server: Please verify host key as the user that runs Tesla");
+            }
             if (Regex.IsMatch(output, "Cannot open input file .* No such file or directory")
                 || !output.Contains("completed successfully")) {
                 throw new Exception("Netezza load failed: " + output);
             }
-            if (output.Contains("Disconnected: User aborted at host key verification")) {
-                throw new Exception("Error connecting to Netezza server: Please verify host key");
-            }
+
+            logger.Log("nzload successful for table " + destTableName, LogLevel.Trace);
         }
 
         struct Col {
