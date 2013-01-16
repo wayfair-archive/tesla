@@ -69,41 +69,59 @@ namespace TeslaSQL.DataCopy {
                                             password
                                             );
             logger.Log("BCP command: bcp " + bcpArgs.Replace(password, "********"), LogLevel.Trace);
+            var outputBuilder = new StringBuilder();
+            var errorBuilder = new StringBuilder();
             var bcp = new Process();
             bcp.StartInfo.FileName = "bcp";
             bcp.StartInfo.Arguments = bcpArgs;
             bcp.StartInfo.UseShellExecute = false;
             bcp.StartInfo.RedirectStandardError = true;
             bcp.StartInfo.RedirectStandardOutput = true;
+            bcp.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) {
+                outputBuilder.AppendLine(e.Data);
+            };
+            bcp.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) {
+                errorBuilder.AppendLine(e.Data);
+            };
             bcp.Start();
+            bcp.BeginOutputReadLine();
+            bcp.BeginErrorReadLine();
             bool status = bcp.WaitForExit(Config.dataCopyTimeout * 1000);
             if (!status) {
                 bcp.Kill();
                 throw new Exception("BCP timed out for table " + sourceTableName);
             }
             if (bcp.ExitCode != 0) {
-                string err = bcp.StandardOutput.ReadToEnd();
-                err += bcp.StandardError.ReadToEnd();
+                string err = outputBuilder + "\r\n" + errorBuilder;
                 logger.Log(err, LogLevel.Critical);
                 throw new Exception("BCP error: " + err);
             }
             logger.Log("BCP successful for " + sourceTableName, LogLevel.Trace);
-
             string plinkArgs = string.Format(@"-ssh -v -batch -l {0} -i {1} {2} {3} {4} {5}",
-                                              nzUser,
-                                              nzPrivateKeyPath,
-                                              nzServer,
-                                              Config.nzLoadScriptPath,
-                                              destDB.ToLower(),
-                                              destTableName);
+                                                nzUser,
+                                                nzPrivateKeyPath,
+                                                nzServer,
+                                                Config.nzLoadScriptPath,
+                                                destDB.ToLower(),
+                                                destTableName);
             logger.Log("nzload command: " + Config.plinkPath + " " + plinkArgs, LogLevel.Trace);
             var plink = new Process();
+            outputBuilder.Clear();
+            errorBuilder.Clear();
             plink.StartInfo.FileName = Config.plinkPath;
             plink.StartInfo.Arguments = plinkArgs;
             plink.StartInfo.UseShellExecute = false;
             plink.StartInfo.RedirectStandardError = true;
             plink.StartInfo.RedirectStandardOutput = true;
+            plink.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) {
+                outputBuilder.AppendLine(e.Data);
+            };
+            plink.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) {
+                errorBuilder.AppendLine(e.Data);
+            };
             plink.Start();
+            plink.BeginOutputReadLine();
+            plink.BeginErrorReadLine();
             status = plink.WaitForExit(Config.dataCopyTimeout * 1000);
 
             if (!status) {
@@ -112,7 +130,7 @@ namespace TeslaSQL.DataCopy {
             }
 
             //plink seems to make odd decisions about what to put in stdout vs. stderr, so we just lump them together
-            string output = plink.StandardOutput.ReadToEnd() + "\r\n" + plink.StandardError.ReadToEnd();
+            string output = outputBuilder + "\r\n" + errorBuilder;
             if (plink.ExitCode != 0) {
                 logger.Log(output, LogLevel.Critical);
                 throw new Exception("plink error: " + output);
