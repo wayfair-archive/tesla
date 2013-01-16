@@ -281,9 +281,7 @@ namespace TeslaSQL.Agents {
                 sourceDataUtils.WriteBitWise(Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), AgentType.Slave);
             }
             //success! go through and mark all the batches as complete in the db
-            foreach (ChangeTrackingBatch batch in batches) {
-                sourceDataUtils.MarkBatchComplete(Config.relayDB, batch.CTID, DateTime.Now, Config.slave);
-            }
+            sourceDataUtils.MarkBatchesComplete(Config.relayDB, batches.Select(b => b.CTID), DateTime.Now, Config.slave);
             logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + Config.slaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
         }
 
@@ -365,15 +363,15 @@ namespace TeslaSQL.Agents {
             foreach (var t in existingCTTables) {
                 var s = tableConf.First(tc => tc.name.Equals(t.name, StringComparison.InvariantCultureIgnoreCase));
                 if (!s.recordHistoryTable) {
-                    logger.Log("Skipping writing history table for " + t.name + " because it is not configured", LogLevel.Debug);
+                    logger.Log(new { message = "Skipping writing history table because it is not configured", Table = t.name }, LogLevel.Debug);
                     continue;
                 }
                 ChangeTable tLocal = t;
                 Action act = () => {
-                    logger.Log("Writing history table for " + tLocal.name, LogLevel.Debug);
+                    logger.Log(new { message = "Writing history table", table = tLocal.name }, LogLevel.Debug);
                     try {
                         destDataUtils.CopyIntoHistoryTable(tLocal, slaveCTDB);
-                        logger.Log("Successfully wrote history for " + tLocal.name, LogLevel.Debug);
+                        logger.Log(new { message = "Successfully wrote history", Table = tLocal.name }, LogLevel.Debug);
                     } catch (Exception e) {
                         HandleException(e, s);
                     }
@@ -395,11 +393,11 @@ namespace TeslaSQL.Agents {
                 KeyValuePair<TableConf, TableConf> tLocal = tableArchive;
                 Action act = () => {
                     try {
-                        logger.Log("Applying changes for table " + tLocal.Key.name + (hasArchive == null ? "" : " (and archive)"), LogLevel.Debug);
+                        logger.Log(new { message = "Applying changes", Table = tLocal.Key.name + (hasArchive == null ? "" : " (and archive)") }, LogLevel.Debug);
                         var sw = Stopwatch.StartNew();
                         var rc = destDataUtils.ApplyTableChanges(tLocal.Key, tLocal.Value, Config.slaveDB, CTID, Config.slaveCTDB);
                         counts[tLocal.Key.name] = rc;
-                        logger.Log("ApplyTableChanges " + tLocal.Key.name + ": " + sw.Elapsed, LogLevel.Trace);
+                        logger.Log(new { message = "ApplyTableChanges : " + sw.Elapsed, Table = tLocal.Key.name }, LogLevel.Trace);
                     } catch (Exception e) {
                         HandleException(e, tLocal.Key);
                     }
@@ -457,7 +455,7 @@ namespace TeslaSQL.Agents {
                     if (sourceDataUtils.CheckTableExists(dbName, ct.ctName, t.schemaName)) {
                         tableList.Add(ct);
                     } else {
-                        logger.Log("Did not find table " + ct.ctName, LogLevel.Debug);
+                        logger.Log(new { message = "Did not find table ", Table = ct.ctName }, LogLevel.Debug);
                     }
                 } catch (Exception e) {
                     HandleException(e, t);
@@ -474,7 +472,7 @@ namespace TeslaSQL.Agents {
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
         private void CopyChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
-            if (Config.slave != null && Config.slave == Config.relayServer && sourceCTDB == destCTDB) {
+            if (Config.slave == Config.relayServer && sourceCTDB == destCTDB) {
                 logger.Log("Skipping download because slave is equal to relay.", LogLevel.Debug);
                 return;
             }
@@ -489,10 +487,10 @@ namespace TeslaSQL.Agents {
                 Action act = () => {
                     try {
                         //hard coding timeout at 1 hour for bulk copy
-                        logger.Log("Copying table " + tLocal.schemaName + "." + sourceCTTable + " to slave", LogLevel.Trace);
+                        logger.Log(new { message = "Copying table to slave", Table = tLocal.schemaName + "." + sourceCTTable }, LogLevel.Trace);
                         var sw = Stopwatch.StartNew();
                         dataCopy.CopyTable(sourceCTDB, sourceCTTable, tLocal.schemaName, destCTDB, Config.dataCopyTimeout, destCTTable, tLocal.name);
-                        logger.Log("CopyTable: " + sw.Elapsed, LogLevel.Trace);
+                        logger.Log(new { message = "CopyTable: " + sw.Elapsed, Table = tLocal.schemaName + "." + sourceCTTable }, LogLevel.Trace);
                     } catch (DoesNotExistException) {
                         //this is a totally normal and expected case since we only publish changetables when data actually changed
                         logger.Log("No changes to pull for table " + tLocal.schemaName + "." + sourceCTTable + " because it does not exist ", LogLevel.Debug);

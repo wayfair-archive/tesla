@@ -608,5 +608,10 @@ namespace TeslaSQL.DataUtils {
         public void CleanUpInitializeTable(string dbName, DateTime syncStartTime) {
             throw new NotImplementedException();
         }
+
+
+        public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier) {
+            throw new NotImplementedException();
+        }
     }
 }

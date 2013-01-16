@@ -573,6 +573,22 @@ namespace TeslaSQL.DataUtils {
         }
 
 
+        public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier) {
+            var inParams = ctids.Select((ctid, i) => "@ctid" + i);
+            Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            string query = string.Format(@"UPDATE dbo.tblCTSlaveVersion SET syncBitWise = @syncbitwise, syncStopTime = @syncstoptime
+                      WHERE slaveIdentifier = @slaveidentifier AND CTID IN ({0})",
+                                   string.Join(",", inParams));
+            SqlCommand cmd = new SqlCommand(query);
+            cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            cmd.Parameters.Add("@syncstoptime", SqlDbType.DateTime).Value = syncStopTime;
+            cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = slaveIdentifier;
+            foreach (var pair in ctids.Zip(inParams, (ctid, inp) => Tuple.Create(inp, ctid))) {
+                cmd.Parameters.Add(pair.Item1, SqlDbType.BigInt).Value = pair.Item2;
+            }
+            int result = SqlNonQuery(dbName, cmd);
+        }
+
         public DataTable GetSchemaChanges(string dbName, Int64 CTID) {
             SqlCommand cmd = new SqlCommand("SELECT CscID, CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName" +
              ", CscNewColumnName, CscBaseDataType, CscCharacterMaximumLength, CscNumericPrecision, CscNumericScale" +
@@ -1063,5 +1079,7 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@syncStartTime", SqlDbType.DateTime).Value = syncStartTime;
             SqlNonQuery(dbName, cmd);
         }
+
+
     }
 }

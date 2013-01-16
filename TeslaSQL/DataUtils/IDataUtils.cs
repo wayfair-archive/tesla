@@ -383,6 +383,8 @@ namespace TeslaSQL.DataUtils {
         long? GetInitializeStartVersion(string sourceCTDB, TableConf table);
 
         void CleanUpInitializeTable(string dbName, DateTime syncStartTime);
+
+        void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier);
     }
     public struct TTable {
         public readonly string name;

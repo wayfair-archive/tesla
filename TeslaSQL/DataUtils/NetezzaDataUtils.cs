@@ -410,6 +410,11 @@ namespace TeslaSQL.DataUtils {
         }
 
 
+        public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier) {
+            throw new NotImplementedException("Netezza is only supported as a slave!");
+        }
+
+
         public DataTable GetSchemaChanges(string dbName, Int64 CTID) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
@@ -538,6 +543,8 @@ namespace TeslaSQL.DataUtils {
         public void CleanUpInitializeTable(string dbName, DateTime syncStartTime) {
             throw new NotImplementedException();
         }
+
+
     }
 }
 
