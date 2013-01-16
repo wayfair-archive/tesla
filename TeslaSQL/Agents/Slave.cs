@@ -331,7 +331,11 @@ namespace TeslaSQL.Agents {
 
         private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch, List<ChangeTable> existingCTTables) {
             foreach (var table in tables) {
-                long lastCTIDWithChanges = (long)existingCTTables.Where(ct => ct.name == table.name).OrderBy(ct => ct.ctid).Last().ctid;
+                ChangeTable changeTable = existingCTTables.Where(ct => ct.name == table.name).OrderBy(ct => ct.ctid).LastOrDefault();
+                if (changeTable == null) {
+                    continue;
+                }
+                long lastCTIDWithChanges = changeTable.ctid.Value;
                 logger.Log("Setting field lists for " + table.name, LogLevel.Trace);
                 var cols = sourceDataUtils.GetFieldList(dbName, table.ToCTName(lastCTIDWithChanges), table.schemaName);
 
