@@ -410,6 +410,11 @@ namespace TeslaSQL.DataUtils {
         }
 
 
+        public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier) {
+            throw new NotImplementedException("Netezza is only supported as a slave!");
+        }
+
+
         public DataTable GetSchemaChanges(string dbName, Int64 CTID) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
@@ -522,9 +527,6 @@ namespace TeslaSQL.DataUtils {
         public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout, long? startVersionOverride) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
-        #endregion
-
-
 
         public bool IsBeingInitialized(string sourceCTDB, TableConf table) {
             throw new NotImplementedException();
@@ -542,6 +544,7 @@ namespace TeslaSQL.DataUtils {
         public DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches) {
             throw new NotImplementedException();
         }
+        #endregion
     }
 }
 

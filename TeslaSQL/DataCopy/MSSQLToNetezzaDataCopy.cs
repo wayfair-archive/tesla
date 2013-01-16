@@ -76,7 +76,11 @@ namespace TeslaSQL.DataCopy {
             bcp.StartInfo.RedirectStandardError = true;
             bcp.StartInfo.RedirectStandardOutput = true;
             bcp.Start();
-            bcp.WaitForExit();
+            bool status = bcp.WaitForExit(Config.dataCopyTimeout * 1000);
+            if (!status) {
+                bcp.Kill();
+                throw new Exception("BCP timed out for table " + sourceTableName);
+            }
             if (bcp.ExitCode != 0) {
                 string err = bcp.StandardOutput.ReadToEnd();
                 err += bcp.StandardError.ReadToEnd();
@@ -100,7 +104,12 @@ namespace TeslaSQL.DataCopy {
             plink.StartInfo.RedirectStandardError = true;
             plink.StartInfo.RedirectStandardOutput = true;
             plink.Start();
-            plink.WaitForExit();
+            status = plink.WaitForExit(Config.dataCopyTimeout * 1000);
+
+            if (!status) {
+                plink.Kill();
+                throw new Exception("plink/nzload timed out for table " + sourceTableName);
+            }
 
             //plink seems to make odd decisions about what to put in stdout vs. stderr, so we just lump them together
             string output = plink.StandardOutput.ReadToEnd() + "\r\n" + plink.StandardError.ReadToEnd();

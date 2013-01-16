@@ -419,12 +419,13 @@ namespace TeslaSQL.DataUtils {
                 throw new DoesNotExistException("Table " + view + " does not exist");
             }
         }
-
         public IEnumerable<TTable> GetTables(string dbName) {
+            string sql = "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+            var cmd = new SqlCommand(sql);
+            var res = SqlQuery(dbName, cmd);
             var tables = new List<TTable>();
-            var db = GetSmoDatabase(dbName);
-            foreach (Table t in db.Tables) {
-                tables.Add(new TTable(t.Name, t.Schema));
+            foreach (DataRow row in res.Rows) {
+                tables.Add(new TTable(row.Field<string>("TABLE_NAME"), row.Field<string>("TABLE_SCHEMA")));
             }
             return tables;
         }
@@ -572,6 +573,22 @@ namespace TeslaSQL.DataUtils {
             int result = SqlNonQuery(dbName, cmd);
         }
 
+
+        public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier) {
+            var inParams = ctids.Select((ctid, i) => "@ctid" + i);
+            Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            string query = string.Format(@"UPDATE dbo.tblCTSlaveVersion SET syncBitWise = @syncbitwise, syncStopTime = @syncstoptime
+                      WHERE slaveIdentifier = @slaveidentifier AND CTID IN ({0})",
+                                   string.Join(",", inParams));
+            SqlCommand cmd = new SqlCommand(query);
+            cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
+            cmd.Parameters.Add("@syncstoptime", SqlDbType.DateTime).Value = syncStopTime;
+            cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = slaveIdentifier;
+            foreach (var pair in ctids.Zip(inParams, (ctid, inp) => Tuple.Create(inp, ctid))) {
+                cmd.Parameters.Add(pair.Item1, SqlDbType.BigInt).Value = pair.Item2;
+            }
+            int result = SqlNonQuery(dbName, cmd);
+        }
 
         public DataTable GetSchemaChanges(string dbName, Int64 CTID) {
             SqlCommand cmd = new SqlCommand("SELECT CscID, CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName" +

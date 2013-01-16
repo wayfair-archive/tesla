@@ -612,5 +612,9 @@ namespace TeslaSQL.DataUtils {
         public DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches) {
             throw new NotImplementedException();
         }
+
+        public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier) {
+            throw new NotImplementedException();
+        }
     }
 }

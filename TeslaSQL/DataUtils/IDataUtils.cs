@@ -388,6 +388,8 @@ namespace TeslaSQL.DataUtils {
         /// Gets a DataTable of ChangeTables that have >0 rows for a list of batches
         /// </summary>
         DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches);
+
+        void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier);
     }
     public struct TTable {
         public readonly string name;
