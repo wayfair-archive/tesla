@@ -1063,5 +1063,18 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@syncStartTime", SqlDbType.DateTime).Value = syncStartTime;
             SqlNonQuery(dbName, cmd);
         }
+
+        public DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches) {
+            string query = "";
+            foreach (var batch in batches) {
+                if (query.Length > 0) {
+                    query += "\r\nUNION ALL\r\n";
+                }
+                query += string.Format("SELECT CAST({0} AS BIGINT) AS CTID, CtiTableName, CtiSchemaName FROM dbo.tblCTTableInfo_{0} WITH(NOLOCK) WHERE CtiExpectedRows > 0"
+                    , batch.CTID);
+            }
+            var cmd = new SqlCommand(query);
+            return SqlQuery(dbName, cmd);
+        }
     }
 }

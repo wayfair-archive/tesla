@@ -383,6 +383,11 @@ namespace TeslaSQL.DataUtils {
         long? GetInitializeStartVersion(string sourceCTDB, TableConf table);
 
         void CleanUpInitializeTable(string dbName, DateTime syncStartTime);
+
+        /// <summary>
+        /// Gets a DataTable of ChangeTables that have >0 rows for a list of batches
+        /// </summary>
+        DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches);
     }
     public struct TTable {
         public readonly string name;

@@ -19,6 +19,7 @@ namespace TeslaSQL.Agents {
         private static readonly int SCHEMACHANGECOMPLETE = 15;
         public static readonly int BATCHCOMPLETE = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
 
+
         public Slave(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger)
             : base(sourceDataUtils, destDataUtils, logger) {
 
@@ -191,7 +192,7 @@ namespace TeslaSQL.Agents {
             }
 
             logger.Log("Populating table list", LogLevel.Debug);
-            List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.relayDB, ctb.CTID);
+            List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.relayDB, new List<ChangeTrackingBatch>() {ctb} );
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Debug);
@@ -231,16 +232,12 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="ctidTable">DataTable object listing all the batches</param>
         private void RunMultiBatch(IList<ChangeTrackingBatch> batches) {
-            var existingCTTables = new List<ChangeTable>();
-
             ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
             logger.SetProperty("CTID", endBatch.CTID);
             //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
 
-            foreach (ChangeTrackingBatch batch in batches) {
-                logger.Log("Populating list of changetables for CTID : " + batch.CTID, LogLevel.Debug);
-                existingCTTables = existingCTTables.Concat(PopulateTableList(Config.tables, Config.relayDB, batch.CTID)).ToList();
-            }
+            logger.Log("Populating changetable list for all CTIDs", LogLevel.Debug);
+            List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.relayDB, batches);
             logger.Log("Capturing field lists", LogLevel.Debug);
             SetFieldListsSlave(Config.relayDB, Config.tables, endBatch, existingCTTables);
 
@@ -450,21 +447,14 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// For the specified list of tables, populate a list of which CT tables exist
         /// </summary>
-        /// <param name="tables">Array of table config objects</param>
-        /// <param name="dbName">Database name</param>
-        /// <param name="tables">List of table names to populate</param>
-        private List<ChangeTable> PopulateTableList(TableConf[] tables, string dbName, Int64 CTID) {
+        private List<ChangeTable> PopulateTableList(TableConf[] tables, string dbName, IList<ChangeTrackingBatch> batches) {
             var tableList = new List<ChangeTable>();
-            foreach (TableConf t in tables) {
-                var ct = new ChangeTable(t.name, CTID, t.schemaName, Config.slave);
-                try {
-                    if (sourceDataUtils.CheckTableExists(dbName, ct.ctName, t.schemaName)) {
-                        tableList.Add(ct);
-                    } else {
-                        logger.Log("Did not find table " + ct.ctName, LogLevel.Debug);
-                    }
-                } catch (Exception e) {
-                    HandleException(e, t);
+            DataTable result = sourceDataUtils.GetTablesWithChanges(dbName, batches);
+            foreach (DataRow row in result.Rows) {
+                var changeTable = new ChangeTable(row.Field<string>("CtiTableName"), row.Field<long>("CTID"), row.Field<string>("CtiSchemaName"), Config.slave);
+                //only add the table if it's in our config
+                if (tables.Where(t => t.name == changeTable.name).Count() == 1) {
+                    tableList.Add(changeTable);
                 }
             }
             return tableList;

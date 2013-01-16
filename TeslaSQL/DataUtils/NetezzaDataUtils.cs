@@ -538,6 +538,10 @@ namespace TeslaSQL.DataUtils {
         public void CleanUpInitializeTable(string dbName, DateTime syncStartTime) {
             throw new NotImplementedException();
         }
+
+        public DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches) {
+            throw new NotImplementedException();
+        }
     }
 }
 
