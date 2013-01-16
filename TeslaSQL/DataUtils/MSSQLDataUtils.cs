@@ -419,12 +419,13 @@ namespace TeslaSQL.DataUtils {
                 throw new DoesNotExistException("Table " + view + " does not exist");
             }
         }
-
         public IEnumerable<TTable> GetTables(string dbName) {
+            string sql = "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+            var cmd = new SqlCommand(sql);
+            var res = SqlQuery(dbName, cmd);
             var tables = new List<TTable>();
-            var db = GetSmoDatabase(dbName);
-            foreach (Table t in db.Tables) {
-                tables.Add(new TTable(t.Name, t.Schema));
+            foreach (DataRow row in res.Rows) {
+                tables.Add(new TTable(row.Field<string>("TABLE_NAME"), row.Field<string>("TABLE_SCHEMA")));
             }
             return tables;
         }
