@@ -106,18 +106,7 @@ namespace TeslaSQL {
 
             //run appropriate agent type and exit with resulting exit code
             int responseCode = 0;
-            var sdu = DataUtilsFactory.GetInstance(logger, TServer.RELAY, SqlFlavor.MSSQL);
-            var batches = new List<ChangeTrackingBatch>{
-                new ChangeTrackingBatch(1, 0,0,0),
-                new ChangeTrackingBatch(2, 0,0,0),
-                new ChangeTrackingBatch(4, 0,0,0),
-                new ChangeTrackingBatch(3, 0,0,0),
-                new ChangeTrackingBatch(5, 0,0,0),
-                new ChangeTrackingBatch(6, 0,0,0),
-                new ChangeTrackingBatch(7, 0,0,0)
-            };
-                
-            sdu.MarkBatchesComplete(Config.relayDB, batches.Select(b => b.CTID), DateTime.Now, Config.slave);
+           
             try {
                 Agent a = CreateAgent(Config.agentType, logger);
                 logger.Log("Running agent of type " + Config.agentType, LogLevel.Info);
@@ -136,7 +125,7 @@ namespace TeslaSQL {
             Environment.Exit(responseCode);
         }
 
-       
+
 
         private static Agent CreateAgent(AgentType agentType, Logger logger) {
             IDataUtils sourceDataUtils;
