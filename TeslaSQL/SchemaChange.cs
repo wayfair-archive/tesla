@@ -79,6 +79,10 @@ namespace TeslaSQL {
                 return true;
             }
         }
+
+        public override string ToString() {
+            return new { SchemaChangeType = eventType, Schema = schemaName, Table = tableName, Column = columnName, NewColumn = newColumnName }.ToString();
+        }
     }
 
 }

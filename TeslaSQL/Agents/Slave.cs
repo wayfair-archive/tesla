@@ -372,10 +372,12 @@ namespace TeslaSQL.Agents {
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplySchemaChanges)) == 0) {
                 logger.Log("Applying schema changes", LogLevel.Debug);
                 var sw = Stopwatch.StartNew();
+
                 ApplySchemaChanges(Config.tables, Config.relayDB, Config.slaveDB, ctb.CTID);
-                logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
+
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 ctb.syncBitWise += Convert.ToInt32(SyncBitWise.ApplySchemaChanges);
+
                 logger.Timing(StepTimingKey("ApplySchemaChanges"), (int)sw.ElapsedMilliseconds);
             }
         }
@@ -530,16 +532,16 @@ namespace TeslaSQL.Agents {
                 return;
             }
 
-            TableConf table;
             foreach (DataRow row in result.Rows) {
                 var schemaChange = new SchemaChange(row);
                 //String.Compare method returns 0 if the strings are equal
-                table = tables.SingleOrDefault(item => String.Compare(item.name, schemaChange.tableName, ignoreCase: true) == 0);
+                TableConf table = tables.SingleOrDefault(item => String.Compare(item.name, schemaChange.tableName, ignoreCase: true) == 0);
 
                 if (table == null) {
-                    logger.Log("Ignoring schema change for table " + row.Field<string>("CscTableName") + " because it isn't in config", LogLevel.Debug);
+                    logger.Log(new { message = "Ignoring schema change for untracked table", Table = schemaChange.tableName }, LogLevel.Debug);
                     continue;
                 }
+                
                 logger.Log("Processing schema change (CscID: " + row.Field<int>("CscID") +
                     ") of type " + schemaChange.eventType + " for table " + table.name, LogLevel.Info);
 
@@ -548,7 +550,8 @@ namespace TeslaSQL.Agents {
                     try {
                         ApplySchemaChange(destDB, table, schemaChange);
                     } catch (Exception e) {
-                        HandleException(e, table);
+                        var wrappedExc = new Exception(schemaChange.ToString(), e);
+                        HandleException(wrappedExc, table);
                     }
                 } else {
                     logger.Log("Skipped schema change because the column it impacts is not in our list", LogLevel.Info);

@@ -43,7 +43,7 @@ namespace TeslaSQL {
             }
         }
 
-        public Logger( string statsdHost, string statsdPort, string errorLogDB, string logFile) {
+        public Logger(string statsdHost, string statsdPort, string errorLogDB, string logFile) {
             this.errorLogDB = errorLogDB;
             try {
                 if (!File.Exists(logFile)) {
@@ -110,7 +110,7 @@ namespace TeslaSQL {
         public void RemoveProperty(string name) {
             log4net.ThreadContext.Properties.Remove(name);
         }
-        
+
         /// <summary>
         /// Logs information and writes it to the console
         /// </summary>
@@ -160,15 +160,7 @@ namespace TeslaSQL {
             }
         }
         public void Log(Exception e, string message = null) {
-            if (message == null) {
-                message = e.StackTrace.ToString();
-                if (e.InnerException != null) {
-                    message += "Inner exception:\n" + e.InnerException.StackTrace;
-                }
-            } else {
-                message = message + "\r\n" + e.ToString();
-            }
-            Log(message, LogLevel.Error);
+            Log(e.ToString(), LogLevel.Error);
         }
 
         /// <summary>
