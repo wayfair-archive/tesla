@@ -545,6 +545,15 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
         #endregion
+
+
+        public Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
+            throw new NotImplementedException();
+        }
+
+        public Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
+            throw new NotImplementedException();
+        }
     }
 }
 

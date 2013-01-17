@@ -518,6 +518,28 @@ namespace TeslaSQL.DataUtils {
             return dict;
         }
 
+        public Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
+            var placeHolders = t.Select((_, i) => "@table" + i);
+            string sql = string.Format("SELECT COLUMN_NAME, TABLE_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME IN ( {0} );",
+                                       string.Join(",", placeHolders));
+            var cmd = new SqlCommand(sql);
+            foreach (var ph in placeHolders.Zip(t.Values, (ph, tn) => Tuple.Create(ph, tn))) {
+                cmd.Parameters.Add(ph.Item1, SqlDbType.VarChar, 500).Value = ph.Item2;
+            }
+            var res = SqlQuery(dbName, cmd);
+            var fields = new Dictionary<TableConf, IList<string>>();
+            foreach (DataRow row in res.Rows) {
+                var tableName = row.Field<string>("TABLE_NAME");
+                var tc = t.Keys.FirstOrDefault(table => t[table] == tableName);
+                if (!fields.ContainsKey(tc)) {
+                    fields[tc] = new List<string>();
+                }
+                fields[tc].Add(row.Field<string>("COLUMN_NAME"));
+
+            }
+            return fields;
+        }
+
 
         public void WriteBitWise(string dbName, Int64 CTID, int value, AgentType agentType) {
             string query;
@@ -977,6 +999,25 @@ namespace TeslaSQL.DataUtils {
             return res.Split(new char[] { ',' });
         }
 
+        public Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
+            var placeHolders = tables.Select((t, i) => "@table" + i);
+            string sql = string.Format("SELECT CtiTableName, CtipkList FROM tblCTTableInfo_{0} WHERE CtiTableName IN ( {1} )",
+                           batch.CTID, string.Join(",", placeHolders));
+            var cmd = new SqlCommand(sql);
+            foreach (var pht in placeHolders.Zip(tables, (ph, t) => Tuple.Create(ph, t.name))) {
+                cmd.Parameters.Add(pht.Item1, SqlDbType.VarChar, 500).Value = pht.Item2;
+            }
+            var res = SqlQuery(dbName, cmd);
+            var tablePks = new Dictionary<TableConf, IList<string>>();
+            foreach (DataRow row in res.Rows) {
+                var tableName = row.Field<string>("CtiTableName");
+                var table = tables.FirstOrDefault(t => t.name == tableName);
+                var pks = row.Field<string>("CtipkList").Split(new char[] { ',' });
+                tablePks[table] = pks;
+            }
+            return tablePks;
+        }
+
         public void RecreateView(string dbName, string viewName, string viewSelect) {
             try {
                 var view = GetSmoView(dbName, viewName);
@@ -1093,5 +1134,7 @@ namespace TeslaSQL.DataUtils {
             var cmd = new SqlCommand(query);
             return SqlQuery(dbName, cmd);
         }
+
+
     }
 }

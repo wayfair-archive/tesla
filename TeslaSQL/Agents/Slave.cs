@@ -192,7 +192,7 @@ namespace TeslaSQL.Agents {
             }
 
             logger.Log("Populating table list", LogLevel.Debug);
-            List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.relayDB, new List<ChangeTrackingBatch>() {ctb} );
+            List<ChangeTable> existingCTTables = PopulateTableList(Config.tables, Config.relayDB, new List<ChangeTrackingBatch>() { ctb });
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Debug);
@@ -325,26 +325,27 @@ namespace TeslaSQL.Agents {
         }
 
         private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch, List<ChangeTable> existingCTTables) {
+            var tableLastCtid = new Dictionary<TableConf, string>();
             foreach (var table in tables) {
                 ChangeTable changeTable = existingCTTables.Where(ct => ct.name == table.name).OrderBy(ct => ct.ctid).LastOrDefault();
                 if (changeTable == null) {
                     continue;
                 }
                 long lastCTIDWithChanges = changeTable.ctid.Value;
-                logger.Log("Setting field lists for " + table.name, LogLevel.Trace);
-                var cols = sourceDataUtils.GetFieldList(dbName, table.ToCTName(lastCTIDWithChanges), table.schemaName);
+                tableLastCtid[table] = table.ToCTName(lastCTIDWithChanges);
+            }
+            Dictionary<TableConf, IList<string>> allColumnsByTable = sourceDataUtils.GetAllFields(dbName, tableLastCtid);
+            Dictionary<TableConf, IList<string>> primaryKeysByTable = sourceDataUtils.GetAllPrimaryKeys(dbName, tableLastCtid.Keys, batch);
 
-                //this is hacky but these aren't columns we actually care about, but we expect them to be there
-                cols.Remove("SYS_CHANGE_VERSION");
-                cols.Remove("SYS_CHANGE_OPERATION");
-                logger.Log("Getting primary keys from info table for " + table.ToCTName(lastCTIDWithChanges), LogLevel.Trace);
-                var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, lastCTIDWithChanges, dbName);
+            foreach (var table in tables) {
+                var columns = allColumnsByTable[table].ToDictionary(c => c, c => false);
+                columns.Remove("SYS_CHANGE_VERSION");
+                columns.Remove("SYS_CHANGE_OPERATION");
+                var pks = primaryKeysByTable[table];
                 foreach (var pk in pks) {
-                    cols[pk] = true;
+                    columns[pk] = true;
                 }
-                logger.Log(new { Table = table.name, message = "SetFieldLists starting" }, LogLevel.Trace);
-                SetFieldList(table, cols);
-                logger.Log(new { Table = table.name, message = "SetFieldLists success" }, LogLevel.Trace);
+                SetFieldList(table, columns);
             }
         }
 

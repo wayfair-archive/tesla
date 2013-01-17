@@ -390,6 +390,10 @@ namespace TeslaSQL.DataUtils {
         DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches);
 
         void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier);
+        
+        Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> t);
+
+        Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch);
     }
     public struct TTable {
         public readonly string name;
