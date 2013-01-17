@@ -18,7 +18,6 @@ namespace TeslaSQL.Tests {
             Assert.Equal("C:\test.txt", parameters.configFile);
             Assert.Equal(false, parameters.validate);
             Assert.Equal(false, parameters.showHelp);
-            Assert.True(String.IsNullOrEmpty(parameters.logLevelOverride));
 
             //config file and validate param
             testargs = new string[3] { "-c", "C:\test.txt", "--validate" };
@@ -31,7 +30,6 @@ namespace TeslaSQL.Tests {
             testargs = new string[4] { "-c", "C:\test.txt", "-l", "Debug" };
             parameters = ParseArgs(testargs);
             Assert.Equal("C:\test.txt", parameters.configFile);
-            Assert.Equal("Debug", parameters.logLevelOverride);
             Assert.Equal(false, parameters.validate);
             Assert.Equal(false, parameters.showHelp);
 
@@ -63,7 +61,6 @@ namespace TeslaSQL.Tests {
             Assert.Equal(true, parameters.validate);
             Assert.Equal(false, parameters.showHelp);
             Assert.Equal(30, parameters.more);
-            Assert.Equal("Warn", parameters.logLevelOverride);
 
             //invalid --more param should throw an OptionException
             testargs = new string[5] { "-c", "C:\test.txt", "--validate", "--more", "notanint" };
