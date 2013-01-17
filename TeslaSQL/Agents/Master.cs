@@ -33,9 +33,14 @@ namespace TeslaSQL.Agents {
 
         public string TimingKey {
             get {
-                return string.Format("db.mssql_changetracking_counters.TeslaRunDuration{0}.{1}.{2}", Config.master.Replace('.', '_'), AgentType.Master, Config.masterDB);
+                return string.Format("db.mssql_changetracking_counters.TeslaRunDuration.{0}.{1}.{2}", Config.master.Replace('.', '_'), AgentType.Master, Config.masterDB);
             }
         }
+
+        private string StepTimingKey(string stepName) {
+            return string.Format("db.mssql_changetracking_counters.{0}.{1}.{2}", Config.master.Replace('.', '_'), Config.masterDB, stepName);
+        }
+
         public override void ValidateConfig() {
             logger.Log("Validating configuration for master", LogLevel.Trace);
             Config.ValidateRequiredHost(Config.relayServer);
@@ -46,6 +51,7 @@ namespace TeslaSQL.Agents {
         }
 
         public override void Run() {
+            Stopwatch sw;
             DateTime start = DateTime.Now;
             logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
             Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(Config.masterDB);
@@ -65,6 +71,7 @@ namespace TeslaSQL.Agents {
             IDictionary<string, Int64> changesCaptured;
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
+                sw = Stopwatch.StartNew();
                 logger.Log("Beginning publish schema changes phase", LogLevel.Info);
 
                 logger.Log("Creating tblCTSchemaChange_" + ctb.CTID + " on relay server", LogLevel.Trace);
@@ -81,19 +88,21 @@ namespace TeslaSQL.Agents {
 
                 logger.Log("Writing bitwise value of " + Convert.ToInt32(SyncBitWise.PublishSchemaChanges) + " to tblCTVersion", LogLevel.Trace);
                 destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
+                logger.Timing(StepTimingKey("PublishSchemaChanges"), (int)sw.ElapsedMilliseconds);
             }
 
             logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
             SetFieldLists(Config.masterDB, Config.tables, sourceDataUtils);
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
+                sw = Stopwatch.StartNew();
                 logger.Log("Beginning capture changes phase", LogLevel.Info);
                 logger.Log("Resizing batch based on batch threshold", LogLevel.Trace);
-                Int64 resizedStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, Config.maxBatchSize, 
+                Int64 resizedStopVersion = ResizeBatch(ctb.syncStartVersion, ctb.syncStopVersion, currentVersion, Config.maxBatchSize,
                     Config.thresholdIgnoreStartTime, Config.thresholdIgnoreEndTime, DateTime.Now);
 
                 if (resizedStopVersion != ctb.syncStopVersion) {
-                    logger.Log("Resized batch due to threshold. Stop version changed from " + ctb.syncStopVersion + 
+                    logger.Log("Resized batch due to threshold. Stop version changed from " + ctb.syncStopVersion +
                         " to " + resizedStopVersion, LogLevel.Debug);
                     ctb.syncStopVersion = resizedStopVersion;
 
@@ -107,12 +116,13 @@ namespace TeslaSQL.Agents {
 
                 destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
                 logger.Log("Wrote bitwise value of " + Convert.ToInt32(SyncBitWise.CaptureChanges) + " to tblCTVersion", LogLevel.Trace);
+                logger.Timing(StepTimingKey("CaptureChanges"), (int)sw.ElapsedMilliseconds);
             } else {
                 logger.Log("CreateChangeTables succeeded on the previous run, running GetRowCounts instead to populate changesCaptured object", LogLevel.Debug);
                 changesCaptured = GetRowCounts(Config.tables, Config.masterCTDB, ctb.CTID);
                 logger.Log("Successfully populated changesCaptured with a list of rowcounts for each changetable", LogLevel.Trace);
             }
-
+            sw = Stopwatch.StartNew();
             //copy change tables from master to relay server
             logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Info);
             PublishChangeTables(Config.tables, Config.masterCTDB, Config.relayDB, ctb.CTID, changesCaptured);
@@ -123,13 +133,13 @@ namespace TeslaSQL.Agents {
             //this signifies the end of the master's responsibility for this batch
             destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
             logger.Log("Wrote bitwise value of " + Convert.ToInt32(SyncBitWise.UploadChanges) + " to tblCTVersion", LogLevel.Trace);
+            logger.Timing(StepTimingKey("UploadChanges"), (int)sw.ElapsedMilliseconds);
 
             logger.Log("Master agent work complete", LogLevel.Info);
             var elapsed = DateTime.Now - start;
             logger.Timing(TimingKey, (int)elapsed.TotalMinutes);
 
             sourceDataUtils.CleanUpInitializeTable(Config.masterCTDB, ctb.syncStartTime.Value);
-
             return;
         }
 

@@ -40,8 +40,12 @@ namespace TeslaSQL.Agents {
 
         private string TimingKey {
             get {
-                return string.Format("db.mssql_changetracking_counters.TeslaRunDuration{0}.{1}.{2}", Config.slave.Replace('.', '_'), AgentType.Slave, Config.slaveDB);
+                return string.Format("db.mssql_changetracking_counters.TeslaRunDuration.{0}.{1}.{2}", Config.slave.Replace('.', '_'), AgentType.Slave, Config.slaveDB);
             }
+        }
+
+        private string StepTimingKey(string stepName) {
+            return string.Format("db.mssql_changetracking_counters.{0}.{1}.{2}", Config.slave.Replace('.', '_'), Config.slaveDB, stepName);
         }
 
         public override void Run() {
@@ -189,6 +193,7 @@ namespace TeslaSQL.Agents {
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 //marking this field so that completed slave batches will have the same values
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
+                logger.Timing(StepTimingKey("DownloadChanges"), (int)sw.ElapsedMilliseconds);
             }
 
             logger.Log("Populating table list", LogLevel.Debug);
@@ -196,12 +201,13 @@ namespace TeslaSQL.Agents {
 
             if ((ctb.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Debug);
-                SetFieldListsSlave(Config.relayDB, Config.tables, ctb, existingCTTables);
                 sw = Stopwatch.StartNew();
+                SetFieldListsSlave(Config.relayDB, Config.tables, ctb, existingCTTables);
                 RowCounts total = ApplyChanges(Config.tables, Config.slaveDB, existingCTTables, ctb.CTID);
                 RecordRowCounts(total, ctb);
                 logger.Log("ApplyChanges: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
+                logger.Timing(StepTimingKey("ApplyChanges"), (int)sw.ElapsedMilliseconds);
             }
             logger.Log("Syncing history tables", LogLevel.Debug);
             sw = Stopwatch.StartNew();
@@ -214,6 +220,7 @@ namespace TeslaSQL.Agents {
                 Config.slave.Replace('.', '_'),
                 Config.slaveDB);
             logger.Increment(key, (int)(syncStopTime - ctb.syncStartTime.Value).TotalMinutes);
+            logger.Timing(StepTimingKey("SyncHistoryTables"), (int)sw.ElapsedMilliseconds);
         }
 
         private void RecordRowCounts(RowCounts actual, ChangeTrackingBatch ctb) {
@@ -250,23 +257,29 @@ namespace TeslaSQL.Agents {
             }
 
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
+                var sw = Stopwatch.StartNew();
                 logger.Log("Consolidating batches", LogLevel.Trace);
                 ConsolidateBatches(existingCTTables);
                 sourceDataUtils.WriteBitWise(Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
+                logger.Timing(StepTimingKey("ConsolidateBatches"), (int)sw.ElapsedMilliseconds);
             }
 
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
+                var sw = Stopwatch.StartNew();
                 logger.Log("Downloading consolidated changetables", LogLevel.Debug);
                 CopyChangeTables(Config.tables, Config.relayDB, Config.slaveCTDB, endBatch.CTID, isConsolidated: true);
                 logger.Log("Changes downloaded successfully", LogLevel.Debug);
                 sourceDataUtils.WriteBitWise(Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
+                logger.Timing(StepTimingKey("DownloadChanges"), (int)sw.ElapsedMilliseconds);
             }
 
             RowCounts total;
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
+                var sw = Stopwatch.StartNew();
                 total = ApplyChanges(Config.tables, Config.slaveCTDB, existingCTTables, endBatch.CTID);
                 sourceDataUtils.WriteBitWise(Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
                 RecordRowCounts(total, endBatch);
+                logger.Timing(StepTimingKey("ApplyChanges"), (int)sw.ElapsedMilliseconds);
             }
             var lastChangedTables = new List<ChangeTable>();
             foreach (var group in existingCTTables.GroupBy(c => c.name)) {
@@ -274,8 +287,10 @@ namespace TeslaSQL.Agents {
                 lastChangedTables.Add(new ChangeTable(table.name, endBatch.CTID, table.schemaName, table.slaveName));
             }
             if ((endBatch.syncBitWise & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) == 0) {
+                var sw = Stopwatch.StartNew();
                 SyncHistoryTables(Config.tables, Config.slaveCTDB, Config.slaveDB, lastChangedTables);
                 sourceDataUtils.WriteBitWise(Config.relayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), AgentType.Slave);
+                logger.Timing(StepTimingKey("SyncHistoryTables"), (int)sw.ElapsedMilliseconds);
             }
             //success! go through and mark all the batches as complete in the db
             sourceDataUtils.MarkBatchesComplete(Config.relayDB, batches.Select(b => b.CTID), DateTime.Now, Config.slave);
@@ -338,7 +353,9 @@ namespace TeslaSQL.Agents {
             Dictionary<TableConf, IList<string>> allColumnsByTable = sourceDataUtils.GetAllFields(dbName, tableCTName);
             Dictionary<TableConf, IList<string>> primaryKeysByTable = sourceDataUtils.GetAllPrimaryKeys(dbName, tableCTName.Keys, batch);
 
-            foreach (var table in tables) {
+            //tableCTName.Keys instead of tables because we've already filtered this for tables that don't have change tables
+            //note: allColumnsByTable.Keys or primaryKeysByTable.Keys should work just as well
+            foreach (var table in tableCTName.Keys) {
                 var columns = allColumnsByTable[table].ToDictionary(c => c, c => false);
                 //this is a hacky solution but we will have these columns in CT tables but actually are not interested in them here.
                 columns.Remove("SYS_CHANGE_VERSION");
@@ -359,6 +376,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("ApplySchemaChanges: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplySchemaChanges), AgentType.Slave);
                 ctb.syncBitWise += Convert.ToInt32(SyncBitWise.ApplySchemaChanges);
+                logger.Timing(StepTimingKey("ApplySchemaChanges"), (int)sw.ElapsedMilliseconds);
             }
         }
 
