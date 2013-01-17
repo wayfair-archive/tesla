@@ -325,20 +325,22 @@ namespace TeslaSQL.Agents {
         }
 
         private void SetFieldListsSlave(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch, List<ChangeTable> existingCTTables) {
-            var tableLastCtid = new Dictionary<TableConf, string>();
+            //map each table to the last appropriate CT table, ditching tableconfs with no corresponding CT tables
+            var tableCTName = new Dictionary<TableConf, string>();
             foreach (var table in tables) {
                 ChangeTable changeTable = existingCTTables.Where(ct => ct.name == table.name).OrderBy(ct => ct.ctid).LastOrDefault();
                 if (changeTable == null) {
                     continue;
                 }
                 long lastCTIDWithChanges = changeTable.ctid.Value;
-                tableLastCtid[table] = table.ToCTName(lastCTIDWithChanges);
+                tableCTName[table] = table.ToCTName(lastCTIDWithChanges);
             }
-            Dictionary<TableConf, IList<string>> allColumnsByTable = sourceDataUtils.GetAllFields(dbName, tableLastCtid);
-            Dictionary<TableConf, IList<string>> primaryKeysByTable = sourceDataUtils.GetAllPrimaryKeys(dbName, tableLastCtid.Keys, batch);
+            Dictionary<TableConf, IList<string>> allColumnsByTable = sourceDataUtils.GetAllFields(dbName, tableCTName);
+            Dictionary<TableConf, IList<string>> primaryKeysByTable = sourceDataUtils.GetAllPrimaryKeys(dbName, tableCTName.Keys, batch);
 
             foreach (var table in tables) {
                 var columns = allColumnsByTable[table].ToDictionary(c => c, c => false);
+                //this is a hacky solution but we will have these columns in CT tables but actually are not interested in them here.
                 columns.Remove("SYS_CHANGE_VERSION");
                 columns.Remove("SYS_CHANGE_OPERATION");
                 var pks = primaryKeysByTable[table];

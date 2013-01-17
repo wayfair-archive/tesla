@@ -378,10 +378,20 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate);
 
+        /// <summary>
+        /// Checks if the given table is currently being initialized. Tables being initialized should not be processed.
+        /// </summary>
         bool IsBeingInitialized(string sourceCTDB, TableConf table);
 
+        /// <summary>
+        /// If the table has a row in the initialization table, this returns the change tracking version indicated there.
+        /// </summary>
         long? GetInitializeStartVersion(string sourceCTDB, TableConf table);
 
+        /// <summary>
+        /// Deletes rows from the initialization table. This should be called after a successful run to make sure we don't 
+        /// use the overrides in the initialization table more than once.
+        /// </summary>
         void CleanUpInitializeTable(string dbName, DateTime syncStartTime);
 
         /// <summary>
@@ -389,10 +399,22 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches);
 
+        /// <summary>
+        /// Marks as complete all of the batches corresponding to the ctids passed in
+        /// associated with the given slaveIdentifier
+        /// </summary>
         void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier);
         
-        Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> t);
+        /// <summary>
+        /// Gets a list of all columns for the table confs passed in.
+        /// </summary>
+        /// <param name="tableConfCTTableName">A map from a TableConf to the corresponding CT table to query.</param>
+        Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> tableConfCTTableName);
 
+        /// <summary>
+        /// Gets a list of all the primary keys for each of the tables passed in.
+        /// </summary>
+        /// <param name="batch">The batch of the appropriate Info table to use.</param>
         Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch);
     }
     public struct TTable {
