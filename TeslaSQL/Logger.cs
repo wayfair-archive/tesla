@@ -156,7 +156,7 @@ namespace TeslaSQL {
                     error += " DB: " + Config.relayDB;
                 }
                 error += " - " + message;
-                dataUtils.LogError(message.ToString());
+                dataUtils.LogError(error);
             }
         }
         public void Log(Exception e, string message = null) {
