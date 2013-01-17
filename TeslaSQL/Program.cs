@@ -167,7 +167,6 @@ namespace TeslaSQL {
         /// </summary>
         protected struct Params {
             public string configFile { get; set; }
-            public string logLevelOverride { get; set; }
             public bool validate { get; set; }
             public int more { get; set; }
             public bool showHelp { get; set; }
@@ -219,9 +218,6 @@ namespace TeslaSQL {
             var p = new OptionSet() {
             { "c|configfile=" , "The config file {PATH}." ,
               v => parameters.configFile = v },
-            { "l|loglevel=" , "How much log information to print. " +
-                "Valid values are " + logLevels + "." ,
-              v => parameters.logLevelOverride = v },
             { "v|validate" , "Validate configuration file, print the parsed contents " +
                 "to the console and exit." ,
               v => parameters.validate = true },
