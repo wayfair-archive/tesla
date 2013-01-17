@@ -27,7 +27,7 @@ namespace TeslaSQL.Agents {
 
         public Slave() {
             //this constructor is only used by for running unit tests
-            this.logger = new Logger(LogLevel.Critical, null, null, null, "");
+            this.logger = new Logger(null, null, null, "");
         }
 
         public override void ValidateConfig() {

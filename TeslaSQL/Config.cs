@@ -108,12 +108,6 @@ namespace TeslaSQL {
                 }
             }
 
-            try {
-                logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), c.logLevel);
-            } catch {
-                throw new InvalidDataException("Invalid log level in configuration file!");
-            }
-
             tables = c.t;
             //this is the simplest way to simulate a "default value" when doing this deserialization
             foreach (TableConf t in tables) {
@@ -305,9 +299,6 @@ namespace TeslaSQL {
 
 
         #region properties
-        //log level from config file. public since it can also be set via override in the main program
-        public static LogLevel logLevel { get; set; }
-
         //array of table objects for global configuration        
         public static TableConf[] tables { get; set; }
 
@@ -493,7 +484,6 @@ namespace TeslaSQL {
     //This needs to be a class for the XmlRoot attribute to deserialize properly
     [XmlRoot("conf")]
     public class ConfigLoader {
-        public string logLevel { get; set; }
         public string agentType { get; set; }
         public string master { get; set; }
         public string masterType { get; set; }

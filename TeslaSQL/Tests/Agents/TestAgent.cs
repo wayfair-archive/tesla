@@ -16,7 +16,7 @@ namespace TeslaSQL.Tests.Agents {
         }
 
         public TestAgent() {
-            this.logger = new Logger(LogLevel.Critical, null, null, null, "");
+            this.logger = new Logger(null, null, null, "");
         }
 
         [Fact]

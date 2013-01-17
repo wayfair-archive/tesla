@@ -276,7 +276,6 @@ namespace TeslaSQL.Tests.Agents {
             Config.masterDB = "testdb";
             Config.masterCTDB = "CT_testdb";
             Config.relayDB = "CT_testdb";
-            Config.logLevel = LogLevel.Critical;
             Config.tables = tables;
             Config.masterType = SqlFlavor.MSSQL;
             Config.relayType = SqlFlavor.MSSQL;

@@ -43,7 +43,7 @@ namespace TeslaSQL {
             }
         }
 
-        public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile) {
+        public Logger( string statsdHost, string statsdPort, string errorLogDB, string logFile) {
             this.errorLogDB = errorLogDB;
             try {
                 if (!File.Exists(logFile)) {
@@ -64,8 +64,8 @@ namespace TeslaSQL {
 
         }
 
-        public Logger(LogLevel logLevel, string statsdHost, string statsdPort, string errorLogDB, string logFile, IDataUtils dataUtils)
-            : this(logLevel, statsdHost, statsdPort, errorLogDB, logFile) {
+        public Logger(string statsdHost, string statsdPort, string errorLogDB, string logFile, IDataUtils dataUtils)
+            : this(statsdHost, statsdPort, errorLogDB, logFile) {
             this.dataUtils = dataUtils;
         }
         /// <summary>
