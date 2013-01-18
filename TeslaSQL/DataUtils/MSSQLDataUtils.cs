@@ -973,11 +973,11 @@ namespace TeslaSQL.DataUtils {
 
 
         public void MergeCTTable(TableConf table, string destDB, string sourceDB, long CTID) {
-            //TODO this is probably unnecessary; maybe just use full column list in all conditions.
             var mergeList = table.columns.Any(c => !c.isPk) ? table.mergeUpdateList : string.Join(",", table.columns.Select(c => String.Format("P.{0} = CT.{0}", c.name)));
             var columnList = string.Join(",", table.columns.Select(c => c.name));
             var insertList = string.Join(",", table.columns.Select(c => "CT." + c.name));
-
+            //the logic here is that if the same primary key changed on multiple shards, we take the first row we find for that PK.
+            //however, we prefer inserts/updates over deletes since we don't want to lose data if a record moves from one shard to another.
             string sql =
                 string.Format(@"MERGE dbo.{0} WITH(ROWLOCK) AS P
 	               USING (SELECT * FROM {1}.dbo.{0}) AS CT

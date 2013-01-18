@@ -471,7 +471,7 @@ namespace TeslaSQL {
                     if (dictionary.ContainsKey(cm.columnName))
                         throw new NotSupportedException(cm.columnName + " has multiple modifiers, which is not supported");
 
-                    dictionary.Add(cm.columnName, "LEFT(CAST(P." + cm.columnName + " AS NVARCHAR(MAX))," + Convert.ToString(cm.length) + ") as " + cm.columnName);
+                    dictionary.Add(cm.columnName, "LEFT(CAST(P.[" + cm.columnName + "] AS NVARCHAR(MAX))," + Convert.ToString(cm.length) + ") as '" + cm.columnName + "'");
                 } else {
                     throw new NotSupportedException("Modifier type " + cm.type + " not supported - modifier for column " + cm.columnName + " violates this");
                 }
