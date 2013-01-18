@@ -56,6 +56,7 @@ namespace TeslaSQL.Agents {
                 return;
             }
             if (AllShardMastersDone(batch)) {
+                logger.Log("All shard masters are done; consolidating", LogLevel.Info);
                 Consolidate(batch);
                 sourceDataUtils.WriteBitWise(Config.relayDB, batch.CTID,
                     Convert.ToInt32(SyncBitWise.CaptureChanges) | Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.ShardCoordinator);
@@ -103,12 +104,14 @@ namespace TeslaSQL.Agents {
                 var b = new ChangeTrackingBatch(sourceDataUtils.GetLastCTBatch(db, AgentType.ShardCoordinator));
                 sourceDataUtils.CreateShardCTVersion(db, ctid, b.syncStopVersion);
             }
+            logger.Log("Created new CT Version " + ctid + " on " + string.Join(",", shardDatabases), LogLevel.Info);
             batch = new ChangeTrackingBatch(ctid, 0, 0, 0);
             return batch;
         }
 
         private void Consolidate(ChangeTrackingBatch batch) {
             if ((batch.syncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
+                logger.Log("Publishing schema changes", LogLevel.Debug);
                 PublishSchemaChanges(batch);
                 sourceDataUtils.WriteBitWise(Config.relayDB, batch.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.ShardCoordinator);
             }
@@ -122,6 +125,7 @@ namespace TeslaSQL.Agents {
         }
 
         private void ConsolidateTables(ChangeTrackingBatch batch) {
+            logger.Log("Consolidating tables", LogLevel.Info);
             var actions = new List<Action>();
             foreach (var tableDb in tableDBFieldLists) {
                 var table = tableDb.Key;
@@ -147,6 +151,7 @@ namespace TeslaSQL.Agents {
         }
 
         private void MergeTable(ChangeTrackingBatch batch, Dictionary<string, List<TColumn>> dbColumns, TableConf table, string firstDB) {
+            logger.Log(new { message = "Merging table", Table = table.name }, LogLevel.Debug);
             var dc = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
             dc.CopyTableDefinition(firstDB, table.ToCTName(batch.CTID), table.schemaName, Config.relayDB, table.ToCTName(batch.CTID));
             foreach (var dbNameFields in dbColumns) {
@@ -161,6 +166,7 @@ namespace TeslaSQL.Agents {
         }
 
         private void ConsolidateInfoTables(ChangeTrackingBatch batch) {
+            logger.Log("Consolidating info tables", LogLevel.Debug);
             var rowCounts = GetRowCounts(Config.tables, Config.relayDB, batch.CTID);
             PublishTableInfo(tablesWithChanges, Config.relayDB, rowCounts, batch.CTID);
         }
