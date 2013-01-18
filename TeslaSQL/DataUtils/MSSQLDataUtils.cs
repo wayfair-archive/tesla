@@ -902,7 +902,6 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string ctTableName, string dbName) {
-
             var pks = table.columns.Where(c => c.isPk);
             var zipped = pks.Zip(pks, (a, b) => "a." + a + " = b." + b);
             string whereCondition = string.Join(" AND ", zipped);

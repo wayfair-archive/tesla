@@ -191,8 +191,6 @@ namespace TeslaSQL.Agents {
                 CopyChangeTables(Config.tables, Config.relayDB, Config.slaveCTDB, ctb.CTID);
                 logger.Log("CopyChangeTables: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
-                //marking this field so that completed slave batches will have the same values
-                sourceDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
                 logger.Timing(StepTimingKey("DownloadChanges"), (int)sw.ElapsedMilliseconds);
             }
 
@@ -439,27 +437,29 @@ namespace TeslaSQL.Agents {
         protected Dictionary<TableConf, TableConf> ValidTablesAndArchives(IEnumerable<TableConf> confTables, IEnumerable<ChangeTable> changeTables, Int64 CTID) {
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var confTable in confTables) {
-                if (changeTables.Any(s => s.name == confTable.name)) {
-                    if (hasArchive.ContainsKey(confTable)) {
-                        //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
-                        continue;
-                    }
-                    if (confTable.name.EndsWith("Archive")) {
-                        //if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
-                        string nonArchiveTableName = confTable.name.Substring(0, confTable.name.Length - confTable.name.LastIndexOf("Archive"));
-                        if (changeTables.Any(s => s.name == nonArchiveTableName)) {
-                            //if the non-archive table has any changes, we grab the associated table configuration and pair them
-                            var nonArchiveTable = confTables.First(t => t.name == nonArchiveTableName);
-                            hasArchive[nonArchiveTable] = confTable;
-                        } else {
-                            //otherwise we just go ahead and treat the archive CT table as a normal table
-                            hasArchive[confTable] = null;
-                        }
+                if (!changeTables.Any(s => s.name == confTable.name)) {
+                    continue;
+                }
+                if (hasArchive.ContainsKey(confTable)) {
+                    //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
+                    continue;
+                }
+                if (confTable.name.EndsWith("Archive")) {
+                    //if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
+                    string nonArchiveTableName = confTable.name.Substring(0, confTable.name.Length - confTable.name.LastIndexOf("Archive"));
+                    if (changeTables.Any(s => s.name == nonArchiveTableName)) {
+                        //if the non-archive table has any changes, we grab the associated table configuration and pair them
+                        var nonArchiveTable = confTables.First(t => t.name == nonArchiveTableName);
+                        hasArchive[nonArchiveTable] = confTable;
                     } else {
-                        //if the table doesn't end with "Archive," there's no archive table for it to pair up with.
+                        //otherwise we just go ahead and treat the archive CT table as a normal table
                         hasArchive[confTable] = null;
                     }
+                } else {
+                    //if the table doesn't end with "Archive," there's no archive table for it to pair up with.
+                    hasArchive[confTable] = null;
                 }
+
             }
             return hasArchive;
         }
@@ -541,7 +541,7 @@ namespace TeslaSQL.Agents {
                     logger.Log(new { message = "Ignoring schema change for untracked table", Table = schemaChange.tableName }, LogLevel.Debug);
                     continue;
                 }
-                
+
                 logger.Log("Processing schema change (CscID: " + row.Field<int>("CscID") +
                     ") of type " + schemaChange.eventType + " for table " + table.name, LogLevel.Info);
 
