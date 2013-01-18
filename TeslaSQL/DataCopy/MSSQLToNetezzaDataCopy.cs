@@ -225,7 +225,7 @@ namespace TeslaSQL.DataCopy {
 
                 string modDataType = DataType.MapDataType(SqlFlavor.MSSQL, SqlFlavor.Netezza, typeName);
                 if (typeName != modDataType) {
-                    cols.Add(new Col(col.Name, modDataType, col.DataType));
+                    cols.Add(new Col(NetezzaDataUtils.MapReservedWord(col.Name), modDataType, col.DataType));
                     continue;
                 }
                 if (shortenedTypes.Contains(col.DataType.SqlDataType)) {

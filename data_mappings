@@ -1,5 +1,5 @@
 MSSQL	Netezza
-binary	char
+binary	varchar(100)
 bit	byteint
 datetime	timestamp
 datetime2	timestamp
@@ -15,5 +15,5 @@ sql_variant	nvarchar(500)
 text	varchar(500)
 tinyint	smallint
 uniqueidentifier	varchar(64)
-varbinary	varchar
+varbinary	varchar(100)
 xml	nvarchar(500)
