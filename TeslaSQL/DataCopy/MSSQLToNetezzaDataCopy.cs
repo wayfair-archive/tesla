@@ -246,7 +246,7 @@ namespace TeslaSQL.DataCopy {
                         typeName += "(" + (col.DataType.MaximumLength > 0 ? col.DataType.MaximumLength : 16000) + ")";
                     }
                 } else if (shortenedNumericTypes.Contains(col.DataType.SqlDataType)) {
-                    typeName += "(" + col.DataType.NumericPrecision + ")";
+                    typeName += "(" + col.DataType.NumericPrecision + "," + col.DataType.NumericScale + ")";
                 }
                 cols.Add(new Col(NetezzaDataUtils.MapReservedWord(col.Name), typeName, col.DataType));
             }
