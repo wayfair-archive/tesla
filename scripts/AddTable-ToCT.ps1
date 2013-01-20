@@ -4,6 +4,9 @@
 # This script is used for adding a table to Change Tracking
 # via tesla. 
 #
+# Generally, it should be called by the InitializeDB script,
+# which is able to read tesla config files to determine most
+# of the parameters to pass in. 
 #########################################
 Param(
  [Parameter(Mandatory=$true,Position=1)][string]$master,
@@ -17,37 +20,38 @@ Param(
  [Parameter(Mandatory=$false)][string]$password, #ctripledes encrypted password to use when connecting to the slave
  [Parameter(Mandatory=$false)][xml]$columnlist, #XML list of columns to copy to the slave
  [Parameter(Mandatory=$false)][xml]$columnmodifiers, #XML column modifiers for shortening fields
+ [Parameter(Mandatory=$false)][int]$netezzastringlength, #max length for netezza strings
+ [Parameter(Mandatory=$false)][string]$mappingsfile, #file for data mappings for netezza slaves
+ [Parameter(Mandatory=$false)][string]$sshuser, #user for sshing to netezza
+ [Parameter(Mandatory=$false)][string]$pkpath, #private key path for ssh
+ [Parameter(Mandatory=$false)][string]$plinkpath, #path to plink.exe
+ [Parameter(Mandatory=$false)][string]$nzloadscript, #path to netezza load script on the netezza box
+ [Parameter(Mandatory=$false)][string]$bcppath, #path to bcp files out to for netezza
  [switch]$reinitialize, #just reinitialize the table, don't drop/recreate it
  [switch]$notlast, #is this the last slave being (re)initialized? we only update tblCTInitialize if this the last one
  [switch]$notfirstshard #for sharding, we only truncate/recreate the slave table for the first shard
+ 
 )
 If ("MSSQL","Netezza" -NotContains $slavetype) {
     Throw ("Slave type $($slavetype) is not valid!")
 }
 
 [System.Reflection.Assembly]::LoadWithPartialName('Microsoft.SqlServer.SMO') | out-null
-
+# Load DB module from current directory
+Push-Location (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)
+Import-Module .\Modules\DB
 $ErrorActionPreference = "Stop"
 $error.clear()
 ###############################
 # Constants - we should probably do something better about these
 ###############################
-set-alias plink ..\plink.exe
-$pkpath = "..\nz_private_key.ppk"
-$nzloadscript = "/export/home/nz/management_scripts/load_data_tesla.sh"
-$pkpath = (resolve-path $pkpath).path
-$sshuser = "nz"
-$mappingsfile = "..\data_mappings"
-$mappingsfile = (resolve-path $mappingsfile).path
-$nzstringlength = 100
-if (!(Test-path ("\\bonas1a\sql_temp\" + $slavedb))) {
-    mkdir ("\\bonas1a\sql_temp\" + $slavedb) | out-null
-}
-$bcppath = "\\bonas1a\sql_temp\" + $slavedb + "\" + $table.ToLower() + ".txt"
-Push-Location (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)
+set-alias plink $plinkpath
 
-# Load DB module from current directory
-Import-Module .\Modules\DB
+$bcppath = $bcppath.TrimEnd("\") + $slavedb.ToLower()
+if (!(Test-path $bcppath)) {
+    mkdir $bcppath | out-null
+}
+$bcppath += $table.ToLower() + ".txt"
 
 #set column lists if they are specified
 $columnarray = @()
@@ -158,8 +162,8 @@ if ($slavetype -eq "Netezza") {
                     $typename += "(" + $modifiertable[$column.Name].ToString() + ")"
                 } else {
                     $typename += "("
-                    if (($col.DataType.MaximumLength -gt $nzstringlength) -or ($col.DataType.MaximumLength -lt 1)) {
-                        $typename += $nzstringlength.ToString()
+                    if (($col.DataType.MaximumLength -gt $netezzastringlength) -or ($col.DataType.MaximumLength -lt 1)) {
+                        $typename += $netezzastringlength.ToString()
                     } else {
                         $typename += $col.DataType.MaximumLength.ToString()
                     }
