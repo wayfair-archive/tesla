@@ -300,7 +300,7 @@ namespace TeslaSQL {
 
         #region properties
         //array of table objects for global configuration        
-        public static TableConf[] tables { get; set; }
+        public static List<TableConf> tables { get; set; }
 
         //the agent type we should run (i.e. master, slave)
         public static AgentType agentType { get; set; }
@@ -416,7 +416,7 @@ namespace TeslaSQL {
 
         //private key for sshing to a netezza slave
         public static string netezzaPrivateKeyPath { get; set; }
-       
+
         //array of times after which a slave will sync changes
         public static TimeSpan[] magicHours { get; set; }
 
@@ -427,7 +427,7 @@ namespace TeslaSQL {
         public static int queryTimeout { get; set; }
 
         //views to be refreshed when a table is altered on a slave
-        public static RefreshView[] refreshViews { get; set; }
+        public static List<RefreshView> refreshViews { get; set; }
 
         //default maximum for string columns in netezza slaves. can be overriden using 
         //column modifiers. Since Netezza has pretty restrictive row size limits and you generally
@@ -446,14 +446,14 @@ namespace TeslaSQL {
 
         //maximum number of threads to use in multithreaded portions of tesla
         private static int maxThreads_local;
-        public static int maxThreads { 
+        public static int maxThreads {
             get { return maxThreads_local > 0 ? maxThreads_local : -1; }
             set { maxThreads_local = value; }
         }
 
         #endregion
 
-        
+
 
 
         /// <summary>
@@ -524,7 +524,7 @@ namespace TeslaSQL {
         public string netezzaPrivateKeyPath { get; set; }
         public int netezzaStringLength { get; set; }
         public int maxThreads { get; set; }
-        public RefreshView[] refreshViews { get; set; }
+        public List<RefreshView> refreshViews { get; set; }
         public string bcpPath { get; set; }
         public string nzLoadScriptPath { get; set; }
         public string plinkPath { get; set; }
@@ -533,7 +533,7 @@ namespace TeslaSQL {
         public string[] magicHours { get; set; }
 
         [XmlArray("tables")]
-        public TableConf[] t { get; set; }
+        public List<TableConf> t { get; set; }
 
         [XmlArrayItem("shardDatabase")]
         public string[] shardDatabases { get; set; }

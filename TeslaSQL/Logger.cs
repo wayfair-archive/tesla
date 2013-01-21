@@ -14,7 +14,6 @@ namespace TeslaSQL {
     public class Logger {
         private string errorLogDB { get; set; }
         public IDataUtils dataUtils { private get; set; }
-        private readonly string logFile;
 
         private static IEnumerable<ILog> logs;
 
@@ -45,16 +44,6 @@ namespace TeslaSQL {
 
         public Logger(string statsdHost, string statsdPort, string errorLogDB, string logFile) {
             this.errorLogDB = errorLogDB;
-            try {
-                if (!File.Exists(logFile)) {
-                    //holds onto a file handle if you dont close it.
-                    File.Create(logFile).Close();
-                }
-                this.logFile = logFile;
-            } catch (Exception) {
-                this.logFile = null;
-            }
-
             try {
                 this.statsd = new StatsdPipe(statsdHost, int.Parse(statsdPort));
                 Log(String.Format("Building statsdpipe: {0}:{1}", statsdHost, statsdPort), LogLevel.Trace);
@@ -93,7 +82,7 @@ namespace TeslaSQL {
         /// <summary>
         /// Sets log4net thread context based on config variables. These get logged as custom fields in gelf.
         /// </summary>
-        private void SetContext() {
+        private static void SetContext() {
             log4net.ThreadContext.Properties["AgentType"] = Config.agentType;
             log4net.ThreadContext.Properties["Master"] = Config.master;
             log4net.ThreadContext.Properties["Relay"] = Config.relayServer;
@@ -104,10 +93,10 @@ namespace TeslaSQL {
             log4net.ThreadContext.Properties["Thread"] = System.Threading.Thread.CurrentThread.ManagedThreadId;
         }
 
-        public void SetProperty(string name, object value) {
+        public static void SetProperty(string name, object value) {
             log4net.ThreadContext.Properties[name] = value;
         }
-        public void RemoveProperty(string name) {
+        public static void RemoveProperty(string name) {
             log4net.ThreadContext.Properties.Remove(name);
         }
 
@@ -160,7 +149,11 @@ namespace TeslaSQL {
             }
         }
         public void Log(Exception e, string message = null) {
-            Log(e.ToString(), LogLevel.Error);
+            if (message != null) {
+                Log(message + "\r\n" + e.ToString(), LogLevel.Error);
+            } else {
+                Log(e.ToString(), LogLevel.Error);
+            }
         }
 
         /// <summary>
@@ -175,7 +168,7 @@ namespace TeslaSQL {
         /// StatsdPipe statsd = new StatsdPipe("10.20.30.40", "8125");
         /// statsd.Increment("mysuperstat");
         /// </example>
-        public class StatsdPipe : IDisposable {
+       private class StatsdPipe : IDisposable {
             private readonly UdpClient udpClient;
 
             [ThreadStatic]
@@ -277,14 +270,13 @@ namespace TeslaSQL {
                 return retval;
             }
 
+
             protected bool DoSend(string stat) {
                 var data = Encoding.Default.GetBytes(stat + "\n");
 
                 udpClient.Send(data, data.Length);
                 return true;
             }
-
-            #region IDisposable Members
 
             public void Dispose() {
                 try {
@@ -294,10 +286,7 @@ namespace TeslaSQL {
                 } catch {
                 }
             }
-
-            #endregion
         }
-
-
     }
+
 }

@@ -60,10 +60,10 @@ namespace TeslaSQL.DataCopy {
             SqlCommand cmd = new SqlCommand(createScript);
 
             //drop it if it exists at the destination
-            bool didExist = destDataUtils.DropTableIfExists(destDB, destTableName, schema);
+            destDataUtils.DropTableIfExists(destDB, destTableName, schema);
 
             //create it at the destination
-            int result = destDataUtils.SqlNonQuery(destDB, cmd);
+            destDataUtils.SqlNonQuery(destDB, cmd);
         }
     }
 }

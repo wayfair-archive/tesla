@@ -5,7 +5,7 @@ using System.Text;
 using TeslaSQL.DataUtils;
 
 namespace TeslaSQL.Agents {
-    class MaintenanceHelper {
+   static class MaintenanceHelper {
         /// <summary>
         /// Drops all tables in the list of tables given that have names ending in _{CTID} where CTID is one of the numbers in ctids
         /// </summary>

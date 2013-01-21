@@ -290,7 +290,7 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         /// <param name="table">Table to apply changes to</param>
         /// <param name="archiveTable">Archive table - if null, no archiving is done</param>
-        RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 ctid, string CTDBName);
+        RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName);
 
         /// <summary>
         /// Consolidates batches. Used when a slave has too many batches to process one at a time.
@@ -329,9 +329,9 @@ namespace TeslaSQL.DataUtils {
         /// This method is creates a new version for a shard, so that the shard doesn't need to be aware that it is a part of sharding
         /// except that it knows not to create new versions for itself.
         /// </summary>
-        /// <param name="db">Shard's DB</param>
+        /// <param name="dbName">Shard's DB</param>
         /// <param name="startVersion">the change tracking version for this batch</param>
-        void CreateShardCTVersion(string db, long ctid, Int64 startVersion);
+        void CreateShardCTVersion(string dbName, long ctid, Int64 startVersion);
 
         /// <summary>
         /// The primary keys for tables are not defined in their corresponding change tables, for reasons of performance and consolidation,

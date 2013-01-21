@@ -38,30 +38,11 @@ namespace TeslaSQL {
         Critical = 6
     }
 
-    public static class LogLevelExtension {
-        public static Level ToLog4Net(this LogLevel l) {
-            switch (l) {
-                case LogLevel.Trace:
-                    return Level.All;
-                case LogLevel.Debug:
-                    return Level.Debug;
-                case LogLevel.Info:
-                    return Level.Info;
-                case LogLevel.Warn:
-                    return Level.Warn;
-                case LogLevel.Error:
-                    return Level.Error;
-                case LogLevel.Critical:
-                    return Level.Critical;
-                default:
-                    throw new Exception("Unknown log level: " + l);
-            }
-        }
-    }
 
     /// <summary>
     /// Bitwise values for tracking the progress of a batch
     /// </summary>
+    [FlagsAttribute]
     public enum SyncBitWise {
         PublishSchemaChanges = 1,
         CaptureChanges = 2,

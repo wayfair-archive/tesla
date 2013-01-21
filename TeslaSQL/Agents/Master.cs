@@ -63,7 +63,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("Last batch completed and there is no new batch to work on.", LogLevel.Info);
                 return;
             }
-            logger.SetProperty("CTID", ctb.CTID);
+            Logger.SetProperty("CTID", ctb.CTID);
             logger.Log(ctb, LogLevel.Debug);
 
             logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
@@ -111,7 +111,7 @@ namespace TeslaSQL.Agents {
                 }
 
                 logger.Log("Beginning creation of CT tables", LogLevel.Debug);
-                changesCaptured = CreateChangeTables(Config.tables, Config.masterDB, Config.masterCTDB, ctb);
+                changesCaptured = CreateChangeTables(Config.masterDB, Config.masterCTDB, ctb);
                 logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
 
                 destDataUtils.WriteBitWise(Config.relayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
@@ -125,7 +125,7 @@ namespace TeslaSQL.Agents {
             sw = Stopwatch.StartNew();
             //copy change tables from master to relay server
             logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Info);
-            PublishChangeTables(Config.tables, Config.masterCTDB, Config.relayDB, ctb.CTID, changesCaptured);
+            PublishChangeTables(Config.masterCTDB, Config.relayDB, ctb.CTID, changesCaptured);
             logger.Log("Publishing info table", LogLevel.Info);
             PublishTableInfo(Config.tables, Config.relayDB, changesCaptured, ctb.CTID);
             logger.Log("Successfully published changetables, persisting bitwise now", LogLevel.Debug);
@@ -194,7 +194,7 @@ namespace TeslaSQL.Agents {
         /// <param name="destDB">Destination database name</param>
         /// <param name="CTID">Change tracking batch id</param>
         /// <param name="afterDate">Date to pull schema changes after</param>
-        public void PublishSchemaChanges(TableConf[] tables, string sourceDB, string destDB, Int64 CTID, DateTime afterDate) {
+        public void PublishSchemaChanges(IEnumerable<TableConf> tables, string sourceDB, string destDB, Int64 CTID, DateTime afterDate) {
             logger.Log("Pulling DDL events from master since " + Convert.ToString(afterDate), LogLevel.Debug);
             DataTable ddlEvents = sourceDataUtils.GetDDLEvents(sourceDB, afterDate);
             var schemaChanges = new List<SchemaChange>();
@@ -270,10 +270,10 @@ namespace TeslaSQL.Agents {
         /// <param name="startVersion">Change tracking version to start with</param>
         /// <param name="stopVersion">Change tracking version to stop at</param>
         /// <param name="CTID">CT batch ID this is being run for</param>
-        protected IDictionary<string, Int64> CreateChangeTables(TableConf[] tables, string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
+        protected IDictionary<string, Int64> CreateChangeTables(string sourceDB, string sourceCTDB, ChangeTrackingBatch batch) {
             var changesCaptured = new ConcurrentDictionary<string, Int64>();
             var actions = new List<Action>();
-            foreach (TableConf t in tables) {
+            foreach (TableConf t in Config.tables) {
                 //local variables inside the loop required for the action to bind properly
                 TableConf table = t;
                 long rowsAffected;
@@ -330,7 +330,7 @@ namespace TeslaSQL.Agents {
             }
 
             logger.Log("Dropping table " + ctTableName + " if it exists", LogLevel.Trace);
-            bool tExisted = sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, table.schemaName);
+            sourceDataUtils.DropTableIfExists(sourceCTDB, ctTableName, table.schemaName);
 
             logger.Log("Calling SelectIntoCTTable to create CT table", LogLevel.Trace);
             Int64 rowsAffected = sourceDataUtils.SelectIntoCTTable(sourceCTDB, table, sourceDB, batch, Config.queryTimeout, tableStartVersion);
@@ -379,14 +379,14 @@ namespace TeslaSQL.Agents {
         /// <param name="sourceCTDB">Source CT database</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
-        protected void PublishChangeTables(TableConf[] tables, string sourceCTDB, string destCTDB, Int64 CTID, IDictionary<string, Int64> changesCaptured) {
+        protected void PublishChangeTables(string sourceCTDB, string destCTDB, Int64 CTID, IDictionary<string, Int64> changesCaptured) {
             if (Config.master != null && Config.master == Config.relayServer && sourceCTDB == destCTDB) {
                 logger.Log("Skipping publish because master is equal to relay.", LogLevel.Debug);
                 return;
             }
 
             var actions = new List<Action>();
-            foreach (TableConf t in tables) {
+            foreach (TableConf t in Config.tables) {
                 if (changesCaptured[t.schemaName + "." + t.name] > 0) {
                     //we need to define a local variable in this scope for it to be appropriately evaluated in the action
                     TableConf localT = t;

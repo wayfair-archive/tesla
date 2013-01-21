@@ -16,17 +16,17 @@ namespace TeslaSQL.Agents {
     //each agent (master, slave, etc.) should inherit this
     public abstract class Agent {
 
-        public IDataUtils sourceDataUtils;
-        public IDataUtils destDataUtils;
+        protected IDataUtils sourceDataUtils;
+        protected IDataUtils destDataUtils;
 
-        public Logger logger;
+        protected Logger logger;
 
-        public Agent() {
+        protected Agent() {
             //this constructor is only used by for running unit tests
             this.logger = new Logger(null, null, null, "");
         }
 
-        public Agent(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
+        protected Agent(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
             this.logger = logger;
@@ -85,7 +85,7 @@ namespace TeslaSQL.Agents {
         /// <param name="tables">Array of table config objects</param>
         /// <param name="sourceCTDB">CT database name</param>
         /// <param name="CTID">CT batch id</param>
-        public Dictionary<string, Int64> GetRowCounts(TableConf[] tables, string sourceCTDB, Int64 CTID) {
+        public Dictionary<string, Int64> GetRowCounts(IEnumerable<TableConf> tables, string sourceCTDB, Int64 CTID) {
             Dictionary<string, Int64> rowCounts = new Dictionary<string, Int64>();
 
             foreach (TableConf t in tables) {

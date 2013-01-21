@@ -54,7 +54,7 @@ namespace TeslaSQL.Tests.Agents {
                 test1.Columns.Add("column2", typeof(Int32));
                 destDataUtils.testData.Tables.Add(test1);
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges("CT_testdb", "testdb", 1);
 
                 var expected = new DataColumn("testadd", typeof(Int32));
                 var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["testadd"];
@@ -87,7 +87,7 @@ namespace TeslaSQL.Tests.Agents {
                 test2.Columns.Add("column3", typeof(string));
                 destDataUtils.testData.Tables.Add(test2);
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges("CT_testdb", "testdb", 1);
 
                 var expected = new DataColumn("column2", typeof(Int32));
                 var actual = destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns["column2"];
@@ -120,7 +120,7 @@ namespace TeslaSQL.Tests.Agents {
                 test2.Columns.Add("column3", typeof(string));
                 destDataUtils.testData.Tables.Add(test2);
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges("CT_testdb", "testdb", 1);
 
                 Assert.False(destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns.Contains("testadd"));
             }
@@ -151,7 +151,7 @@ namespace TeslaSQL.Tests.Agents {
                 test1.Columns.Add("column2", typeof(Int32));
                 destDataUtils.testData.Tables.Add(test1);
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges("CT_testdb", "testdb", 1);
 
                 Assert.True(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2_new"));
                 destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].RejectChanges();
@@ -185,7 +185,7 @@ namespace TeslaSQL.Tests.Agents {
 
                 //if this assert fails it means the test setup got borked
                 Assert.True(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges("CT_testdb", "testdb", 1);
                 Assert.False(destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns.Contains("column2"));
             }
 
@@ -218,7 +218,7 @@ namespace TeslaSQL.Tests.Agents {
                 //if this assert fails it means the test setup got borked
                 var expected = new DataColumn("column2", typeof(DateTime));
 
-                slave.ApplySchemaChanges(tables, "CT_testdb", "testdb", 1);
+                slave.ApplySchemaChanges("CT_testdb", "testdb", 1);
                 var actual = destDataUtils.testData.Tables["dbo.test1", "SLAVE.testdb"].Columns["column2"];
 
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
@@ -258,7 +258,7 @@ namespace TeslaSQL.Tests.Agents {
                 //this method, conveniently, sets up the datatable schema we need
                 sourceDataUtils.CreateSchemaChangeTable("CT_testdb", 1);
 
-                Config.tables = tables;
+                Config.tables = tables.ToList();
                 Config.relayDB = "CT_testdb";
                 var logger = new Logger(null, null, null, "");
                 slave = new Slave(sourceDataUtils, destDataUtils, logger);
@@ -324,8 +324,8 @@ namespace TeslaSQL.Tests.Agents {
             tables.Add(new ChangeTable(aTable.name, ctid, schema, slaveName));
             tables.Add(new ChangeTable(table.name, ctid, schema, slaveName));
 
-            var s = ValidTablesAndArchives(tableConf, tables, ctid);
-             Assert.True(s.ContainsKey(table));
+            var s = ValidTablesAndArchives(tables, ctid);
+            Assert.True(s.ContainsKey(table));
             Assert.True(s[table] != null);
             Assert.True(s[table] == aTable);
 
@@ -333,7 +333,7 @@ namespace TeslaSQL.Tests.Agents {
             tableConf.Clear();
             tableConf.Add(table);
             tableConf.Add(aTable);
-            s = ValidTablesAndArchives(tableConf, tables, ctid);
+            s = ValidTablesAndArchives(tables, ctid);
             Assert.True(s.ContainsKey(table));
             Assert.True(s[table] != null);
             Assert.True(s[table] == aTable);

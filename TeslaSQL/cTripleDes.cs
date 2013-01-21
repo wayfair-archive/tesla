@@ -24,10 +24,10 @@ namespace TeslaSQL {
             byte[] output = Transform(input, m_des.CreateDecryptor(m_key, m_iv));
             return m_utf8.GetString(output);
         }
-        public byte[] Transform(byte[] input, ICryptoTransform CryptoTransform) {
+        public byte[] Transform(byte[] input, ICryptoTransform cryptoTransform) {
             //create the necessary streams
             MemoryStream memStream = new MemoryStream();
-            CryptoStream cryptStream = new CryptoStream(memStream, CryptoTransform, CryptoStreamMode.Write);
+            CryptoStream cryptStream = new CryptoStream(memStream, cryptoTransform, CryptoStreamMode.Write);
             //transform the bytes as requested
             cryptStream.Write(input, 0, input.Length);
             cryptStream.FlushFinalBlock();

@@ -24,7 +24,6 @@ namespace TeslaSQL.Agents {
         }
         public override void Run() {
             var chopDate = DateTime.Now - new TimeSpan(Config.changeRetentionHours, 0, 0);
-            var rowChopDate = DateTime.Now - new TimeSpan(Config.batchRecordRetentionDays, 0, 0, 0);
             IEnumerable<long> ctids = relayDataUtils.GetOldCTIDsSlave(Config.relayDB, chopDate, Config.slave);
             var tables = slaveDataUtils.GetTables(Config.slaveCTDB);
             logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);

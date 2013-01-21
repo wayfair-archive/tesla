@@ -35,7 +35,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="tables">Array of table configuration objects</param>
         /// <param name="dbName">Database for retrieving data type info</param>
-        public List<SchemaChange> Parse(TableConf[] tables, IDataUtils dataUtils, string dbName) {
+        public List<SchemaChange> Parse(IEnumerable<TableConf> tables, IDataUtils dataUtils, string dbName) {
             var schemaChanges = new List<SchemaChange>();
             string columnName;
             string tableName;

@@ -279,13 +279,13 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@starttime", SqlDbType.DateTime).Value = ctb.syncStartTime;
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = ctb.syncBitWise;
 
-            int result = SqlNonQuery(dbName, cmd, 30);
+            SqlNonQuery(dbName, cmd, 30);
         }
 
 
         public void CreateSchemaChangeTable(string dbName, Int64 CTID) {
             //drop the table on the relay server if it exists
-            bool tExisted = DropTableIfExists(dbName, "tblCTSchemaChange_" + Convert.ToString(CTID), "dbo");
+            DropTableIfExists(dbName, "tblCTSchemaChange_" + Convert.ToString(CTID), "dbo");
 
             //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
             string query = "CREATE TABLE [dbo].[tblCTSchemaChange_" + CTID + "] (";
@@ -305,7 +305,7 @@ namespace TeslaSQL.DataUtils {
 
             SqlCommand cmd = new SqlCommand(query);
 
-            int result = SqlNonQuery(dbName, cmd);
+            SqlNonQuery(dbName, cmd);
         }
 
 
@@ -355,7 +355,7 @@ namespace TeslaSQL.DataUtils {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
             }
-            int result = SqlNonQuery(dbName, cmd);
+            SqlNonQuery(dbName, cmd);
         }
 
 
@@ -385,7 +385,7 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = syncStopVersion;
             cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
 
-            int res = SqlNonQuery(dbName, cmd);
+            SqlNonQuery(dbName, cmd);
         }
 
 
@@ -447,7 +447,7 @@ namespace TeslaSQL.DataUtils {
         public bool CheckTableExists(string dbName, string table, string schema = "dbo") {
             try {
                 Table t_smo = GetSmoTable(dbName, table, schema);
-                if (table != null) {
+                if (t_smo != null) {
                     return true;
                 }
                 return false;
@@ -561,7 +561,7 @@ namespace TeslaSQL.DataUtils {
                 cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = value;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             }
-            int result = SqlNonQuery(dbName, cmd);
+            SqlNonQuery(dbName, cmd);
         }
 
 
@@ -585,17 +585,16 @@ namespace TeslaSQL.DataUtils {
 
 
         public void MarkBatchComplete(string dbName, Int64 CTID, DateTime syncStopTime, string slaveIdentifier) {
-            string query;
             SqlCommand cmd;
             Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
-            query = "UPDATE dbo.tblCTSlaveVersion SET syncBitWise = @syncbitwise, syncStopTime = @syncstoptime";
+            string query = "UPDATE dbo.tblCTSlaveVersion SET syncBitWise = @syncbitwise, syncStopTime = @syncstoptime";
             query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
             cmd = new SqlCommand(query);
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
             cmd.Parameters.Add("@syncstoptime", SqlDbType.DateTime).Value = syncStopTime;
             cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = slaveIdentifier;
             cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
-            int result = SqlNonQuery(dbName, cmd);
+            SqlNonQuery(dbName, cmd);
         }
 
 
@@ -612,7 +611,7 @@ namespace TeslaSQL.DataUtils {
             foreach (var pair in ctids.Zip(inParams, (ctid, inp) => Tuple.Create(inp, ctid))) {
                 cmd.Parameters.Add(pair.Item1, SqlDbType.BigInt).Value = pair.Item2;
             }
-            int result = SqlNonQuery(dbName, cmd);
+            SqlNonQuery(dbName, cmd);
         }
 
         public DataTable GetSchemaChanges(string dbName, Int64 CTID) {
@@ -728,7 +727,7 @@ namespace TeslaSQL.DataUtils {
 
         public void CreateTableInfoTable(string dbName, Int64 CTID) {
             //drop the table on the relay server if it exists
-            bool tExisted = DropTableIfExists(dbName, "tblCTTableInfo_" + CTID, "dbo");
+            DropTableIfExists(dbName, "tblCTTableInfo_" + CTID, "dbo");
 
             //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
             string query = "CREATE TABLE [dbo].[tblCTTableInfo_" + CTID + "] (";
@@ -742,7 +741,7 @@ namespace TeslaSQL.DataUtils {
 
             SqlCommand cmd = new SqlCommand(query);
 
-            int result = SqlNonQuery(dbName, cmd);
+            SqlNonQuery(dbName, cmd);
         }
 
 
@@ -838,7 +837,6 @@ namespace TeslaSQL.DataUtils {
                           table.schemaName,
                           CTDBName
                           );
-            string baseSql = sql.Replace("'", "''");
             sql += "\nDELETE @rowcounts;\n";
             sql += "SELECT @insertcount AS insertcount, @deletecount AS deletecount\n";
             return new SqlCommand(sql);
@@ -904,7 +902,7 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-        public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string ctTableName, string dbName) {
+        public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string consolidatedTableName, string dbName) {
             var pks = table.columns.Where(c => c.isPk);
             var zipped = pks.Zip(pks, (a, b) => "a." + a + " = b." + b);
             string whereCondition = string.Join(" AND ", zipped);
@@ -914,7 +912,7 @@ namespace TeslaSQL.DataUtils {
                               WHERE EXISTS (
                                 SELECT 1 FROM [{0}] b WHERE {1} AND a.sys_change_version < b.sys_change_version
                               ) ",
-                              ctTableName, whereCondition);
+                              consolidatedTableName, whereCondition);
             logger.Log(delete, LogLevel.Trace);
             SqlCommand cmd = new SqlCommand(delete);
             SqlNonQuery(dbName, cmd);
@@ -934,17 +932,9 @@ namespace TeslaSQL.DataUtils {
             return SqlQuery(dbName, cmd);
         }
 
-
-        public void CreateHistoryTable(ChangeTable t, string slaveCTDB) {
-            if (CheckTableExists(slaveCTDB, t.historyName, t.schemaName)) {
-                return;
-            }
-            string create = ScriptTable(slaveCTDB, t.ctName, t.schemaName);
-        }
-
-        public void CopyIntoHistoryTable(ChangeTable t, string dbName) {
+        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
             string sql;
-            if (CheckTableExists(dbName, t.historyName, t.schemaName)) {
+            if (CheckTableExists(slaveCTDB, t.historyName, t.schemaName)) {
                 logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
                 sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
@@ -954,7 +944,7 @@ namespace TeslaSQL.DataUtils {
                 logger.Log(sql, LogLevel.Debug);
             }
             var cmd = new SqlCommand(sql);
-            SqlNonQuery(dbName, cmd);
+            SqlNonQuery(slaveCTDB, cmd);
         }
 
 

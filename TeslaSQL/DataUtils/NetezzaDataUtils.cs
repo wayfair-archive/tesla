@@ -48,19 +48,6 @@ namespace TeslaSQL.DataUtils {
         }
 
         /// <summary>
-        /// Runs a sql query and returns first column and row from results as specified type
-        /// </summary>
-        /// <param name="dbName">Database name</param>
-        /// <param name="cmd">SqlCommand to run</param>
-        /// <param name="timeout">Query timeout</param>
-        /// <returns>The value in the first column and row, as the specified type</returns>
-        private T SqlQueryToScalar<T>(string dbName, OleDbCommand cmd, int? timeout = null) {
-            DataTable result = SqlQuery(dbName, cmd, timeout);
-            //return result in first column and first row as specified type
-            return (T)result.Rows[0][0];
-        }
-
-        /// <summary>
         /// Runs a query that does not return results (i.e. a write operation)
         /// </summary>
         /// <param name="dbName">Database name</param>
@@ -547,7 +534,7 @@ namespace TeslaSQL.DataUtils {
         #endregion
 
 
-        public Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
+        public Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> tableConfCTTableName) {
             throw new NotImplementedException();
         }
 

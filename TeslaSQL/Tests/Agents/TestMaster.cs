@@ -102,7 +102,7 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestCreateChangeTables() {
-            IDictionary<string, Int64> result = CreateChangeTables(Config.tables, "testdb", "CT_testdb", new ChangeTrackingBatch(101, 1000, 2000, 0));
+            IDictionary<string, Int64> result = CreateChangeTables("testdb", "CT_testdb", new ChangeTrackingBatch(101, 1000, 2000, 0));
             Assert.Equal(1, result["dbo.test1"]);
             Assert.Equal(0, result["dbo.test2"]);
         }
@@ -168,7 +168,7 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestPublishChangeTables() {
-            PublishChangeTables(Config.tables, "CT_testdb", "CT_testdb", 101, changesCaptured);
+            PublishChangeTables("CT_testdb", "CT_testdb", 101, changesCaptured);
             DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTtest1_101", "RELAY.CT_testdb"].Rows[0];
             Assert.True(actual.Field<int>("column1") == 100
                 && actual.Field<string>("column2") == "test"
@@ -276,7 +276,7 @@ namespace TeslaSQL.Tests.Agents {
             Config.masterDB = "testdb";
             Config.masterCTDB = "CT_testdb";
             Config.relayDB = "CT_testdb";
-            Config.tables = tables;
+            Config.tables = tables.ToList();
             Config.masterType = SqlFlavor.MSSQL;
             Config.relayType = SqlFlavor.MSSQL;
         }

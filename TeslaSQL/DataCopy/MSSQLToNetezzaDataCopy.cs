@@ -30,7 +30,7 @@ namespace TeslaSQL.DataCopy {
             this.nzPrivateKeyPath = nzPrivateKeyPath;
         }
 
-        private void CreateDirectoryIfNotExists(string directory) {
+        private static void CreateDirectoryIfNotExists(string directory) {
             DirectoryInfo dir = new DirectoryInfo(directory);
             if (!dir.Exists) {
                 dir.Create();
