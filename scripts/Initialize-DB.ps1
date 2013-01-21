@@ -40,7 +40,7 @@ it won't modify the relay or master database at all (other than tblCTInitialize/
 Use this when adding a new shard to an existing sharded setup. This will not mess with the consolidated CT
 database on the relay side or the slave side, it will only set up the master portion and 
 initialize any data. This flag implies -notfirstshard as well, you don't need to specify both.
-.PARAMETER notlast
+.PARAMETER notlastslave
 Specify this switch when you are initializing multiple slaves, you must include this for all
 but the last slave. Doing so will make sure the first batch is able to start correctly by
 setting records in tblCTInitialize and tblCTVersion appropriately.
@@ -52,6 +52,9 @@ Pass this to avoid dropping and recreating slave tables, instead just truncate a
 reinitialize the data. The purpose of this is to maintain any custom indexes, table distributions
 etc. you may have made on the slave side. Note that the schema for the slave MUST be correct already
 for this to work.
+.PARAMETER yes
+Skips prompts for confirmation that occur before dropping all tables on a CT database. Use this
+flag only if you're sure the database names in your config file are correct.
 .INPUTS
 You cannot pipe objects to Initialize-DB.
 .OUTPUTS
@@ -86,9 +89,10 @@ Param(
  [switch]$newdatabase,
  [switch]$newslave,
  [switch]$newshard,
- [switch]$notlast,
+ [switch]$notlastslave,
  [switch]$notfirstshard,
- [switch]$reinitialize
+ [switch]$reinitialize,
+ [switch]$yes
 )
 Push-Location (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)
 Import-Module .\Modules\DB
@@ -101,8 +105,17 @@ Function Drop-AllTables {
 [CmdletBinding()]
     param(
     [Parameter(Position=0, Mandatory=$true)] [string]$ServerInstance,
-    [Parameter(Position=1, Mandatory=$true)] [string]$Database
+    [Parameter(Position=1, Mandatory=$true)] [string]$Database,
+    [Parameter(Position=2, Mandatory=$true)] [bool]$yes
     )
+    if ($yes) {
+        $prompt -eq "y"        
+    } else {
+        $prompt = read-host "Dropping all tables on database $Database on server $ServerInstance. Are you sure? [y/n]"
+    }
+    if ($prompt -ne "y") {
+        throw "Confirmation not provided to drop tables. Exiting with failure!"
+    }
     $tables = invoke-sqlcmd2 -serverinstance $serverinstance -database $database `
     -query "select '[' + table_schema + '].[' + table_name + ']' as t from information_schema.tables where table_type = 'BASE TABLE'"
     $cmd = ""
@@ -122,8 +135,17 @@ Function Drop-AllNetezzaTables {
     [Parameter(Position=0, Mandatory=$true)] [string]$ServerInstance,
     [Parameter(Position=1, Mandatory=$true)] [string]$Database,
     [Parameter(Position=2, Mandatory=$true)] [string]$User,
-    [Parameter(Position=3, Mandatory=$true)] [string]$Password
+    [Parameter(Position=3, Mandatory=$true)] [string]$Password,
+    [Parameter(Position=4, Mandatory=$true)] [bool]$yes
     )
+    if ($yes) {
+        $prompt -eq "y"        
+    } else {
+        $prompt = read-host "Dropping all tables on database $Database on server $ServerInstance. Are you sure? [y/n]"
+    }
+    if ($prompt -ne "y") {
+        throw "Confirmation not provided to drop tables. Exiting with failure!"
+    }
     $result = invoke-netezzaquery -s $serverinstance -database $database -u $user -p $password `
         -query "SELECT TABLENAME FROM _V_TABLE WHERE OBJTYPE = 'TABLE';"
     foreach ($row in $result) {
@@ -134,21 +156,24 @@ Function Drop-AllNetezzaTables {
     }      
 }
 
+Function Grant-Permissions($server, $db, $user, $password) {
+    $query = "if not exists (select 1 from sys.syslogins where name = '$user') 
+    	CREATE LOGIN [$user] WITH PASSWORD='$password', DEFAULT_DATABASE=[$db], DEFAULT_LANGUAGE=[us_english], CHECK_EXPIRATION=OFF, CHECK_POLICY=OFF
+    USE $db
+    if not exists (SELECT 1 from sys.sysusers where name = '$user')
+    	CREATE USER [$user] FOR LOGIN [$user]
+    EXEC sp_addrolemember N'db_owner', N'$user'"
+    invoke-sqlcmd2 -serverinstance $server -database $db -query $query        
+}
+
 Function Create-DB ($server, $db, $type, $user, $password) {
     if ($type -eq "MSSQL") {
         $query = "if not exists (select 1 from sys.databases where name = '$db')
         CREATE DATABASE $db"
         invoke-sqlcmd2 -serverinstance $server -query $query
-        $query = "
-        ALTER DATABASE $db SET RECOVERY SIMPLE
-        if not exists (select 1 from sys.syslogins where name = '$user') 
-    	CREATE LOGIN [$user] WITH PASSWORD='$password', DEFAULT_DATABASE=[$db], DEFAULT_LANGUAGE=[us_english], CHECK_EXPIRATION=OFF, CHECK_POLICY=OFF
-        USE $db
-        if not exists (SELECT 1 from sys.sysusers where name = '$user')
-        	CREATE USER [$user] FOR LOGIN [$user]
-        EXEC sp_addrolemember N'db_owner', N'$user'
-        "
+        $query = "ALTER DATABASE $db SET RECOVERY SIMPLE"
         invoke-sqlcmd2 -serverinstance $server -query $query
+        Grant-Permissions $server $db $user $password
     } elseif ($type -eq "Netezza") {
         $query = "select 1 from _v_database where database = '" + $db.ToUpper() + "'"
         $exists = invoke-netezzaquery -s $server -database $db -u $user -p $password -query $query
@@ -200,6 +225,12 @@ $masterctdb = $xml.SelectSingleNode("/conf/masterCTDB").InnerText
 $masteruser = $xml.SelectSingleNode("/conf/masterUser").InnerText
 $masterpassword = $xml.SelectSingleNode("/conf/masterPassword").InnerText
 $sharding = $xml.SelectSingleNode("/conf/sharding").InnerText
+$mastertableconf = $xml.SelectSingleNode("/conf/tables")
+
+$mastertables = @()
+foreach ($tableconf in $mastertableconf.SelectNodes("table")) {
+    $mastertables += ($tableconf.schemaname + "." + $tableconf.name)
+}
 if ($sharding -eq "true") {
     $sharding = $true
     #slave's relay is the consolidated relay, master's relay is a different database for sharding.
@@ -274,12 +305,15 @@ if ($newdatabase -or $newshard) {
     		@data	
     ;"
     invoke-sqlcmd2 -serverinstance $master -database $masterdb -query $query
-
+    
+    #granting tesla login permissions on master database
+    Grant-Permissions $master $masterdb $masteruser $masterpassword
+    
     Write-Host "creating $masterctdb on server $master"
     Create-DB $master $masterctdb $mastertype $masteruser $ctripledes.Decrypt($masterpassword)
 
     Write-Host "dropping all tables on $masterctdb on server $master"
-    Drop-AllTables $master $masterctdb
+    Drop-AllTables $master $masterctdb $yes
 
     #create tblCTInitialize
     $query = "CREATE TABLE dbo.tblCTInitialize (
@@ -297,7 +331,7 @@ if ($newdatabase -or $newshard) {
     Create-DB $relay $relaydb $relaytype $relayuser $ctripledes.Decrypt($relaypassword)
 
     Write-Host "dropping all tables on $relaydb on server $relay"
-    Drop-AllTables $relay $relaydb
+    Drop-AllTables $relay $relaydb $yes
 
     #tblCTversion has no identity on sharded CT dbs
     if ($sharding) {
@@ -344,7 +378,7 @@ if ($newdatabase -or $newshard) {
         Create-DB $relay $consolidatedctdb $relaytype $relayuser $ctripledes.Decrypt($relaypassword)
         
         Write-Host "dropping all tables on $consolidatedctdb on server $relay"
-        Drop-AllTables $relay $consolidatedctdb
+        Drop-AllTables $relay $consolidatedctdb $yes
 $query = @"
 CREATE TABLE [dbo].[tblCTVersion](
 	[CTID] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
@@ -371,7 +405,7 @@ CREATE TABLE [dbo].[tblCTSlaveVersion](
         
         Write-Host "writing version number $version to consolidated tblCTVersion"
         $query = "INSERT INTO tblCTVersion (syncStartVersion, syncStartTime, syncStopVersion, syncBitWise) 
-        VALUES ($version, '1/1/1990', $version, 7);"
+        VALUES ($version, '1/1/1990', $version, 0);"
         $result = invoke-sqlcmd2 -serverinstance $relay -database $consolidatedctdb -query $query
     }
 
@@ -381,12 +415,12 @@ CREATE TABLE [dbo].[tblCTSlaveVersion](
         $ctid = $result.maxctid
         Write-Host "writing version number $version to sharded tblCTVersion for ctid $ctid"
         $query = "INSERT INTO tblCTVersion (CTID, syncStartVersion, syncStartTime, syncStopVersion, syncBitWise) 
-        VALUES ($ctid, $version, '1/1/1990', $version, 7);"
+        VALUES ($ctid, $version, '1/1/1990', $version, 0);"
         $result = invoke-sqlcmd2 -serverinstance $relay -database $relaydb -query $query
     } else {
         Write-Host "writing version number $version to tblCTVersion"
         $query = "INSERT INTO tblCTVersion (syncStartVersion, syncStartTime, syncStopVersion, syncBitWise) 
-        VALUES ($version, '1/1/1990', $version, 7);"
+        VALUES ($version, '1/1/1990', $version, 0);"
         $result = invoke-sqlcmd2 -serverinstance $relay -database $relaydb -query $query
     }
 }
@@ -396,11 +430,22 @@ if ($newdatabase -or $newslave) {
     Create-DB $slave $slavectdb $slavetype $slaveuser $ctripledes.Decrypt($slavepassword)
 
     Write-Host "dropping all tables on $slavectdb on server $slave"
-    Drop-AllTables $slave $slavectdb
-
+    if ($slavetype -eq "MSSQL") {        
+        Drop-AllTables $slave $slavectdb $yes
+    } elseif ($slavetype -eq "Netezza") {
+        Drop-AllTables $slave $slavectdb $slaveuser $slavepassword $yes
+    }
     Write-Host "creating $slavedb on server $slave"
     Create-DB $slave $slavedb $slavetype $slaveuser $ctripledes.Decrypt($slavepassword)
 }
+
+#capture slave CTID so that if batches happen on master while we are initializing tables we don't miss out on those changes
+if ($sharding) {
+    $result = invoke-sqlcmd2 -serverinstance $relay -database $consolidatedctdb -query "SELECT MAX(CTID) as maxctid from tblCTVersion"
+} else {
+    $result = invoke-sqlcmd2 -serverinstance $relay -database $relaydb -query "SELECT MAX(CTID) as maxctid from tblCTVersion"
+}
+$slavectid = $result.maxctid
 
 #foreach table, AddTable-ToCT
 #TODO add parallelism
@@ -408,7 +453,10 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
     if ($tablestoinclude.length -gt 0 -and $tablestoinclude -notcontains $tableconf.name) {
         continue
     }
-    write-host ("got here for table " + $tableconf.name)
+    if ($mastertables -notcontains ($tableconf.schemaname + "." + $tableconf.name)) {
+        write-host ("This master doesn't publish " + $tableconf.name + ", skipping")
+        continue
+    }
     $modifiers = $tableconf.SelectNodes("columnModifier") 
     $columnmodifiers = $null 
     foreach ($modifier in $modifiers) {
@@ -436,16 +484,15 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
         -table $tableconf.name -schema $tableconf.schemaname -user $slaveuser -password $slavepassword `
         -columnlist $columnlist -columnmodifiers $columnmodifiers -netezzastringlength $netezzastringlength `
         -mappingsfile $mappingsfile -sshuser $sshuser -pkpath $pkpath -plinkpath $plinkpath `
-        -nzloadscript $nzloadscript  -bcppath $bcppath -reinitialize:$reinitialize -notlast:$notlast -notfirstshard:$notfirstshard
+        -nzloadscript $nzloadscript  -bcppath $bcppath -reinitialize:$reinitialize -notlast:$notlastslave -notfirstshard:$notfirstshard
 }
 
 
 #update row of tblCTVersion, setting syncbitwise to 7
-
-if ($newdatabase -or $newslave) {
+if (($newdatabase -or $newslave) -and !$notfirstshard) {
     write-host "inserting first row in tblCTSlaveVersion"
     $query = "insert into tblCTSlaveVersion (CTID, slaveidentifier, syncstarttime, syncstoptime, syncbitwise)
-    VALUES (1, '$slave', getdate(), getdate(), 255)"
+    VALUES ($slavectid, '$slave', getdate(), getdate(), 255)"
     if ($sharding) {
         invoke-sqlcmd2 -serverinstance $relay -database $consolidatedctdb -query $query
     } else {
@@ -454,13 +501,12 @@ if ($newdatabase -or $newslave) {
 }
 
 if ($newdatabase -or $newshard) {
-    if (!$notlast) {
+    if (!$notlastslave) {
         write-host "marking initial batch as done on relay"
         invoke-sqlcmd2 -serverinstance $relay -database $relaydb -query "update tblCTVersion set syncbitwise = 7, syncstoptime = getdate()"
         write-host "marking any in progress rows in tblCTInitialize as complete"
         invoke-sqlcmd2 -serverinstance $master -database $masterctdb -query "update tblCTInitialize set inprogress = 0, inifinishtime = GETDATE() where inprogress = 1"
-        if ($sharding) {
-            #it's ok for this to happen multiple times
+        if ($sharding -and !$newshard) {
             write-host "marking initial batch as done on relay consolidated table"
             invoke-sqlcmd2 -serverinstance $relay -database $consolidatedctdb -query "update tblCTVersion set syncbitwise = 7, syncstoptime = getdate()"
         }
