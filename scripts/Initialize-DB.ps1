@@ -403,6 +403,7 @@ if ($newdatabase -or $newslave) {
 }
 
 #foreach table, AddTable-ToCT
+#TODO add parallelism
 foreach ($tableconf in $tables.SelectNodes("table")) {
     if ($tablestoinclude.length -gt 0 -and $tablestoinclude -notcontains $tableconf.name) {
         continue
@@ -435,7 +436,7 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
         -table $tableconf.name -schema $tableconf.schemaname -user $slaveuser -password $slavepassword `
         -columnlist $columnlist -columnmodifiers $columnmodifiers -netezzastringlength $netezzastringlength `
         -mappingsfile $mappingsfile -sshuser $sshuser -pkpath $pkpath -plinkpath $plinkpath `
-        -nzloadscript $nzloadscript  -bcppath $bcppath -reinitalize:$reinitialize -notlast:$notlast -notfirstshard:$notfirstshard
+        -nzloadscript $nzloadscript  -bcppath $bcppath -reinitialize:$reinitialize -notlast:$notlast -notfirstshard:$notfirstshard
 }
 
 
