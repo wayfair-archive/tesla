@@ -320,7 +320,7 @@ namespace TeslaSQL.Tests.Agents {
             aTable.name = "tblNameArchive";
             tableConf.Add(aTable);
             tableConf.Add(table);
-
+            Config.tables = tableConf;
             tables.Add(new ChangeTable(aTable.name, ctid, schema, slaveName));
             tables.Add(new ChangeTable(table.name, ctid, schema, slaveName));
 
