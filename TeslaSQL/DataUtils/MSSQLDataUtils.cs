@@ -519,6 +519,9 @@ namespace TeslaSQL.DataUtils {
         }
 
         public Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
+            if (t.Count == 0) {
+                return new Dictionary<TableConf, IList<string>>();
+            }
             var placeHolders = t.Select((_, i) => "@table" + i);
             string sql = string.Format("SELECT COLUMN_NAME, TABLE_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME IN ( {0} );",
                                        string.Join(",", placeHolders));
@@ -999,6 +1002,9 @@ namespace TeslaSQL.DataUtils {
         }
 
         public Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
+            if (tables.Count() == 0) {
+                return new Dictionary<TableConf, IList<string>>();
+            }
             var placeHolders = tables.Select((t, i) => "@table" + i);
             string sql = string.Format("SELECT CtiTableName, CtipkList FROM tblCTTableInfo_{0} WHERE CtiTableName IN ( {1} )",
                            batch.CTID, string.Join(",", placeHolders));
