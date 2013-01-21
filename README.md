@@ -74,14 +74,21 @@ select '<table>
 FROM INFORMATION_SCHEMA.TABLES
 ```
 
-Note that for Netezza slaves there are some special options such as an ssh user and 
-private key file, as well as a shell script for loading tables. You must set these up
-at this point and put the appropriate paths in the config files, since they will be used
-during initialization.
+Note that for Netezza slaves there are some special options that must be set in the config file before initialization. See the Netezza considerations section below.
 
 **Initialization:** Initialization is done using scripts\Initialize-DB.ps1. Open a powershell prompt, change to the directory containing Tesla and run `Get-Help .\scripts\Initialize-DB -full` to read the help. Make sure to read the help carefully, it explains basically everything about how to do initialization. This is an important step and it can be easy to make a mistake if your setup is complicated (sharding, many slaves, etc.). If you're initializing big tables, you should do this from the server that will run Tesla, rather than your workstation, to eliminate unnecessary data movement between your datacenter(s) and your office. 
 
 **Setup:** Set up jobs in the scheduler of your choice to run the various tesla agents. For SQL Server Agent, use the Operating System command task to execute Tesla agents. You need one job per agent, each with the command line options pointing to the appropriate config files. You should enable e-mail alerts for failure on those jobs. Make sure to set up all the required agents. You'll usually want the slave agent(s) to run pretty often (i.e. once per minute) since if there is no work to do it will just quickly exit. 
+
+## Netezza special considerations
+
+Netezza slaves require a bit more setup than SQL Server slaves. Specifically, you need to:
+
+- Install the NZOLEDB driver on whichever windows server you will use to run the Tesla slave agent. This driver is not publicly available, but can be downloaded from IBM if you have a Netezza server.
+- Create an NFS share that your windows server can write to and your Netezza server can read from (mounted on the Netezza server). Use this as the bcpPath config variable in the slave config file. If you don't wish to do this you can try other methods like rsync or scp, but you'll need to modify the code in the relevant DataCopy class to do so.
+- Put in place a shell script somewhere on the Netezza server that can load data from said NFS share. See the example script at `scripts/load_data_tesla.sh`. As the comments at the top of the script mention, this script may need to be modified to work in your environment. Of course you must also make the script executable using chmod. Set nzLoadScriptPath in the slave config to this path.
+- Create or identify a user account on your Netezza server that Tesla can use to ssh into the server and run said shell script. Create an ssh key for that user using `ssh-keygen -t rsa` and copy the private key file somewhere that Tesla can use it (netezzaPrivateKeyPath config variable).
+- Ensure that user has environment variables that allow it to connect to nzsql and run nzload with enough permissions to load data into the CT databases.
 
 ## Other Administrative Tasks
 
