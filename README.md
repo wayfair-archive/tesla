@@ -104,6 +104,7 @@ If you find that a table gets out of sync for any reason, you can use the $reini
 - http://github.com/ssandler
 
 **Alexander Corwin**
+- http://github.com/foxlisk
 
 ## Copyright and license
 Copyright 2013 Wayfair, LLC.
