@@ -27,16 +27,16 @@ namespace TeslaSQL.Tests.Agents {
             };
             dbFieldLists.Add(dict1);
             shardDatabases = new List<string> { "db1", "db2" };
-            Assert.False(SchemasOutOfSync(ctb, dbFieldLists));
+            Assert.False(SchemasOutOfSync(dbFieldLists));
             db1[0] = new TColumn("a", true);
-            Assert.True(SchemasOutOfSync(ctb, dbFieldLists));
+            Assert.True(SchemasOutOfSync(dbFieldLists));
             db1.Clear();
             db1.Add(new TColumn("a", false));
             db1.Add(new TColumn("b", false));
             db2.Clear();
             db2.Add(new TColumn("b", false));
             db2.Add(new TColumn("a", false));
-            Assert.False(SchemasOutOfSync(ctb, dbFieldLists));
+            Assert.False(SchemasOutOfSync(dbFieldLists));
         }
 
     }
