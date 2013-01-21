@@ -23,7 +23,7 @@ namespace TeslaSQL.Agents {
 
         public ShardCoordinator() {
             //this constructor is only used by for running unit tests
-            this.logger = new Logger(null, null, null,"");
+            this.logger = new Logger(null, null, null, "");
         }
 
         public override void ValidateConfig() {
@@ -48,7 +48,7 @@ namespace TeslaSQL.Agents {
             }
 
             tableDBFieldLists = GetFieldListsByDB(batch.CTID);
-            if (SchemasOutOfSync(batch, tableDBFieldLists.Values)) {
+            if (SchemasOutOfSync(tableDBFieldLists.Values)) {
                 foreach (var sd in shardDatabases) {
                     sourceDataUtils.RevertCTBatch(sd, batch.CTID);
                 }
@@ -73,7 +73,7 @@ namespace TeslaSQL.Agents {
         /// This is a list (not just a dict) because there needs to be one dict per table. </param>
         /// <returns></returns>
         // virtual so i can unit test it.
-        virtual internal bool SchemasOutOfSync(ChangeTrackingBatch batch, IEnumerable<Dictionary<string, List<TColumn>>> dbFieldLists) {
+        virtual internal bool SchemasOutOfSync(IEnumerable<Dictionary<string, List<TColumn>>> dbFieldLists) {
             foreach (var dbFieldList in dbFieldLists) {
                 var orderedFieldLists = dbFieldList.Values.Select(lc => lc.OrderBy(c => c.name));
                 bool schemaOutOfSync = orderedFieldLists.Any(ofc => !ofc.SequenceEqual(orderedFieldLists.First()));
@@ -89,7 +89,12 @@ namespace TeslaSQL.Agents {
             foreach (var table in Config.tables) {
                 var tDict = new Dictionary<string, List<TColumn>>();
                 foreach (var sd in shardDatabases) {
-                    tDict[sd] = sourceDataUtils.GetFieldList(sd, table.ToCTName(ctid), table.schemaName).Select(kvp => new TColumn(kvp.Key, kvp.Value)).ToList();
+                    //only add the columns if we get results. it's perfectly legitimate for a changetable to not exist for a given shard
+                    //if it had no changes, and we don't want that to cause the schemas to be considered out of sync
+                    var columns = sourceDataUtils.GetFieldList(sd, table.ToCTName(ctid), table.schemaName).Select(kvp => new TColumn(kvp.Key, kvp.Value)).ToList();
+                    if (columns.Count > 0) {
+                        tDict[sd] = columns;
+                    }
                 }
                 fieldListByDB[table] = tDict;
             }

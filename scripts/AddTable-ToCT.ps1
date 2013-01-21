@@ -45,13 +45,15 @@ $error.clear()
 ###############################
 # Constants - we should probably do something better about these
 ###############################
-set-alias plink $plinkpath
+if ($slavetype -eq "Netezza") {
+    set-alias plink $plinkpath
 
-$bcppath = $bcppath.TrimEnd("\") + $slavedb.ToLower()
-if (!(Test-path $bcppath)) {
-    mkdir $bcppath | out-null
+    $bcppath = $bcppath.TrimEnd("\") + $slavedb.ToLower()
+    if (!(Test-path $bcppath)) {
+        mkdir $bcppath | out-null
+    }
+    $bcppath += $table.ToLower() + ".txt"
 }
-$bcppath += $table.ToLower() + ".txt"
 
 #set column lists if they are specified
 $columnarray = @()
