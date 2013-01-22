@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- global application configuration -->
+<!-- Please read each comment thoroughly. You will have to change most of these variables -->
+<conf>
+  <!--Hostname or IP of the relay server-->
+  <relayServer>RELAYHOSTNAME</relayServer>
+  <!--Database engine type of the relay server-->
+  <relayType>MSSQL</relayType>
+  <!--Database name for the slave database-->
+  <relayDB>CT_shardeddb</relayDB>
+  <!--Database on the relay server to log errors to. Multiple tesla setups can all share the same error db and table.-->
+  <errorLogDB>shared_error_database_name</errorLogDB>
+  <!--Table on the relay server to log errors to-->
+  <errorTable>tblcterror</errorTable>
+  <!--Username to use when connected to the relay server-->
+  <relayUser>tesla</relayUser>
+  <!--Encrypted password for the relay user. Encrypt using scripts\EncryptPassword.ps1-->
+  <relayPassword>lTXVebm+gWoc2j5E93hEJVw==</relayPassword>  
+  <!--Host/IP and port for logging to statsd. If you don't want to use statsd, just comment these parameters out entirely.-->
+  <statsdHost>10.20.30.40</statsdHost>
+  <statsdPort>8125</statsdPort>
+  <!--Timeout for copying data between servers in seconds. 0 disables the timeout.-->
+  <dataCopyTimeout>3600</dataCopyTimeout>
+  <!--Timeout for queries. 0 disables the timeout.-->
+  <queryTimeout>3600</queryTimeout>
+  <!--Maximum number of threads to use for multi threaded portions of tesla.-->
+  <maxThreads>4</maxThreads>
+  <!--The master shard defines which shard schema changes are pulled from. All shards can record schema changes but ShardCoordinator
+  only grabs them from the primary shard. You can also use this if you have one shard that is the master for some reference tables
+  that get replicated to other shards, and you want to also publish those tables in Tesla-->
+  <masterShard>CT_shardeddb_shard1</masterShard>
+  <!--List of all the shard databases to consolidate. If you add shard or decommission a shard you need to modify this.-->
+  <shardDatabases>
+    <shardDatabase>CT_shardeddb_shard1</shardDatabase>
+    <shardDatabase>CT_shardeddb_shard2</shardDatabase>
+  </shardDatabases>
+<!-- begin table specific information -->  
+  <tables>   
+    <!-- For shardcoordinator, the only relevant table level setting is stopOnError. columnlist/columnmodifiers are not used-->
+    <table>    
+      <!--Schema the table is in. You still need this for Netezza because it determines the relay table to look at.-->
+      <schemaName>dbo</schemaName>
+      <!--The name of the table-->
+      <name>table1</name>
+      <!--If an error happens while operating on this table, should Tesla exit with a failure status (true) or
+      just keep going and write an alert to the errors table (which a Notifier agent will send out later)?  
+      This is an important decision you should make for each table, or just set all tables to true.
+      You should generally only use false if you don't mind that you may have to reinitialize the table
+      if something goes wrong.-->    
+      <stopOnError>true</stopOnError>  
+    </table>
+    <table>
+      <schemaName>dbo</schemaName>
+      <name>table2</name>
+      <stopOnError>true</stopOnError>  
+    </table>
+    <table>
+      <schemaName>dbo</schemaName>
+      <name>tblTest2</name>  
+      <stopOnError>false</stopOnError>
+    </table>     
+  </tables>
+</conf>

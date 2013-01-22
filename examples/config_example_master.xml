@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- global application configuration -->
+<!-- Please read each comment thoroughly. You will have to change most of these variables -->
+<conf>
+  <!--Hostname or IP of the master server-->
+  <master>MASTERHOSTNAME</master>
+  <!--Database engine type of the master server-->
+  <masterType>MSSQL</masterType>
+  <!--Hostname or IP of the relay server-->
+  <relayServer>RELAYHOSTNAME</relayServer>
+  <!--Database engine type of the relay server-->
+  <relayType>MSSQL</relayType>
+  <!--Database name for the master database-->
+  <masterDB>master_database_name</masterDB>
+  <!--Database the changesets are stored in when generated before being copied to the relay.-->
+  <masterCTDB>CT_master_database_name</masterCTDB>
+  <!--Relay database name to copy changes to-->
+  <relayDB>CT_master_database_name</relayDB>
+  <!--Database on the relay server to log errors to. Multiple tesla setups can all share the same error db and table.-->
+  <errorLogDB>shared_error_database_name</errorLogDB>
+  <!--Table on the relay server to log errors to-->
+  <errorTable>tblcterror</errorTable>
+  <!--Username to use when connected to the master-->
+  <masterUser>tesla</masterUser>
+  <!--Encrypted password for the master user. Encrypt using scripts\EncryptPassword.ps1. -->
+  <masterPassword>TXVebm+gWoc2j5E93hEJVw==</masterPassword>
+  <!--Username to use when connected to the relay server-->
+  <relayUser>tesla</relayUser>
+  <!--Encrypted password for the relay user. Encrypt using scripts\EncryptPassword.ps1-->
+  <relayPassword>lTXVebm+gWoc2j5E93hEJVw==</relayPassword>  
+  <!--Maximum number of transactions to include in a batch on the master. Note this is transactions, NOT rows.
+  You can set this to 0 to disable batch size limitations. Use this setting if you get blocking due to batches being too big. -->
+  <maxBatchSize>50000</maxBatchSize>
+  <!--Between the threshold ignore start and end times, the maxBatchSize is ignored. Use this for catching up off hours. -->
+  <thresholdIgnoreStartTime>23:00</thresholdIgnoreStartTime>
+  <thresholdIgnoreEndTime>1:00</thresholdIgnoreEndTime>
+  <!--Host/IP and port for logging to statsd. If you don't want to use statsd, just comment these parameters out entirely.-->
+  <statsdHost>10.20.30.40</statsdHost>
+  <statsdPort>8125</statsdPort>
+  <!--Is this master part of a sharded setup? Set to true or false-->
+  <sharding>false</sharding>
+  <!--Timeout for copying data between servers in seconds. 0 disables the timeout.-->
+  <dataCopyTimeout>3600</dataCopyTimeout>
+  <!--Timeout for queries. 0 disables the timeout.-->
+  <queryTimeout>3600</queryTimeout>
+  <!--Maximum number of threads to use for multi threaded portions of tesla.-->
+  <maxThreads>4</maxThreads>
+  <!--How long to keep changetables around (Maintenance agents use this).-->
+  <changeRetentionHours>96</changeRetentionHours>
+  <!--How long to keep tblCTVersion rows around (Maintenance agents use this).-->
+  <batchRecordRetentionDays>30</batchRecordRetentionDays>
+<!-- begin table specific information -->  
+  <tables>   
+    <table>    
+      <!--Schema the table is in-->
+      <schemaName>dbo</schemaName>
+      <!--The name of the table-->
+      <name>table1</name>
+      <!--If an error happens while operating on this table, should Tesla exit with a failure status (true) or
+      just keep going and write an alert to the errors table (which a Notifier agent will send out later)?  
+      This is an important decision you should make for each table, or just set all tables to true.
+      You should generally only use false if you don't mind that you may have to reinitialize the table
+      if something goes wrong.-->    
+      <stopOnError>true</stopOnError>  
+      <!--Column modifiers can be used to restrict the size of a particular field. 
+      In this example, we publish only the first 500 characters of a very large text field-->
+      <columnModifier type="ShortenField" length="500" columnName="myfield1" />
+    </table>
+    <table>
+      <schemaName>dbo</schemaName>
+      <name>table2</name>
+      <stopOnError>true</stopOnError>  
+    </table>
+    <table>
+      <schemaName>dbo</schemaName>
+      <name>tblTest2</name>
+      <!--If a column list is specified, only columns in the list will be published. Otherwise all columns will be published.
+      If you want to add a new column to the table and to this list, you should add it to the list first, then add it to the table. -->
+      <columnList>
+        <column>column1</column>
+        <column>column2</column>
+        <column>column3</column>
+      </columnList>      
+      <stopOnError>false</stopOnError>
+    </table>     
+  </tables>
+</conf>
