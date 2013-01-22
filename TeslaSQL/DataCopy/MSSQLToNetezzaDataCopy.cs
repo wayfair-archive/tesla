@@ -57,15 +57,15 @@ namespace TeslaSQL.DataCopy {
                 sourceDataUtils.RecreateView(sourceDB, viewName, bcpSelect);
                 bcpSelect = string.Format("SELECT * FROM {0}..{1}", sourceDB, viewName);
             }
-            string directory = Config.bcpPath.TrimEnd('\\') + @"\" + sourceDB.ToLower();
+            string directory = Config.BcpPath.TrimEnd('\\') + @"\" + sourceDB.ToLower();
             CreateDirectoryIfNotExists(directory);
-            string password = new cTripleDes().Decrypt(Config.relayPassword);
+            string password = new cTripleDes().Decrypt(Config.RelayPassword);
             var bcpArgs = string.Format(@"""{0}"" queryout {1}\{2}.txt -c -S{3} -U {4} -P {5} -t""|"" -r\n",
                                             bcpSelect,
                                             directory,
                                             destTableName,
-                                            Config.relayServer,
-                                            Config.relayUser,
+                                            Config.RelayServer,
+                                            Config.RelayUser,
                                             password
                                             );
             logger.Log("BCP command: bcp " + bcpArgs.Replace(password, "********"), LogLevel.Trace);
@@ -86,7 +86,7 @@ namespace TeslaSQL.DataCopy {
             bcp.Start();
             bcp.BeginOutputReadLine();
             bcp.BeginErrorReadLine();
-            bool status = bcp.WaitForExit(Config.dataCopyTimeout * 1000);
+            bool status = bcp.WaitForExit(Config.DataCopyTimeout * 1000);
             if (!status) {
                 bcp.Kill();
                 throw new Exception("BCP timed out for table " + sourceTableName);
@@ -101,14 +101,14 @@ namespace TeslaSQL.DataCopy {
                                                 nzUser,
                                                 nzPrivateKeyPath,
                                                 nzServer,
-                                                Config.nzLoadScriptPath,
+                                                Config.NzLoadScriptPath,
                                                 destDB.ToLower(),
                                                 destTableName);
-            logger.Log("nzload command: " + Config.plinkPath + " " + plinkArgs, LogLevel.Trace);
+            logger.Log("nzload command: " + Config.PlinkPath + " " + plinkArgs, LogLevel.Trace);
             var plink = new Process();
             outputBuilder.Clear();
             errorBuilder.Clear();
-            plink.StartInfo.FileName = Config.plinkPath;
+            plink.StartInfo.FileName = Config.PlinkPath;
             plink.StartInfo.Arguments = plinkArgs;
             plink.StartInfo.UseShellExecute = false;
             plink.StartInfo.RedirectStandardError = true;
@@ -122,7 +122,7 @@ namespace TeslaSQL.DataCopy {
             plink.Start();
             plink.BeginOutputReadLine();
             plink.BeginErrorReadLine();
-            status = plink.WaitForExit(Config.dataCopyTimeout * 1000);
+            status = plink.WaitForExit(Config.DataCopyTimeout * 1000);
 
             if (!status) {
                 plink.Kill();
@@ -231,8 +231,8 @@ namespace TeslaSQL.DataCopy {
                 if (shortenedTypes.Contains(col.DataType.SqlDataType)) {
                     ColumnModifier mod = null;
                     //see if there are any column modifiers which override our length defaults
-                    IEnumerable<TableConf> tables = Config.tables.Where(t => t.name == originalTableName);
-                    ColumnModifier[] modifiers = tables.FirstOrDefault().columnModifiers;
+                    IEnumerable<TableConf> tables = Config.Tables.Where(t => t.Name == originalTableName);
+                    ColumnModifier[] modifiers = tables.FirstOrDefault().ColumnModifiers;
                     if (modifiers != null) {
                         IEnumerable<ColumnModifier> mods = modifiers.Where(c => ((c.columnName == col.Name) && (c.type == "ShortenField")));
                         mod = mods.FirstOrDefault();
@@ -240,8 +240,8 @@ namespace TeslaSQL.DataCopy {
 
                     if (mod != null) {
                         typeName += "(" + mod.length + ")";
-                    } else if (Config.netezzaStringLength > 0) {
-                        typeName += "(" + ((col.DataType.MaximumLength > Config.netezzaStringLength || col.DataType.MaximumLength < 1) ? Config.netezzaStringLength : col.DataType.MaximumLength) + ")";
+                    } else if (Config.NetezzaStringLength > 0) {
+                        typeName += "(" + ((col.DataType.MaximumLength > Config.NetezzaStringLength || col.DataType.MaximumLength < 1) ? Config.NetezzaStringLength : col.DataType.MaximumLength) + ")";
                     } else {
                         typeName += "(" + (col.DataType.MaximumLength > 0 ? col.DataType.MaximumLength : 16000) + ")";
                     }

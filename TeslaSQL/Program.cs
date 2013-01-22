@@ -59,7 +59,7 @@ namespace TeslaSQL {
                 Console.WriteLine("Please specify a valid config file path!");
                 Environment.Exit(1);
             }
-            Config.agentType = parameters.agentType;
+            Config.AgentType = parameters.agentType;
 
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
@@ -70,9 +70,9 @@ namespace TeslaSQL {
                     + " Stack Trace: " + e.StackTrace);
                 Environment.Exit(1);
             }
-            Console.Title = Config.agentType + " | TeslaSQL";
+            Console.Title = Config.AgentType + " | TeslaSQL";
 
-            var logger = new Logger(Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
+            var logger = new Logger(Config.StatsdHost, Config.StatsdPort, Config.ErrorLogDB, parameters.logFile);
 
             try {
                 XmlConfigurator.Configure(new System.IO.FileInfo(parameters.log4NetConfigPath));
@@ -103,8 +103,8 @@ namespace TeslaSQL {
             int responseCode = 0;
 
             try {
-                Agent a = CreateAgent(Config.agentType, logger);
-                logger.Log("Running agent of type " + Config.agentType, LogLevel.Info);
+                Agent a = CreateAgent(Config.AgentType, logger);
+                logger.Log("Running agent of type " + Config.AgentType, LogLevel.Info);
                 a.Run();
                 logger.Log("Agent completed successfully", LogLevel.Info);
             } catch (AggregateException ae) {
@@ -127,39 +127,39 @@ namespace TeslaSQL {
             IDataUtils destDataUtils;
             switch (agentType) {
                 case AgentType.Master:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.MASTER, Config.masterType);
-                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.MASTER, Config.MasterType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.RelayType);
                     logger.dataUtils = destDataUtils;
                     var master = new Master(sourceDataUtils, destDataUtils, logger);
                     return master;
                 case AgentType.Slave:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
-                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, Config.slaveType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.RelayType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, Config.SlaveType);
                     logger.dataUtils = sourceDataUtils;
                     var slave = new Slave(sourceDataUtils, destDataUtils, logger);
                     return slave;
                 case AgentType.ShardCoordinator:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.RelayType);
                     logger.dataUtils = sourceDataUtils;
                     var shardCoordinator = new ShardCoordinator(sourceDataUtils, logger);
                     return shardCoordinator;
                 case AgentType.Notifier:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
-                    var notifier = new Notifier(sourceDataUtils, new SimpleEmailClient(Config.emailServerHost, Config.emailFromAddress, Config.emailServerPort), logger);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.RelayType);
+                    var notifier = new Notifier(sourceDataUtils, new SimpleEmailClient(Config.EmailServerHost, Config.EmailFromAddress, Config.EmailServerPort), logger);
                     logger.dataUtils = sourceDataUtils;
                     return notifier;
                 case AgentType.MasterMaintenance:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.MASTER, Config.masterType);
-                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.MASTER, Config.MasterType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.RelayType);
                     var masterMaintenance = new MasterMaintenance(sourceDataUtils, destDataUtils, logger);
                     return masterMaintenance;
                 case AgentType.RelayMaintenance:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.RelayType);
                     var relayMaintenance = new RelayMaintenance(sourceDataUtils, logger);
                     return relayMaintenance;
                 case AgentType.SlaveMaintenance:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
-                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, Config.slaveType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.RelayType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, Config.SlaveType);
                     var slaveMaintenance = new SlaveMaintenance(sourceDataUtils, destDataUtils, logger);
                     return slaveMaintenance;
             }

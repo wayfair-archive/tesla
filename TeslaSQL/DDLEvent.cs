@@ -78,7 +78,7 @@ namespace TeslaSQL {
 
             //String.Compare method returns 0 if the strings are equal, the third "true" flag is for a case insensitive comparison
             //Get table config object
-            TableConf t = tables.SingleOrDefault(item => String.Compare(item.name, tableName, ignoreCase: true) == 0);
+            TableConf t = tables.SingleOrDefault(item => String.Compare(item.Name, tableName, ignoreCase: true) == 0);
 
             if (t == null) {
                 //the DDL event applies to a table not in our so we just ignore it
@@ -90,7 +90,7 @@ namespace TeslaSQL {
                     changeType = SchemaChangeType.Rename;
                     columnName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
                     newColumnName = xml.SelectSingleNode("/EVENT_INSTANCE/NewObjectName").InnerText;
-                    if (t.columnList == null || t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
+                    if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                         sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, newColumnName);
                         schemaChanges.Add(sc);
                     }
@@ -99,7 +99,7 @@ namespace TeslaSQL {
                     changeType = SchemaChangeType.Modify;
                     foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {
                         columnName = xColumn.InnerText;
-                        if (t.columnList == null || t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
+                        if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                             dataType = ParseDataType(dataUtils.GetDataType(dbName, tableName, schemaName, columnName));
                             sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
@@ -114,7 +114,7 @@ namespace TeslaSQL {
                         //if column list is specified, only publish schema changes if the column is already in the list. we don't want
                         //slaves adding a new column that we don't plan to publish changes for.
                         //if column list is null, we want changes associated with all columns.
-                        if (t.columnList == null || t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
+                        if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                             var type = dataUtils.GetDataType(dbName, tableName, schemaName, columnName);
                             dataType = ParseDataType(type);
                             sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
@@ -127,7 +127,7 @@ namespace TeslaSQL {
                     tableName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
                     foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Drop/Columns/Name")) {                        
                         columnName = xColumn.InnerText;
-                        if (t.columnList == null || t.columnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
+                        if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                             sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, null);
                             schemaChanges.Add(sc);
                         }

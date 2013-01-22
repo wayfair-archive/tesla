@@ -5,8 +5,8 @@ using System.Text;
 
 namespace TeslaSQL {
     public class RowCounts {
-        public readonly int Inserted;
-        public readonly int Deleted;
+        public int Inserted { get; private set; }
+        public int Deleted { get; private set; }
         public RowCounts(int ins, int del) {
             Inserted = ins;
             Deleted = del;

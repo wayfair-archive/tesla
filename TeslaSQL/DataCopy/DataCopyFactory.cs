@@ -17,7 +17,7 @@ namespace TeslaSQL.DataCopy {
                     if (destSqlFlavor == SqlFlavor.MSSQL) {
                         return new MSSQLToMSSQLDataCopy((MSSQLDataUtils)sourceDataUtils, (MSSQLDataUtils)destDataUtils, logger);
                     } else if (destSqlFlavor == SqlFlavor.Netezza) {
-                        return new MSSQLToNetezzaDataCopy((MSSQLDataUtils)sourceDataUtils, (NetezzaDataUtils)destDataUtils, logger, Config.slave, Config.netezzaUser, Config.netezzaPrivateKeyPath);
+                        return new MSSQLToNetezzaDataCopy((MSSQLDataUtils)sourceDataUtils, (NetezzaDataUtils)destDataUtils, logger, Config.Slave, Config.NetezzaUser, Config.NetezzaPrivateKeyPath);
                     }
                     break;
             }

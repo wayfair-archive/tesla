@@ -27,7 +27,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
         internal DataTable SqlQuery(string dbName, OleDbCommand cmd, int? timeout = null) {
-            int commandTimeout = timeout ?? Config.queryTimeout;
+            int commandTimeout = timeout ?? Config.QueryTimeout;
             string connStr = buildConnString(dbName);
 
             using (OleDbConnection conn = new OleDbConnection(connStr)) {
@@ -55,7 +55,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
         internal int SqlNonQuery(string dbName, OleDbCommand cmd, int? timeout = null) {
-            int commandTimeout = timeout ?? Config.queryTimeout;
+            int commandTimeout = timeout ?? Config.QueryTimeout;
             //build connection string based on server/db info passed in
             string connStr = buildConnString(dbName);
             int numrows;
@@ -94,9 +94,9 @@ namespace TeslaSQL.DataUtils {
             string sqlpass = "";
             switch (server) {
                 case TServer.SLAVE:
-                    sqlhost = Config.slave;
-                    sqluser = Config.slaveUser;
-                    sqlpass = (new cTripleDes().Decrypt(Config.slavePassword));
+                    sqlhost = Config.Slave;
+                    sqluser = Config.SlaveUser;
+                    sqlpass = (new cTripleDes().Decrypt(Config.SlavePassword));
                     break;
                 default:
                     throw new NotImplementedException("Netezza is only supported as a slave!");
@@ -149,16 +149,16 @@ namespace TeslaSQL.DataUtils {
                 foreach (var id in cmds) {
                     id.delete.Transaction = trans;
                     id.delete.Connection = conn;
-                    id.delete.CommandTimeout = Config.queryTimeout;
+                    id.delete.CommandTimeout = Config.QueryTimeout;
                     logger.Log(id.delete.CommandText, LogLevel.Trace);
                     int deleted = id.delete.ExecuteNonQuery();
-                    logger.Log(new { Table = table.name, message = "Rows deleted: " + deleted }, LogLevel.Info);
+                    logger.Log(new { Table = table.Name, message = "Rows deleted: " + deleted }, LogLevel.Info);
                     id.insert.Transaction = trans;
                     id.insert.Connection = conn;
-                    id.insert.CommandTimeout = Config.queryTimeout;
+                    id.insert.CommandTimeout = Config.QueryTimeout;
                     logger.Log(id.insert.CommandText, LogLevel.Trace);
                     int inserted = id.insert.ExecuteNonQuery();
-                    logger.Log(new { Table = table.name, message = "Rows inserted: " + inserted }, LogLevel.Info);
+                    logger.Log(new { Table = table.Name, message = "Rows inserted: " + inserted }, LogLevel.Info);
                     rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
                 }
                 trans.Commit();
@@ -177,11 +177,11 @@ namespace TeslaSQL.DataUtils {
         private InsertDelete BuildApplyCommand(TableConf table, string dbName, string CTDBName, long ctid) {
             string delete = string.Format(@"DELETE FROM {0} P
                                           WHERE EXISTS (SELECT 1 FROM {1}..{2} CT WHERE {3});",
-                                          table.name, CTDBName, table.ToCTName(ctid), table.pkList);
+                                          table.Name, CTDBName, table.ToCTName(ctid), table.PkList);
 
             string insert = string.Format(@"INSERT INTO {0} ({1}) 
                               SELECT {1} FROM {2}..{3} CT WHERE NOT EXISTS (SELECT 1 FROM {0} P WHERE {4}) AND CT.sys_change_operation IN ( 'I', 'U' );",
-                                          table.name, table.netezzaColumnList, CTDBName, table.ToCTName(ctid), table.pkList);
+                                          table.Name, table.NetezzaColumnList, CTDBName, table.ToCTName(ctid), table.PkList);
             var deleteCmd = new OleDbCommand(delete);
             var insertCmd = new OleDbCommand(insert);
             return new InsertDelete(insertCmd, deleteCmd);
@@ -202,22 +202,22 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
         public void RenameColumn(TableConf t, string dbName, string schema, string table, string columnName, string newColumnName) {
-            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + Config.slave, LogLevel.Error);
+            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + Config.Slave, LogLevel.Error);
         }
         public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
-            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + Config.slave, LogLevel.Error);
+            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + Config.Slave, LogLevel.Error);
         }
 
         public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             columnName = MapReservedWord(columnName);
             if (!CheckColumnExists(dbName, schema, table, columnName)) {
-                dataType = DataType.MapDataType(Config.relayType, SqlFlavor.Netezza, dataType);
+                dataType = DataType.MapDataType(Config.RelayType, SqlFlavor.Netezza, dataType);
                 string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table, columnName, dataType);
                 var cmd = new OleDbCommand(sql);
                 SqlNonQuery(dbName, cmd);
                 RefreshViews(dbName, table);
             }
-            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table + "_History", columnName, dataType);
                 var cmd = new OleDbCommand(sql);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
@@ -235,7 +235,7 @@ namespace TeslaSQL.DataUtils {
                 RefreshViews(dbName, table);
             }
 
-            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", columnName);
                 var cmd = new OleDbCommand(sql);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
@@ -245,16 +245,16 @@ namespace TeslaSQL.DataUtils {
         }
 
         private void RefreshViews(string dbName, string tableName) {
-            var refresh = Config.refreshViews.Where(r => r.db.ToLower() == dbName.ToLower() && r.tableName.ToLower() == tableName.ToLower()).FirstOrDefault();
+            var refresh = Config.RefreshViews.Where(r => r.Db.ToLower() == dbName.ToLower() && r.TableName.ToLower() == tableName.ToLower()).FirstOrDefault();
             if (refresh == null) {
                 return;
             }
-            string sql = refresh.command;
+            string sql = refresh.Command;
             var cmd = new OleDbCommand(sql);
             try {
                 SqlNonQuery(dbName, cmd);
             } catch (Exception) {
-                throw new Exception("Please check any pending schema changes to be applied on Netezza before refreshing the view::" + dbName + ".." + refresh.viewName);
+                throw new Exception("Please check any pending schema changes to be applied on Netezza before refreshing the view::" + dbName + ".." + refresh.ViewName);
             }
 
         }

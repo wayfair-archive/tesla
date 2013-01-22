@@ -10,26 +10,26 @@ namespace TeslaSQL {
     [XmlType("table")]
     public class TableConf {
         [XmlElement("name")]
-        public string name { get; set; }
+        public string Name { get; set; }
 
         [XmlElement("schemaName")]
-        public string schemaName { get; set; }
+        public string SchemaName { get; set; }
 
         [XmlElement("stopOnError")]
-        public bool stopOnError { get; set; }
+        public bool StopOnError { get; set; }
 
         [XmlArrayItem("column")]
-        public string[] columnList { get; set; }
+        public string[] ColumnList { get; set; }
 
         [XmlElement("columnModifier")]
-        public ColumnModifier[] columnModifiers { get; set; }
+        public ColumnModifier[] ColumnModifiers { get; set; }
 
         private Dictionary<string, string> parsedColumnModifiers_m;
         [XmlIgnore]
-        public Dictionary<string, string> parsedColumnModifiers {
+        public Dictionary<string, string> ParsedColumnModifiers {
             get {
                 if (parsedColumnModifiers_m == null) {
-                    parsedColumnModifiers_m = Config.ParseColumnModifiers(this.columnModifiers);
+                    parsedColumnModifiers_m = Config.ParseColumnModifiers(this.ColumnModifiers);
                 }
                 return parsedColumnModifiers_m;
             }
@@ -37,13 +37,13 @@ namespace TeslaSQL {
 
         //used only on slaves to keep a historical record of changes
         [XmlElement("recordHistoryTable")]
-        public bool recordHistoryTable { get; set; }
+        public bool RecordHistoryTable { get; set; }
 
         [XmlIgnore]
         public IList<TColumn> columns = new List<TColumn>();
 
         [XmlIgnore]
-        public string masterColumnList {
+        public string MasterColumnList {
             get {
                 return string.Join(",",
                     columns.Select(col => {
@@ -55,12 +55,12 @@ namespace TeslaSQL {
         }
 
         [XmlIgnore]
-        public string modifiedMasterColumnList {
+        public string ModifiedMasterColumnList {
             get {
                 return string.Join(",",
                         columns.Select(col => {
-                            if (parsedColumnModifiers.ContainsKey(col.name)) {
-                                return parsedColumnModifiers[col.name];
+                            if (ParsedColumnModifiers.ContainsKey(col.name)) {
+                                return ParsedColumnModifiers[col.name];
                             } else {
                                 return col.isPk ? "CT." + col.name : "P." + col.name;
                             }
@@ -71,7 +71,7 @@ namespace TeslaSQL {
 
 
         [XmlIgnore]
-        public string simpleColumnList {
+        public string SimpleColumnList {
             get {
                 return string.Join(",", columns.Select(col => col.name));
             }
@@ -79,21 +79,21 @@ namespace TeslaSQL {
 
 
         [XmlIgnore]
-        public string netezzaColumnList {
+        public string NetezzaColumnList {
             get {
                 return string.Join(",", columns.Select(col => NetezzaDataUtils.MapReservedWord(col.name)));
             }
         }
 
         [XmlIgnore]
-        public string slaveColumnList {
+        public string SlaveColumnList {
             get {
-                return simpleColumnList;
+                return SimpleColumnList;
             }
         }
 
         [XmlIgnore]
-        public string mergeUpdateList {
+        public string MergeUpdateList {
             get {
                 return string.Join(
                     ",",
@@ -103,7 +103,7 @@ namespace TeslaSQL {
         }
 
         [XmlIgnore]
-        public string pkList {
+        public string PkList {
             get {
                 return string.Join(
                     " AND ",
@@ -113,7 +113,7 @@ namespace TeslaSQL {
         }
 
         [XmlIgnore]
-        public string notNullPKList {
+        public string NotNullPKList {
             get {
                 return string.Join(
                     " AND ",
@@ -123,20 +123,20 @@ namespace TeslaSQL {
         }
 
         [XmlIgnore]
-        public string fullName {
+        public string FullName {
             get {
-                return schemaName + "." + name;
+                return SchemaName + "." + Name;
             }
         }
 
         public string ToCTName(Int64 CTID) {
-            return "tblCT" + name + "_" + CTID;
+            return "tblCT" + Name + "_" + CTID;
         }
         public string ToFullCTName(Int64 CTID) {
-            return string.Format("[{0}].[{1}]", schemaName, ToCTName(CTID));
+            return string.Format("[{0}].[{1}]", SchemaName, ToCTName(CTID));
         }
         public override string ToString() {
-            return fullName;
+            return FullName;
         }
     }
 }

@@ -17,32 +17,32 @@ namespace TeslaSQL.Agents {
         public MasterMaintenance() { }
 
         public override void ValidateConfig() {
-            Config.ValidateRequiredHost(Config.master);
-            Config.ValidateRequiredHost(Config.relayServer);
-            if (Config.masterType == SqlFlavor.None) {
+            Config.ValidateRequiredHost(Config.Master);
+            Config.ValidateRequiredHost(Config.RelayServer);
+            if (Config.MasterType == SqlFlavor.None) {
                 throw new Exception("MasterMaintenance agent requires a valid SQL flavor for master");
             }
-            if (Config.masterCTDB == null) {
+            if (Config.MasterCTDB == null) {
                 throw new Exception("MasterMaintenance agent requires masterCTDB to be set");
             }
-            if (Config.relayType == SqlFlavor.None) {
+            if (Config.RelayType == SqlFlavor.None) {
                 throw new Exception("MasterMaintenance agent requires a valid SQL flavor for relay");
             }
-            if (Config.relayDB == null) {
+            if (Config.RelayDB == null) {
                 throw new Exception("MasterMaintenance agent requires relayDB to be set");
             }
-            if (Config.changeRetentionHours <= 0) {
+            if (Config.ChangeRetentionHours <= 0) {
                 throw new Exception("MasterMaintenance agent requires changeRetentionHours to be set and positive");
             }
         }
 
         public override void Run() {
-            var chopDate = DateTime.Now - new TimeSpan(Config.changeRetentionHours, 0, 0);
-            var ctids = destDataUtils.GetOldCTIDsMaster(Config.relayDB, chopDate);
+            var chopDate = DateTime.Now - new TimeSpan(Config.ChangeRetentionHours, 0, 0);
+            var ctids = destDataUtils.GetOldCTIDsMaster(Config.RelayDB, chopDate);
 
-            var tables = sourceDataUtils.GetTables(Config.masterCTDB);
+            var tables = sourceDataUtils.GetTables(Config.MasterCTDB);
             logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
-            MaintenanceHelper.DeleteOldTables(ctids, tables, sourceDataUtils, Config.masterCTDB);
+            MaintenanceHelper.DeleteOldTables(ctids, tables, sourceDataUtils, Config.MasterCTDB);
         }
     }
 }

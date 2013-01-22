@@ -27,66 +27,66 @@ namespace TeslaSQL {
             c = (ConfigLoader)serializer.Deserialize(reader);
             reader.Close();
 
-            masterDB = ValidateNullableIdentifier(c.masterDB);
-            masterCTDB = ValidateNullableIdentifier(c.masterCTDB);
-            slaveCTDB = ValidateNullableIdentifier(c.slaveCTDB);
-            slaveDB = ValidateNullableIdentifier(c.slaveDB);
-            relayDB = ValidateNullableIdentifier(c.relayDB);
-            errorLogDB = ValidateNullableIdentifier(c.errorLogDB);
-            errorTable = c.errorTable;
-            masterUser = ValidateNullableIdentifier(c.masterUser);
-            masterPassword = c.masterPassword;
-            slaveUser = ValidateNullableIdentifier(c.slaveUser);
-            slavePassword = c.slavePassword;
-            relayUser = ValidateNullableIdentifier(c.relayUser);
-            relayPassword = c.relayPassword;
-            changeRetentionHours = c.changeRetentionHours;
+            MasterDB = ValidateNullableIdentifier(c.masterDB);
+            MasterCTDB = ValidateNullableIdentifier(c.masterCTDB);
+            SlaveCTDB = ValidateNullableIdentifier(c.slaveCTDB);
+            SlaveDB = ValidateNullableIdentifier(c.slaveDB);
+            RelayDB = ValidateNullableIdentifier(c.relayDB);
+            ErrorLogDB = ValidateNullableIdentifier(c.errorLogDB);
+            ErrorTable = c.errorTable;
+            MasterUser = ValidateNullableIdentifier(c.masterUser);
+            MasterPassword = c.masterPassword;
+            SlaveUser = ValidateNullableIdentifier(c.slaveUser);
+            SlavePassword = c.slavePassword;
+            RelayUser = ValidateNullableIdentifier(c.relayUser);
+            RelayPassword = c.relayPassword;
+            ChangeRetentionHours = c.changeRetentionHours;
             batchRecordRetentionDays = c.batchRecordRetentionDays;
-            maxBatchSize = c.maxBatchSize;
-            batchConsolidationThreshold = c.batchConsolidationThreshold;
-            statsdHost = c.statsdHost;
-            statsdPort = c.statsdPort;
-            relayServer = c.relayServer;
-            slave = c.slave;
-            master = c.master;
-            emailServerHost = c.emailServerHost;
-            emailServerPort = c.emailServerPort;
-            emailFromAddress = c.emailFromAddress;
-            emailErrorRecipient = c.emailErrorRecipient;
-            sharding = c.sharding;
+            MaxBatchSize = c.maxBatchSize;
+            BbatchConsolidationThreshold = c.batchConsolidationThreshold;
+            StatsdHost = c.statsdHost;
+            StatsdPort = c.statsdPort;
+            RelayServer = c.relayServer;
+            Slave = c.slave;
+            Master = c.master;
+            EmailServerHost = c.emailServerHost;
+            EmailServerPort = c.emailServerPort;
+            EmailFromAddress = c.emailFromAddress;
+            EmailErrorRecipient = c.emailErrorRecipient;
+            Sharding = c.sharding;
             shardDatabases_local = c.shardDatabases;
-            masterShard = c.masterShard;
-            dataCopyTimeout = c.dataCopyTimeout > 0 ? c.dataCopyTimeout : 36000;
-            queryTimeout = c.queryTimeout > 0 ? c.queryTimeout : 12000;
-            netezzaPrivateKeyPath = c.netezzaPrivateKeyPath;
-            netezzaUser = c.netezzaUser;
-            refreshViews = c.refreshViews;
+            MasterShard = c.masterShard;
+            DataCopyTimeout = c.dataCopyTimeout > 0 ? c.dataCopyTimeout : 36000;
+            QueryTimeout = c.queryTimeout > 0 ? c.queryTimeout : 12000;
+            NetezzaPrivateKeyPath = c.netezzaPrivateKeyPath;
+            NetezzaUser = c.netezzaUser;
+            RefreshViews = c.refreshViews;
             maxThreads_local = c.maxThreads;
-            bcpPath = c.bcpPath;
-            nzLoadScriptPath = c.nzLoadScriptPath;
-            netezzaStringLength = c.netezzaStringLength;
-            plinkPath = c.plinkPath;
+            BcpPath = c.bcpPath;
+            NzLoadScriptPath = c.nzLoadScriptPath;
+            NetezzaStringLength = c.netezzaStringLength;
+            PlinkPath = c.plinkPath;
 
             if (c.magicHours != null) {
-                magicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
+                MagicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
             }
 
             if (c.thresholdIgnoreStartTime != null) {
-                thresholdIgnoreStartTime = TimeSpan.Parse(c.thresholdIgnoreStartTime);
+                TthresholdIgnoreStartTime = TimeSpan.Parse(c.thresholdIgnoreStartTime);
             }
             if (c.thresholdIgnoreEndTime != null) {
-                thresholdIgnoreEndTime = TimeSpan.Parse(c.thresholdIgnoreEndTime);
+                TthresholdIgnoreEndTime = TimeSpan.Parse(c.thresholdIgnoreEndTime);
             }
 
-            relayType = c.relayType;
-            masterType = c.masterType;
-            slaveType = c.slaveType;
+            RelayType = c.relayType;
+            MasterType = c.masterType;
+            SlaveType = c.slaveType;
 
-            tables = c.t;
+            Tables = c.t;
             //this is the simplest way to simulate a "default value" when doing this deserialization
-            foreach (TableConf t in tables) {
-                if (t.schemaName == null) {
-                    t.schemaName = "dbo";
+            foreach (TableConf t in Tables) {
+                if (t.SchemaName == null) {
+                    t.SchemaName = "dbo";
                 }
             }
         }
@@ -276,53 +276,53 @@ namespace TeslaSQL {
 
         #region properties
         //array of table objects for global configuration        
-        public static List<TableConf> tables { get; set; }
+        public static List<TableConf> Tables { get; set; }
 
         //the agent type we should run (i.e. master, slave)
-        public static AgentType agentType { get; set; }
+        public static AgentType AgentType { get; set; }
 
         //hostname or IP of the master server
-        public static string master { get; set; }
+        public static string Master { get; set; }
 
         //hostname or IP of the slave server
-        public static string slave { get; set; }
+        public static string Slave { get; set; }
 
         //hostname or IP of the relay server
-        public static string relayServer { get; set; }
+        public static string RelayServer { get; set; }
 
         //type of relay server (i.e. MSSQL, MySQL, PostgreSQL)
-        public static SqlFlavor relayType { get; set; }
+        public static SqlFlavor RelayType { get; set; }
 
         //type of master server (i.e. MSSQL, MySQL, PostgreSQL)
-        public static SqlFlavor masterType { get; set; }
+        public static SqlFlavor MasterType { get; set; }
 
         //type of slave server (i.e. MSSQL, MySQL, PostgreSQL)
-        public static SqlFlavor slaveType { get; set; }
+        public static SqlFlavor SlaveType { get; set; }
 
         //master database name
-        public static string masterDB { get; set; }
+        public static string MasterDB { get; set; }
 
         //master CT database name
-        public static string masterCTDB { get; set; }
+        public static string MasterCTDB { get; set; }
 
         //slave database name
-        public static string slaveDB { get; set; }
+        public static string SlaveDB { get; set; }
 
         //slave CT database name
-        public static string slaveCTDB { get; set; }
+        public static string SlaveCTDB { get; set; }
 
         //relay database name        
-        public static string relayDB { get; set; }
+        public static string RelayDB { get; set; }
 
         //database to log errors to
-        public static string errorLogDB { get; set; }
+        public static string ErrorLogDB { get; set; }
 
-        public static string errorTable { get; set; }
+        public static string ErrorTable { get; set; }
 
         /// <summary>
         /// how many hours to retain changes for in the relay server
         /// </summary>
-        public static int changeRetentionHours { get; set; }
+        public static int ChangeRetentionHours { get; set; }
 
         /// <summary>
         /// how many days to retain records in CTVersion tables
@@ -330,99 +330,99 @@ namespace TeslaSQL {
         public static int batchRecordRetentionDays { get; set; }
 
         //username to use when connecting to the master
-        public static string masterUser { get; set; }
+        public static string MasterUser { get; set; }
 
         //password to use when connecting to the master
-        public static string masterPassword { get; set; }
+        public static string MasterPassword { get; set; }
 
         //username to use when connecting to the slave
-        public static string slaveUser { get; set; }
+        public static string SlaveUser { get; set; }
 
         //password to use when connecting to the slave
-        public static string slavePassword { get; set; }
+        public static string SlavePassword { get; set; }
 
         //username to use when connecting to the relay server
-        public static string relayUser { get; set; }
+        public static string RelayUser { get; set; }
 
         //password to use when connecting to the relay server
-        public static string relayPassword { get; set; }
+        public static string RelayPassword { get; set; }
 
         //how many CT versions to include in a batch on the master
-        public static int maxBatchSize { get; set; }
+        public static int MaxBatchSize { get; set; }
 
         //start time for when we ignore the max batch size each day (to catch up if we are behind)
-        public static TimeSpan? thresholdIgnoreStartTime { get; set; }
+        public static TimeSpan? TthresholdIgnoreStartTime { get; set; }
 
         //end time for when we ignore the max batch size each day (to catch up if we are behind)
-        public static TimeSpan? thresholdIgnoreEndTime { get; set; }
+        public static TimeSpan? TthresholdIgnoreEndTime { get; set; }
 
         //once a slave gets this many batches behind it will start consolidating them into a bigger batch
-        public static int batchConsolidationThreshold { get; set; }
+        public static int BbatchConsolidationThreshold { get; set; }
 
         //hostname or ip to write statsd calls to
-        public static string statsdHost { get; set; }
+        public static string StatsdHost { get; set; }
 
         //port to write statsd calls to
-        public static string statsdPort { get; set; }
+        public static string StatsdPort { get; set; }
 
         //smtp server hostname or ip
-        public static string emailServerHost { get; set; }
+        public static string EmailServerHost { get; set; }
 
         //smtp port
-        public static int emailServerPort { get; set; }
+        public static int EmailServerPort { get; set; }
 
         //address to send notifications from in Notifier agent
-        public static string emailFromAddress { get; set; }
+        public static string EmailFromAddress { get; set; }
 
         //address or list of addresses to send notifications to in Notifier agent
-        public static string emailErrorRecipient { get; set; }
+        public static string EmailErrorRecipient { get; set; }
 
         //is this a master agent that takes part in sharding?
-        public static bool sharding { get; set; }
+        public static bool Sharding { get; set; }
 
         //for shardcoordinator, list of shard databases
         private static string[] shardDatabases_local { get; set; }
-        public static IEnumerable<string> shardDatabases { get { return shardDatabases_local != null ? shardDatabases_local.ToList() : new List<string>(); } }
+        public static IEnumerable<string> ShardDatabases { get { return shardDatabases_local != null ? shardDatabases_local.ToList() : new List<string>(); } }
 
         //one shard to rule them all (which one we pull schema changes from). in a standard sharded setup this can be arbitrary.
-        public static string masterShard { get; set; }
+        public static string MasterShard { get; set; }
 
         //ssh user for sshing to a netezza slave
-        public static string netezzaUser { get; set; }
+        public static string NetezzaUser { get; set; }
 
         //private key for sshing to a netezza slave
-        public static string netezzaPrivateKeyPath { get; set; }
+        public static string NetezzaPrivateKeyPath { get; set; }
 
         //array of times after which a slave will sync changes
-        public static TimeSpan[] magicHours { get; set; }
+        public static TimeSpan[] MagicHours { get; set; }
 
         //timeout for copying data from one server to another
-        public static int dataCopyTimeout { get; set; }
+        public static int DataCopyTimeout { get; set; }
 
         //timeout for various queries that run as part of tesla
-        public static int queryTimeout { get; set; }
+        public static int QueryTimeout { get; set; }
 
         //views to be refreshed when a table is altered on a slave
-        public static List<RefreshView> refreshViews { get; set; }
+        public static List<RefreshView> RefreshViews { get; set; }
 
         //default maximum for string columns in netezza slaves. can be overriden using 
         //column modifiers. Since Netezza has pretty restrictive row size limits and you generally
         //don't use big strings in data warehouses, this helps avoid those limits.
-        public static int netezzaStringLength { get; set; }
+        public static int NetezzaStringLength { get; set; }
 
         //path to BCP data out to for copying to netezza (should be an NFS share that netezza can mount)
-        public static string bcpPath { get; set; }
+        public static string BcpPath { get; set; }
 
         //path to a shell script on the Netezza server that wraps an nzload command for loading data
         //must be executable by the nzuser that we ssh as
-        public static string nzLoadScriptPath { get; set; }
+        public static string NzLoadScriptPath { get; set; }
 
         //path to plink executable for sshing into netezza
-        public static string plinkPath { get; set; }
+        public static string PlinkPath { get; set; }
 
         //maximum number of threads to use in multithreaded portions of tesla
         private static int maxThreads_local;
-        public static int maxThreads {
+        public static int MaxThreads {
             get { return maxThreads_local > 0 ? maxThreads_local : -1; }
             set { maxThreads_local = value; }
         }
@@ -516,14 +516,14 @@ namespace TeslaSQL {
 
     [XmlType("refreshView")]
     public class RefreshView {
-        public string viewName { get; set; }
-        public string db { get; set; }
-        public string command { get; set; }
+        public string ViewName { get; set; }
+        public string Db { get; set; }
+        public string Command { get; set; }
         [XmlIgnore]
-        public string tableName { get { return Regex.Replace(viewName, "vw", "TBL", RegexOptions.IgnoreCase); } }
+        public string TableName { get { return Regex.Replace(ViewName, "vw", "TBL", RegexOptions.IgnoreCase); } }
 
         public override string ToString() {
-            return string.Format("{0}..{1}: command = {2}", db, viewName, command);
+            return string.Format("{0}..{1}: command = {2}", Db, ViewName, Command);
         }
     }
 

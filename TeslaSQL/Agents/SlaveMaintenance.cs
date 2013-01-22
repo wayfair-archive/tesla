@@ -17,17 +17,17 @@ namespace TeslaSQL.Agents {
         }
 
         public override void ValidateConfig() {
-            Config.ValidateRequiredHost(Config.slave);
-            if (Config.slaveType == SqlFlavor.None) {
+            Config.ValidateRequiredHost(Config.Slave);
+            if (Config.SlaveType == SqlFlavor.None) {
                 throw new Exception("SlaveMaintenance agent requires a valid SQL flavor for slave");
             }
         }
         public override void Run() {
-            var chopDate = DateTime.Now - new TimeSpan(Config.changeRetentionHours, 0, 0);
-            IEnumerable<long> ctids = relayDataUtils.GetOldCTIDsSlave(Config.relayDB, chopDate, Config.slave);
-            var tables = slaveDataUtils.GetTables(Config.slaveCTDB);
+            var chopDate = DateTime.Now - new TimeSpan(Config.ChangeRetentionHours, 0, 0);
+            IEnumerable<long> ctids = relayDataUtils.GetOldCTIDsSlave(Config.RelayDB, chopDate, Config.Slave);
+            var tables = slaveDataUtils.GetTables(Config.SlaveCTDB);
             logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
-            MaintenanceHelper.DeleteOldTables(ctids, tables, slaveDataUtils, Config.slaveCTDB);
+            MaintenanceHelper.DeleteOldTables(ctids, tables, slaveDataUtils, Config.SlaveCTDB);
         }
     }
 }

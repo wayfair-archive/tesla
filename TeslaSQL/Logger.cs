@@ -83,13 +83,13 @@ namespace TeslaSQL {
         /// Sets log4net thread context based on config variables. These get logged as custom fields in gelf.
         /// </summary>
         private static void SetContext() {
-            log4net.ThreadContext.Properties["AgentType"] = Config.agentType;
-            log4net.ThreadContext.Properties["Master"] = Config.master;
-            log4net.ThreadContext.Properties["Relay"] = Config.relayServer;
-            log4net.ThreadContext.Properties["Slave"] = Config.slave;
-            log4net.ThreadContext.Properties["MasterDB"] = Config.masterDB;
-            log4net.ThreadContext.Properties["RelayDB"] = Config.relayDB;
-            log4net.ThreadContext.Properties["SlaveDB"] = Config.slaveDB;
+            log4net.ThreadContext.Properties["AgentType"] = Config.AgentType;
+            log4net.ThreadContext.Properties["Master"] = Config.Master;
+            log4net.ThreadContext.Properties["Relay"] = Config.RelayServer;
+            log4net.ThreadContext.Properties["Slave"] = Config.Slave;
+            log4net.ThreadContext.Properties["MasterDB"] = Config.MasterDB;
+            log4net.ThreadContext.Properties["RelayDB"] = Config.RelayDB;
+            log4net.ThreadContext.Properties["SlaveDB"] = Config.SlaveDB;
             log4net.ThreadContext.Properties["Thread"] = System.Threading.Thread.CurrentThread.ManagedThreadId;
         }
 
@@ -135,16 +135,16 @@ namespace TeslaSQL {
             //errors are special - they are exceptions that don't stop the program but we want to write them to a database
             //table
             if (level.Equals(LogLevel.Error) && errorLogDB != null && dataUtils != null) {
-                string error = "Agent: " + Config.agentType;
-                if (Config.master != null) {
-                    error += " Master: " + Config.master;
-                    error += " DB: " + Config.masterDB;
-                } else if (Config.slave != null) {
-                    error += " Slave: " + Config.slave;
-                    error += " DB: " + Config.slaveDB;
+                string error = "Agent: " + Config.AgentType;
+                if (Config.Master != null) {
+                    error += " Master: " + Config.Master;
+                    error += " DB: " + Config.MasterDB;
+                } else if (Config.Slave != null) {
+                    error += " Slave: " + Config.Slave;
+                    error += " DB: " + Config.SlaveDB;
                 } else {
-                    error += " Relay: " + Config.relayServer;
-                    error += " DB: " + Config.relayDB;
+                    error += " Relay: " + Config.RelayServer;
+                    error += " DB: " + Config.RelayDB;
                 }
                 error += " - " + message;
                 dataUtils.LogError(error);
