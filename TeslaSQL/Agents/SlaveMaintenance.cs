@@ -18,7 +18,7 @@ namespace TeslaSQL.Agents {
 
         public override void ValidateConfig() {
             Config.ValidateRequiredHost(Config.slave);
-            if (Config.slaveType == null) {
+            if (Config.slaveType == SqlFlavor.None) {
                 throw new Exception("SlaveMaintenance agent requires a valid SQL flavor for slave");
             }
         }

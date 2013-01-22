@@ -10,6 +10,7 @@ namespace TeslaSQL {
     /// Defines which task this agent should run
     /// </summary>
     public enum AgentType {
+        None,
         Master,
         Slave,
         ShardCoordinator,
@@ -67,6 +68,7 @@ namespace TeslaSQL {
     /// List of supported sql databases
     /// </summary>
     public enum SqlFlavor {
+        None,
         MSSQL,
         Netezza
     }

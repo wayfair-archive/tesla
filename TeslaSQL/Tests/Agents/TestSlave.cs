@@ -314,6 +314,7 @@ namespace TeslaSQL.Tests.Agents {
             string slaveName = "slave";
             var tableConf = new List<TableConf>();
             var tables = new HashSet<ChangeTable>();
+            
             var table = new TableConf();
             table.name = "tblName";
             var aTable = new TableConf();

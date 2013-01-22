@@ -78,35 +78,9 @@ namespace TeslaSQL {
                 thresholdIgnoreEndTime = TimeSpan.Parse(c.thresholdIgnoreEndTime);
             }
 
-            AgentType parsedAgentType;
-            if (!Enum.TryParse(c.agentType, out parsedAgentType)) {
-                throw new InvalidDataException("Invalid agent type in configuration file!");
-            } else {
-                agentType = parsedAgentType;
-            }
-
-            if (!String.IsNullOrEmpty(c.relayType)) {
-                try {
-                    relayType = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.relayType);
-                } catch {
-                    throw new InvalidDataException("Invalid SQL type: " + c.relayType);
-                }
-            }
-            if (!String.IsNullOrEmpty(c.masterType)) {
-                try {
-                    masterType = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.masterType);
-                } catch {
-                    throw new InvalidDataException("Invalid SQL type: " + c.masterType);
-                }
-            }
-
-            if (!String.IsNullOrEmpty(c.slaveType)) {
-                try {
-                    slaveType = (SqlFlavor)Enum.Parse(typeof(SqlFlavor), c.slaveType);
-                } catch {
-                    throw new InvalidDataException("Invalid SQL type: " + c.slaveType);
-                }
-            }
+            relayType = c.relayType;
+            masterType = c.masterType;
+            slaveType = c.slaveType;
 
             tables = c.t;
             //this is the simplest way to simulate a "default value" when doing this deserialization
@@ -220,8 +194,9 @@ namespace TeslaSQL {
                     //use Cyan for nested properties names to break up the monotony
                     nameColor = ConsoleColor.Cyan;
                     Console.Write(prefix + "Property: ");
-                } else
+                } else {
                     Console.Write("Property: ");
+                }
 
                 Console.ForegroundColor = nameColor;
                 Console.Write(prop.Name);
@@ -288,8 +263,9 @@ namespace TeslaSQL {
                     Console.CursorLeft = Console.BufferWidth - 7;
                     Console.Write("...more");
                     ConsoleKeyInfo cki = Console.ReadKey(true);
-                } else
+                } else {
                     Console.WriteLine(message);
+                }
                 return counter;
             } else {
                 Console.WriteLine(message);
@@ -315,13 +291,13 @@ namespace TeslaSQL {
         public static string relayServer { get; set; }
 
         //type of relay server (i.e. MSSQL, MySQL, PostgreSQL)
-        public static SqlFlavor? relayType { get; set; }
+        public static SqlFlavor relayType { get; set; }
 
         //type of master server (i.e. MSSQL, MySQL, PostgreSQL)
-        public static SqlFlavor? masterType { get; set; }
+        public static SqlFlavor masterType { get; set; }
 
         //type of slave server (i.e. MSSQL, MySQL, PostgreSQL)
-        public static SqlFlavor? slaveType { get; set; }
+        public static SqlFlavor slaveType { get; set; }
 
         //master database name
         public static string masterDB { get; set; }
@@ -484,13 +460,12 @@ namespace TeslaSQL {
     //This needs to be a class for the XmlRoot attribute to deserialize properly
     [XmlRoot("conf")]
     public class ConfigLoader {
-        public string agentType { get; set; }
         public string master { get; set; }
-        public string masterType { get; set; }
+        public SqlFlavor masterType { get; set; }
         public string slave { get; set; }
-        public string slaveType { get; set; }
+        public SqlFlavor slaveType { get; set; }
         public string relayServer { get; set; }
-        public string relayType { get; set; }
+        public SqlFlavor relayType { get; set; }
         public string masterDB { get; set; }
         public string masterCTDB { get; set; }
         public string slaveDB { get; set; }

@@ -211,7 +211,7 @@ namespace TeslaSQL.DataUtils {
         public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             columnName = MapReservedWord(columnName);
             if (!CheckColumnExists(dbName, schema, table, columnName)) {
-                dataType = DataType.MapDataType(Config.relayType.Value, SqlFlavor.Netezza, dataType);
+                dataType = DataType.MapDataType(Config.relayType, SqlFlavor.Netezza, dataType);
                 string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table, columnName, dataType);
                 var cmd = new OleDbCommand(sql);
                 SqlNonQuery(dbName, cmd);

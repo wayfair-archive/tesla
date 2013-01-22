@@ -66,18 +66,13 @@ namespace TeslaSQL {
         /// <param name="toCompare">The schema change to compare to</param>
         /// <returns>True if all properties are the same, false otherwise</returns>
         public bool Equals(SchemaChange toCompare) {
-            if (ddeID != toCompare.ddeID
-                || !eventType.Equals(toCompare.eventType)
-                || schemaName != toCompare.schemaName
-                || tableName != toCompare.tableName
-                || columnName != toCompare.columnName
-                || newColumnName != toCompare.newColumnName
-                || !DataType.Equals(dataType, toCompare.dataType)
-               ) {
-                return false;
-            } else {
-                return true;
-            }
+            return (ddeID == toCompare.ddeID
+                && eventType == toCompare.eventType
+                && schemaName == toCompare.schemaName
+                && tableName == toCompare.tableName
+                && columnName == toCompare.columnName
+                && newColumnName == toCompare.newColumnName
+                && DataType.Equals(dataType, toCompare.dataType));
         }
 
         public override string ToString() {

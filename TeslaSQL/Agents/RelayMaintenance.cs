@@ -9,14 +9,14 @@ namespace TeslaSQL.Agents {
     /// Cleans up old data on the relay server
     /// </summary>
     class RelayMaintenance : Agent {
-        private IDataUtils relayDataUtils { get { return this.sourceDataUtils;}}
+        private IDataUtils relayDataUtils { get { return this.sourceDataUtils; } }
         public RelayMaintenance(IDataUtils dataUtils, Logger logger)
             : base(dataUtils, null, logger) {
         }
 
         public override void ValidateConfig() {
             Config.ValidateRequiredHost(Config.relayServer);
-            if (Config.relayType == null) {
+            if (Config.relayType == SqlFlavor.None) {
                 throw new Exception("RelayMaintenance agent requires a valid SQL flavor for relay");
             }
             if (string.IsNullOrEmpty(Config.relayDB)) {

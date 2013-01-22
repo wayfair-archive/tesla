@@ -28,7 +28,7 @@ namespace TeslaSQL.Agents {
 
         public override void ValidateConfig() {
             Config.ValidateRequiredHost(Config.relayServer);
-            if (Config.relayType == null) {
+            if (Config.relayType == SqlFlavor.None) {
                 throw new Exception("ShardCoordinator agent requires a valid SQL flavor for relay");
             }
             if (string.IsNullOrEmpty(Config.masterShard)) {
@@ -125,7 +125,7 @@ namespace TeslaSQL.Agents {
         }
 
         private void PublishSchemaChanges(ChangeTrackingBatch batch) {
-            var dc = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
+            var dc = DataCopyFactory.GetInstance(Config.relayType, Config.relayType, sourceDataUtils, sourceDataUtils, logger);
             dc.CopyTable(Config.masterShard, batch.schemaChangeTable, "dbo", Config.relayDB, Config.dataCopyTimeout);
         }
 
@@ -157,7 +157,7 @@ namespace TeslaSQL.Agents {
 
         private void MergeTable(ChangeTrackingBatch batch, Dictionary<string, List<TColumn>> dbColumns, TableConf table, string firstDB) {
             logger.Log(new { message = "Merging table", Table = table.name }, LogLevel.Debug);
-            var dc = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
+            var dc = DataCopyFactory.GetInstance(Config.relayType, Config.relayType, sourceDataUtils, sourceDataUtils, logger);
             dc.CopyTableDefinition(firstDB, table.ToCTName(batch.CTID), table.schemaName, Config.relayDB, table.ToCTName(batch.CTID));
             foreach (var dbNameFields in dbColumns) {
                 var dbName = dbNameFields.Key;

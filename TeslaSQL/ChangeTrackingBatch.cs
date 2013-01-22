@@ -48,15 +48,10 @@ namespace TeslaSQL {
         /// Compare two ChangeTrackingBatch objects. Used for unit tests.
         /// </summary>
         public bool Equals(ChangeTrackingBatch expected) {
-            if (CTID != expected.CTID
-                || syncStartVersion != expected.syncStartVersion
-                || syncStopVersion != expected.syncStopVersion
-                || syncBitWise != expected.syncBitWise
-               ) {
-                return false;
-            } else {
-                return true;
-            }
+            return (CTID == expected.CTID
+                && syncStartVersion == expected.syncStartVersion
+                && syncStopVersion == expected.syncStopVersion
+                && syncBitWise == expected.syncBitWise);
         }
 
         public string schemaChangeTable { get { return "tblCTSchemaChange_" + CTID; } }

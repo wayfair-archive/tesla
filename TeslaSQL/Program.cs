@@ -46,16 +46,21 @@ namespace TeslaSQL {
                 Console.WriteLine("Try `TeslaSQL --help' for more information.");
                 Environment.Exit(1);
             }
-
             if (parameters.showHelp) {
                 ShowHelp(parameters.optionSet);
                 return;
+            }
+            if (parameters.agentType == AgentType.None) {
+                Console.WriteLine("Please specify a valid agent type. use --help for more information.");
+                Environment.Exit(1);
             }
 
             if (String.IsNullOrEmpty(parameters.configFile) || !ValidatePath(parameters.configFile)) {
                 Console.WriteLine("Please specify a valid config file path!");
                 Environment.Exit(1);
             }
+            Config.agentType = parameters.agentType;
+
 
             Console.WriteLine("TeslaSQL -- loading configuration file");
             try {
@@ -67,7 +72,7 @@ namespace TeslaSQL {
             }
             Console.Title = Config.agentType + " | TeslaSQL";
 
-            var logger = new Logger( Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
+            var logger = new Logger(Config.statsdHost, Config.statsdPort, Config.errorLogDB, parameters.logFile);
 
             try {
                 XmlConfigurator.Configure(new System.IO.FileInfo(parameters.log4NetConfigPath));
@@ -122,39 +127,39 @@ namespace TeslaSQL {
             IDataUtils destDataUtils;
             switch (agentType) {
                 case AgentType.Master:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.MASTER, (SqlFlavor)Config.masterType);
-                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.MASTER, Config.masterType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
                     logger.dataUtils = destDataUtils;
                     var master = new Master(sourceDataUtils, destDataUtils, logger);
                     return master;
                 case AgentType.Slave:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
-                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, (SqlFlavor)Config.slaveType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, Config.slaveType);
                     logger.dataUtils = sourceDataUtils;
                     var slave = new Slave(sourceDataUtils, destDataUtils, logger);
                     return slave;
                 case AgentType.ShardCoordinator:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
                     logger.dataUtils = sourceDataUtils;
                     var shardCoordinator = new ShardCoordinator(sourceDataUtils, logger);
                     return shardCoordinator;
                 case AgentType.Notifier:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
                     var notifier = new Notifier(sourceDataUtils, new SimpleEmailClient(Config.emailServerHost, Config.emailFromAddress, Config.emailServerPort), logger);
                     logger.dataUtils = sourceDataUtils;
                     return notifier;
                 case AgentType.MasterMaintenance:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.MASTER, (SqlFlavor)Config.masterType);
-                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType.Value);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.MASTER, Config.masterType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
                     var masterMaintenance = new MasterMaintenance(sourceDataUtils, destDataUtils, logger);
                     return masterMaintenance;
                 case AgentType.RelayMaintenance:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
                     var relayMaintenance = new RelayMaintenance(sourceDataUtils, logger);
                     return relayMaintenance;
                 case AgentType.SlaveMaintenance:
-                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, (SqlFlavor)Config.relayType);
-                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, Config.slaveType.Value);
+                    sourceDataUtils = DataUtilsFactory.GetInstance(logger, TServer.RELAY, Config.relayType);
+                    destDataUtils = DataUtilsFactory.GetInstance(logger, TServer.SLAVE, Config.slaveType);
                     var slaveMaintenance = new SlaveMaintenance(sourceDataUtils, destDataUtils, logger);
                     return slaveMaintenance;
             }
@@ -173,6 +178,7 @@ namespace TeslaSQL {
             public string logFile { get; set; }
             public string dataMappingFile { get; set; }
             public string log4NetConfigPath { get; set; }
+            public AgentType agentType { get; set; }
             public OptionSet optionSet { get; set; }
         }
 
@@ -231,7 +237,9 @@ namespace TeslaSQL {
             { "p|datamappingfile=", "The data type mappings file {PATH} used by Slave agents.",
                 v => parameters.dataMappingFile = v},
             { "n|log4netfile=", "The log4net configuration file {PATH}.",
-                v => parameters.log4NetConfigPath = v}
+                v => parameters.log4NetConfigPath = v},
+            { "a|agent=", "The agent type that you wish to run. Valid options are 'Master', 'Slave', 'ShardCoordinator', 'MasterMaintenance', 'RelayMaintenance', 'SlaveMaintenance', 'Notifier'",
+                v => parameters.agentType = (AgentType)Enum.Parse(typeof(AgentType),v)}
             };
 
             //Save the option set object to the params struct. This is required to run ShowHelp if --help is passed in.

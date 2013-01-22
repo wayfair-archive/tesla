@@ -33,7 +33,7 @@ namespace TeslaSQL.Agents {
         public override void ValidateConfig() {
             Config.ValidateRequiredHost(Config.relayServer);
             Config.ValidateRequiredHost(Config.slave);
-            if (Config.relayType == null || Config.slaveType == null) {
+            if (Config.relayType == SqlFlavor.None || Config.slaveType == SqlFlavor.None) {
                 throw new Exception("Slave agent requires a valid SQL flavor for relay and slave");
             }
         }
@@ -313,7 +313,7 @@ namespace TeslaSQL.Agents {
                 var lastChangeTable = lu[table.name].OrderByDescending(c => c.ctid).First();
                 consolidatedTables.Add(lastChangeTable);
                 TableConf tLocal = table;
-                IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.relayType.Value, sourceDataUtils, sourceDataUtils, logger);
+                IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType, Config.relayType, sourceDataUtils, sourceDataUtils, logger);
                 Action act = () => {
                     try {
                         logger.Log("Copying " + lastChangeTable.ctName, LogLevel.Debug);
@@ -496,7 +496,7 @@ namespace TeslaSQL.Agents {
 
             var actions = new List<Action>();
             foreach (TableConf t in tables) {
-                IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType.Value, Config.slaveType.Value, sourceDataUtils, destDataUtils, logger);
+                IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.relayType, Config.slaveType, sourceDataUtils, destDataUtils, logger);
                 var ct = new ChangeTable(t.name, CTID, t.schemaName, Config.slave);
                 string sourceCTTable = isConsolidated ? ct.consolidatedName : ct.ctName;
                 string destCTTable = ct.ctName;

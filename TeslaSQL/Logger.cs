@@ -108,26 +108,28 @@ namespace TeslaSQL {
         public void Log(object message, LogLevel level) {
             //set thread context properties
             SetContext();
-            switch (level) {
-                case LogLevel.Trace:
-                    //log4net has no Trace so Trace and Debug are the same
-                    foreach (var log in logs) { log.Debug(message); }
-                    break;
-                case LogLevel.Debug:
-                    foreach (var log in logs) { log.Debug(message); }
-                    break;
-                case LogLevel.Info:
-                    foreach (var log in logs) { log.Info(message); }
-                    break;
-                case LogLevel.Warn:
-                    foreach (var log in logs) { log.Warn(message); }
-                    break;
-                case LogLevel.Error:
-                    foreach (var log in logs) { log.Error(message); }
-                    break;
-                case LogLevel.Critical:
-                    foreach (var log in logs) { log.Fatal(message); }
-                    break;
+            foreach (var log in logs) {
+                switch (level) {
+                    case LogLevel.Trace:
+                        //log4net has no Trace so Trace and Debug are the same
+                        log.Debug(message);
+                        break;
+                    case LogLevel.Debug:
+                        log.Debug(message);
+                        break;
+                    case LogLevel.Info:
+                        log.Info(message);
+                        break;
+                    case LogLevel.Warn:
+                        log.Warn(message);
+                        break;
+                    case LogLevel.Error:
+                        log.Error(message);
+                        break;
+                    case LogLevel.Critical:
+                        log.Fatal(message);
+                        break;
+                }
             }
 
             //errors are special - they are exceptions that don't stop the program but we want to write them to a database
@@ -168,7 +170,7 @@ namespace TeslaSQL {
         /// StatsdPipe statsd = new StatsdPipe("10.20.30.40", "8125");
         /// statsd.Increment("mysuperstat");
         /// </example>
-       private class StatsdPipe : IDisposable {
+        private class StatsdPipe : IDisposable {
             private readonly UdpClient udpClient;
 
             [ThreadStatic]

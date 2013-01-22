@@ -45,7 +45,7 @@ namespace TeslaSQL.Agents {
             logger.Log("Validating configuration for master", LogLevel.Trace);
             Config.ValidateRequiredHost(Config.relayServer);
             Config.ValidateRequiredHost(Config.master);
-            if (Config.relayType == null || Config.masterType == null) {
+            if (Config.relayType == SqlFlavor.None || Config.masterType == SqlFlavor.None) {
                 throw new Exception("Master agent requires a valid SQL flavor for relay and master");
             }
         }

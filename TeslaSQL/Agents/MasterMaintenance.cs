@@ -19,13 +19,13 @@ namespace TeslaSQL.Agents {
         public override void ValidateConfig() {
             Config.ValidateRequiredHost(Config.master);
             Config.ValidateRequiredHost(Config.relayServer);
-            if (Config.masterType == null) {
+            if (Config.masterType == SqlFlavor.None) {
                 throw new Exception("MasterMaintenance agent requires a valid SQL flavor for master");
             }
             if (Config.masterCTDB == null) {
                 throw new Exception("MasterMaintenance agent requires masterCTDB to be set");
             }
-            if (Config.relayType == null) {
+            if (Config.relayType == SqlFlavor.None) {
                 throw new Exception("MasterMaintenance agent requires a valid SQL flavor for relay");
             }
             if (Config.relayDB == null) {
