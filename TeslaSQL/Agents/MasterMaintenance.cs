@@ -38,11 +38,11 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             var chopDate = DateTime.Now - new TimeSpan(Config.ChangeRetentionHours, 0, 0);
-            var ctids = destDataUtils.GetOldCTIDsMaster(Config.RelayDB, chopDate);
+            var CTIDs = destDataUtils.GetOldCTIDsMaster(Config.RelayDB, chopDate);
 
             var tables = sourceDataUtils.GetTables(Config.MasterCTDB);
-            logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
-            MaintenanceHelper.DeleteOldTables(ctids, tables, sourceDataUtils, Config.MasterCTDB);
+            logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
+            MaintenanceHelper.DeleteOldTables(CTIDs, tables, sourceDataUtils, Config.MasterCTDB);
         }
     }
 }

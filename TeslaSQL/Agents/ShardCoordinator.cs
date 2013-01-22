@@ -84,14 +84,14 @@ namespace TeslaSQL.Agents {
             return false;
         }
 
-        protected Dictionary<TableConf, Dictionary<string, List<TColumn>>> GetFieldListsByDB(Int64 ctid) {
+        protected Dictionary<TableConf, Dictionary<string, List<TColumn>>> GetFieldListsByDB(Int64 CTID) {
             var fieldListByDB = new Dictionary<TableConf, Dictionary<string, List<TColumn>>>();
             foreach (var table in Config.Tables) {
                 var tDict = new Dictionary<string, List<TColumn>>();
                 foreach (var sd in shardDatabases) {
                     //only add the columns if we get results. it's perfectly legitimate for a changetable to not exist for a given shard
                     //if it had no changes, and we don't want that to cause the schemas to be considered out of sync
-                    var columns = sourceDataUtils.GetFieldList(sd, table.ToCTName(ctid), table.SchemaName).Select(kvp => new TColumn(kvp.Key, kvp.Value)).ToList();
+                    var columns = sourceDataUtils.GetFieldList(sd, table.ToCTName(CTID), table.SchemaName).Select(kvp => new TColumn(kvp.Key, kvp.Value)).ToList();
                     if (columns.Count > 0) {
                         tDict[sd] = columns;
                     }
@@ -103,14 +103,14 @@ namespace TeslaSQL.Agents {
 
         private ChangeTrackingBatch CreateNewVersionsForShards(ChangeTrackingBatch batch) {
             logger.Log("Creating new CT versions for slaves", LogLevel.Info);
-            Int64 ctid = sourceDataUtils.CreateCTVersion(Config.RelayDB, 0, 0).CTID;
-            Logger.SetProperty("CTID", ctid);
+            Int64 CTID = sourceDataUtils.CreateCTVersion(Config.RelayDB, 0, 0).CTID;
+            Logger.SetProperty("CTID", CTID);
             foreach (var db in shardDatabases) {
                 var b = new ChangeTrackingBatch(sourceDataUtils.GetLastCTBatch(db, AgentType.ShardCoordinator));
-                sourceDataUtils.CreateShardCTVersion(db, ctid, b.SyncStopVersion);
+                sourceDataUtils.CreateShardCTVersion(db, CTID, b.SyncStopVersion);
             }
-            logger.Log("Created new CT Version " + ctid + " on " + string.Join(",", shardDatabases), LogLevel.Info);
-            batch = new ChangeTrackingBatch(ctid, 0, 0, 0);
+            logger.Log("Created new CT Version " + CTID + " on " + string.Join(",", shardDatabases), LogLevel.Info);
+            batch = new ChangeTrackingBatch(CTID, 0, 0, 0);
             return batch;
         }
 

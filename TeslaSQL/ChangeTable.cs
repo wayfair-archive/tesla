@@ -9,12 +9,12 @@ namespace TeslaSQL {
     /// </summary>
     public class ChangeTable {
         public readonly string name;
-        public readonly Int64? ctid;
+        public readonly Int64? CTID;
         public readonly string slaveName;
         public readonly string schemaName;
         public string ctName {
             get {
-                return string.Format("tblCT{0}_{1}", name, ctid);
+                return string.Format("tblCT{0}_{1}", name, CTID);
             }
         }
         public string consolidatedName {
@@ -28,9 +28,9 @@ namespace TeslaSQL {
             }
         }
 
-        public ChangeTable(string name, Int64? ctid, String schema, string slaveName) {
+        public ChangeTable(string name, Int64? CTID, String schema, string slaveName) {
             this.name = name;
-            this.ctid = ctid;
+            this.CTID = CTID;
             this.schemaName = schema;
             this.slaveName = slaveName;
         }

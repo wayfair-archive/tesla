@@ -310,7 +310,7 @@ namespace TeslaSQL.Agents {
                     logger.Log("No changes captured for " + table.Name, LogLevel.Info);
                     continue;
                 }
-                var lastChangeTable = lu[table.Name].OrderByDescending(c => c.ctid).First();
+                var lastChangeTable = lu[table.Name].OrderByDescending(c => c.CTID).First();
                 consolidatedTables.Add(lastChangeTable);
                 TableConf tLocal = table;
                 IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.RelayType, Config.RelayType, sourceDataUtils, sourceDataUtils, logger);
@@ -319,7 +319,7 @@ namespace TeslaSQL.Agents {
                         logger.Log("Copying " + lastChangeTable.ctName, LogLevel.Debug);
                         dataCopy.CopyTable(Config.RelayDB, lastChangeTable.ctName, tLocal.SchemaName, Config.RelayDB, Config.DataCopyTimeout, lastChangeTable.consolidatedName);
                         //skipping the first one because dataCopy.CopyTable already copied it).
-                        foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.ctid).Skip(1)) {
+                        foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.CTID).Skip(1)) {
                             logger.Log("Consolidating " + changeTable.ctName, LogLevel.Debug);
                             sourceDataUtils.Consolidate(changeTable.ctName, changeTable.consolidatedName, Config.RelayDB, tLocal.SchemaName);
                         }
@@ -341,11 +341,11 @@ namespace TeslaSQL.Agents {
             //map each table to the last appropriate CT table, ditching tableconfs with no corresponding CT tables
             var tableCTName = new Dictionary<TableConf, string>();
             foreach (var table in tables) {
-                ChangeTable changeTable = existingCTTables.Where(ct => ct.name == table.Name).OrderBy(ct => ct.ctid).LastOrDefault();
+                ChangeTable changeTable = existingCTTables.Where(ct => ct.name == table.Name).OrderBy(ct => ct.CTID).LastOrDefault();
                 if (changeTable == null) {
                     continue;
                 }
-                long lastCTIDWithChanges = changeTable.ctid.Value;
+                long lastCTIDWithChanges = changeTable.CTID.Value;
                 tableCTName[table] = table.ToCTName(lastCTIDWithChanges);
             }
             Dictionary<TableConf, IList<string>> allColumnsByTable = sourceDataUtils.GetAllFields(dbName, tableCTName);

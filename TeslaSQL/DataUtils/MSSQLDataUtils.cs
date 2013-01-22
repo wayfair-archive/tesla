@@ -252,13 +252,13 @@ namespace TeslaSQL.DataUtils {
                 );
         }
 
-        public void CreateShardCTVersion(string dbName, long ctid, long startVersion) {
+        public void CreateShardCTVersion(string dbName, long CTID, long startVersion) {
             string query = "INSERT INTO dbo.tblCTVersion (ctid, syncStartVersion, syncStartTime, syncBitWise)";
             query += " VALUES (@ctid,@syncStartVersion, GETDATE(), 0)";
 
             SqlCommand cmd = new SqlCommand(query);
 
-            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ctid;
+            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             cmd.Parameters.Add("@syncStartVersion", SqlDbType.BigInt).Value = startVersion;
 
             SqlNonQuery(dbName, cmd);
@@ -598,8 +598,8 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier) {
-            var inParams = ctids.Select((ctid, i) => "@ctid" + i);
+        public void MarkBatchesComplete(string dbName, IEnumerable<long> CTIDs, DateTime syncStopTime, string slaveIdentifier) {
+            var inParams = CTIDs.Select((CTID, i) => "@ctid" + i);
             Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
             string query = string.Format(@"UPDATE dbo.tblCTSlaveVersion SET syncBitWise = @syncbitwise, syncStopTime = @syncstoptime
                       WHERE slaveIdentifier = @slaveidentifier AND CTID IN ({0})",
@@ -608,7 +608,7 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
             cmd.Parameters.Add("@syncstoptime", SqlDbType.DateTime).Value = syncStopTime;
             cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = slaveIdentifier;
-            foreach (var pair in ctids.Zip(inParams, (ctid, inp) => Tuple.Create(inp, ctid))) {
+            foreach (var pair in CTIDs.Zip(inParams, (CTID, inp) => Tuple.Create(inp, CTID))) {
                 cmd.Parameters.Add(pair.Item1, SqlDbType.BigInt).Value = pair.Item2;
             }
             SqlNonQuery(dbName, cmd);
@@ -811,7 +811,7 @@ namespace TeslaSQL.DataUtils {
             return rowCounts;
         }
 
-        private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 ctid, string CTDBName) {
+        private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 CTID, string CTDBName) {
             string sql = string.Format(
                 @"DECLARE @rowcounts TABLE (mergeaction nvarchar(10));
                   DECLARE @insertcount int, @deletecount int;
@@ -829,7 +829,7 @@ namespace TeslaSQL.DataUtils {
                   SELECT @deletecount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE');",
                           dbName,
                           table.Name,
-                          table.ToFullCTName(ctid),
+                          table.ToFullCTName(CTID),
                           table.PkList,
                           table.MergeUpdateList.Length > 2 ? table.MergeUpdateList : table.PkList.Replace("AND", ","),
                           table.SimpleColumnList,
@@ -936,11 +936,11 @@ namespace TeslaSQL.DataUtils {
             string sql;
             if (CheckTableExists(slaveCTDB, t.historyName, t.schemaName)) {
                 logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
-                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
+                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.CTID, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
             } else {
                 logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
-                sql = string.Format("SELECT {0} AS CTHistID, * INTO {1} FROM {2}", t.ctid, t.historyName, t.ctName);
+                sql = string.Format("SELECT {0} AS CTHistID, * INTO {1} FROM {2}", t.CTID, t.historyName, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
             }
             var cmd = new SqlCommand(sql);
@@ -948,18 +948,18 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid) {
+        public ChangeTrackingBatch GetCTBatch(string dbName, Int64 CTID) {
             SqlCommand cmd;
             cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise FROM dbo.tblCTVersion WHERE ctid = @ctid");
-            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ctid;
+            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             DataTable result = SqlQuery(dbName, cmd);
             return result.Rows.Count > 0 ? new ChangeTrackingBatch(result.Rows[0]) : null;
         }
 
-        public void RevertCTBatch(string dbName, Int64 ctid) {
+        public void RevertCTBatch(string dbName, Int64 CTID) {
             SqlCommand cmd;
             cmd = new SqlCommand("UPDATE dbo.tblCTVersion SET SyncBitWise = 0 WHERE ctid = @ctid");
-            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ctid;
+            cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             SqlNonQuery(dbName, cmd);
         }
 
@@ -1024,8 +1024,8 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-        public int GetExpectedRowCounts(string ctDbName, long ctid) {
-            string sql = string.Format("SELECT ISNULL(SUM(CtiExpectedRows), 0) FROM tblCTTableInfo_{0};", ctid);
+        public int GetExpectedRowCounts(string ctDbName, long CTID) {
+            string sql = string.Format("SELECT ISNULL(SUM(CtiExpectedRows), 0) FROM tblCTTableInfo_{0};", CTID);
             var cmd = new SqlCommand(sql);
             return SqlQueryToScalar<int>(ctDbName, cmd);
         }
@@ -1035,11 +1035,11 @@ namespace TeslaSQL.DataUtils {
             var cmd = new SqlCommand(sql);
             cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
             var res = SqlQuery(dbName, cmd);
-            var ctids = new List<long>();
+            var CTIDs = new List<long>();
             foreach (DataRow row in res.Rows) {
-                ctids.Add(row.Field<long>("ctid"));
+                CTIDs.Add(row.Field<long>("ctid"));
             }
-            return ctids;
+            return CTIDs;
         }
         public IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate) {
             string sql = @"SELECT ctid, MAX(syncstoptime) AS maxstop
@@ -1049,11 +1049,11 @@ namespace TeslaSQL.DataUtils {
             var cmd = new SqlCommand(sql);
             cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
             var res = SqlQuery(dbName, cmd);
-            var ctids = new List<long>();
+            var CTIDs = new List<long>();
             foreach (DataRow row in res.Rows) {
-                ctids.Add(row.Field<long>("ctid"));
+                CTIDs.Add(row.Field<long>("ctid"));
             }
-            return ctids;
+            return CTIDs;
         }
 
         public IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier) {
@@ -1065,11 +1065,11 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@slaveIdentifier", SqlDbType.VarChar, 500).Value = slaveIdentifier;
             cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
             var res = SqlQuery(dbName, cmd);
-            var ctids = new List<long>();
+            var CTIDs = new List<long>();
             foreach (DataRow row in res.Rows) {
-                ctids.Add(row.Field<long>("ctid"));
+                CTIDs.Add(row.Field<long>("ctid"));
             }
-            return ctids;
+            return CTIDs;
         }
 
 

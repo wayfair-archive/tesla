@@ -309,7 +309,7 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestValidTablesAndArchives() {
-            int ctid = 1;
+            int CTID = 1;
             string schema = "sch";
             string slaveName = "slave";
             var tableConf = new List<TableConf>();
@@ -322,10 +322,10 @@ namespace TeslaSQL.Tests.Agents {
             tableConf.Add(aTable);
             tableConf.Add(table);
             Config.Tables = tableConf;
-            tables.Add(new ChangeTable(aTable.Name, ctid, schema, slaveName));
-            tables.Add(new ChangeTable(table.Name, ctid, schema, slaveName));
+            tables.Add(new ChangeTable(aTable.Name, CTID, schema, slaveName));
+            tables.Add(new ChangeTable(table.Name, CTID, schema, slaveName));
 
-            var s = ValidTablesAndArchives(tables, ctid);
+            var s = ValidTablesAndArchives(tables, CTID);
             Assert.True(s.ContainsKey(table));
             Assert.True(s[table] != null);
             Assert.True(s[table] == aTable);
@@ -334,7 +334,7 @@ namespace TeslaSQL.Tests.Agents {
             tableConf.Clear();
             tableConf.Add(table);
             tableConf.Add(aTable);
-            s = ValidTablesAndArchives(tables, ctid);
+            s = ValidTablesAndArchives(tables, CTID);
             Assert.True(s.ContainsKey(table));
             Assert.True(s[table] != null);
             Assert.True(s[table] == aTable);

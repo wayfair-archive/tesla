@@ -24,10 +24,10 @@ namespace TeslaSQL.Agents {
         }
         public override void Run() {
             var chopDate = DateTime.Now - new TimeSpan(Config.ChangeRetentionHours, 0, 0);
-            IEnumerable<long> ctids = relayDataUtils.GetOldCTIDsSlave(Config.RelayDB, chopDate, Config.Slave);
+            IEnumerable<long> CTIDs = relayDataUtils.GetOldCTIDsSlave(Config.RelayDB, chopDate, Config.Slave);
             var tables = slaveDataUtils.GetTables(Config.SlaveCTDB);
-            logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
-            MaintenanceHelper.DeleteOldTables(ctids, tables, slaveDataUtils, Config.SlaveCTDB);
+            logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
+            MaintenanceHelper.DeleteOldTables(CTIDs, tables, slaveDataUtils, Config.SlaveCTDB);
         }
     }
 }

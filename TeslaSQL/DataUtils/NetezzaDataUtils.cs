@@ -135,11 +135,11 @@ namespace TeslaSQL.DataUtils {
             var res = SqlQuery(dbName, cmd);
             return res.Rows.Count > 0;
         }
-        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
+        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long CTID, string CTDBName) {
             var cmds = new List<InsertDelete>();
-            cmds.Add(BuildApplyCommand(table, dbName, CTDBName, ctid));
+            cmds.Add(BuildApplyCommand(table, dbName, CTDBName, CTID));
             if (archiveTable != null) {
-                cmds.Add(BuildApplyCommand(archiveTable, dbName, CTDBName, ctid));
+                cmds.Add(BuildApplyCommand(archiveTable, dbName, CTDBName, CTID));
             }
             var connStr = buildConnString(dbName);
             var rowCounts = new RowCounts(0, 0);
@@ -174,14 +174,14 @@ namespace TeslaSQL.DataUtils {
                 this.delete = delete;
             }
         }
-        private InsertDelete BuildApplyCommand(TableConf table, string dbName, string CTDBName, long ctid) {
+        private InsertDelete BuildApplyCommand(TableConf table, string dbName, string CTDBName, long CTID) {
             string delete = string.Format(@"DELETE FROM {0} P
                                           WHERE EXISTS (SELECT 1 FROM {1}..{2} CT WHERE {3});",
-                                          table.Name, CTDBName, table.ToCTName(ctid), table.PkList);
+                                          table.Name, CTDBName, table.ToCTName(CTID), table.PkList);
 
             string insert = string.Format(@"INSERT INTO {0} ({1}) 
                               SELECT {1} FROM {2}..{3} CT WHERE NOT EXISTS (SELECT 1 FROM {0} P WHERE {4}) AND CT.sys_change_operation IN ( 'I', 'U' );",
-                                          table.Name, table.NetezzaColumnList, CTDBName, table.ToCTName(ctid), table.PkList);
+                                          table.Name, table.NetezzaColumnList, CTDBName, table.ToCTName(CTID), table.PkList);
             var deleteCmd = new OleDbCommand(delete);
             var insertCmd = new OleDbCommand(insert);
             return new InsertDelete(insertCmd, deleteCmd);
@@ -191,11 +191,11 @@ namespace TeslaSQL.DataUtils {
             string sql;
             if (CheckTableExists(dbName, t.historyName, t.schemaName)) {
                 logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
-                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
+                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.CTID, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
             } else {
                 logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
-                sql = string.Format("CREATE TABLE {0} AS SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.ctid, t.ctName);
+                sql = string.Format("CREATE TABLE {0} AS SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.CTID, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
             }
             var cmd = new OleDbCommand(sql);
@@ -397,7 +397,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier) {
+        public void MarkBatchesComplete(string dbName, IEnumerable<long> CTIDs, DateTime syncStopTime, string slaveIdentifier) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
@@ -461,11 +461,11 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
 
-        public ChangeTrackingBatch GetCTBatch(string dbName, long ctid) {
+        public ChangeTrackingBatch GetCTBatch(string dbName, long CTID) {
             throw new NotImplementedException();
         }
 
-        public void RevertCTBatch(string dbName, long ctid) {
+        public void RevertCTBatch(string dbName, long CTID) {
             throw new NotImplementedException();
         }
 
@@ -474,7 +474,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public void CreateShardCTVersion(string db, long ctid, long startVersion) {
+        public void CreateShardCTVersion(string db, long CTID, long startVersion) {
             throw new NotImplementedException();
         }
 
@@ -483,7 +483,7 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
 
-        public int GetExpectedRowCounts(string ctDbName, long ctid) {
+        public int GetExpectedRowCounts(string ctDbName, long CTID) {
             throw new NotImplementedException();
         }
 

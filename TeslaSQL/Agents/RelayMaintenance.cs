@@ -36,15 +36,15 @@ namespace TeslaSQL.Agents {
         public override void Run() {
             var chopDate = DateTime.Now - new TimeSpan(Config.ChangeRetentionHours, 0, 0);
             var rowChopDate = DateTime.Now - new TimeSpan(Config.batchRecordRetentionDays, 0, 0, 0);
-            IEnumerable<long> ctids = relayDataUtils.GetOldCTIDsRelay(Config.RelayDB, chopDate);
+            IEnumerable<long> CTIDs = relayDataUtils.GetOldCTIDsRelay(Config.RelayDB, chopDate);
             IEnumerable<string> allDbs = new List<string> { Config.RelayDB };
             if (Config.ShardDatabases != null) {
                 allDbs = allDbs.Concat(Config.ShardDatabases);
             }
             foreach (string db in allDbs) {
                 var tables = relayDataUtils.GetTables(db);
-                logger.Log("Deleting {" + string.Join(",", ctids) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
-                MaintenanceHelper.DeleteOldTables(ctids, tables, relayDataUtils, db);
+                logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
+                MaintenanceHelper.DeleteOldTables(CTIDs, tables, relayDataUtils, db);
                 relayDataUtils.DeleteOldCTVersions(db, rowChopDate);
             }
             relayDataUtils.DeleteOldCTSlaveVersions(Config.RelayDB, rowChopDate);
