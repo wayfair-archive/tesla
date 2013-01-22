@@ -18,8 +18,10 @@ Param(
  [Parameter(Mandatory=$false)][string]$schema="dbo", #schema the table lives in
  [Parameter(Mandatory=$false)][string]$user, #username to use when connecting to the slave
  [Parameter(Mandatory=$false)][string]$password, #ctripledes encrypted password to use when connecting to the slave
- [Parameter(Mandatory=$false)][xml]$columnlist, #XML list of columns to copy to the slave
- [Parameter(Mandatory=$false)][xml]$columnmodifiers, #XML column modifiers for shortening fields
+ [Parameter(Mandatory=$false)][xml]$slavecolumnlist, #XML list of columns the slave wants to subscribe to
+ [Parameter(Mandatory=$false)][xml]$mastercolumnlist, #XML list of columns the master wants to publish
+ [Parameter(Mandatory=$false)][xml]$slavecolumnmodifiers, #XML column modifiers for shortening fields on the slave side
+ [Parameter(Mandatory=$false)][xml]$mastercolumnmodifiers, #XML column modifiers for shortening fields on the master side
  [Parameter(Mandatory=$false)][int]$netezzastringlength, #max length for netezza strings
  [Parameter(Mandatory=$false)][string]$mappingsfile, #file for data mappings for netezza slaves
  [Parameter(Mandatory=$false)][string]$sshuser, #user for sshing to netezza
@@ -55,23 +57,75 @@ if ($slavetype -eq "Netezza") {
     $bcppath += $table.ToLower() + ".txt"
 }
 
-#set column lists if they are specified
-$columnarray = @()
-if ($columnlist -ne $null) {
-    foreach($node in $columnlist.SelectNodes("//column")) {
-        $columnarray += $node.InnerText
+#set column lists for slave if they are specified
+$slavecolumns = @()
+if ($slavecolumnlist -ne $null) {
+    foreach($node in $slavecolumnlist.SelectNodes("//column")) {
+        $slavecolumns += $node.InnerText
     }
 }
 
-#set column modifiers if they are specified
-$modifiertable = @{}
-if ($columnmodifiers -ne $null) {
-    foreach ($node in $columnmodifiers.SelectNodes("//columnModifier")) {
+#set column lists for master if they are specified
+$mastercolumns = @()
+if ($mastercolumnlist -ne $null) {
+    foreach($node in $mastercolumnlist.SelectNodes("//column")) {
+        $mastercolumns += $node.InnerText
+    }
+}
+
+#the column list to actually use is the intersect of slave and master if both are specified
+if ($mastercolumns.Length -gt 0 -and $slavecolumns.length -gt 0) {
+    #this is an intersection
+    $columnarray = $mastercolumns | where-object {$slavecolumns -contains $_} 
+} else {
+    #one or both of these arrays will be empty, which is fine
+    $columnarray = $mastercolumns + $slavecolumns
+}
+
+#set slave column modifiers if they are specified
+$slavemodifiers = @{}
+if ($slavecolumnmodifiers -ne $null) {
+    foreach ($node in $slavecolumnmodifiers.SelectNodes("//columnModifier")) {
         if ($node.type -eq "ShortenField") {
-            $modifiertable[$node.columnName] = $node.length
+            $slavemodifiers[$node.columnName] = $node.length
         }
     }
 }
+
+#set master column modifiers if they are specified
+$mastermodifiers = @{}
+if ($mastercolumnmodifiers -ne $null) {
+    foreach ($node in $mastercolumnmodifiers.SelectNodes("//columnModifier")) {
+        if ($node.type -eq "ShortenField") {
+            $mastermodifiers[$node.columnName] = $node.length
+        }
+    }
+}
+
+#the logic here is to take the shorter column length between the two, if the same column
+#is specified in both master and slave modifiers
+$modifiertable = @{}
+if ($mastermodifiers.Count -gt 0 -and $slavemodifiers.Count -gt 0) {
+    foreach ($key in $mastermodifiers.Keys) {
+        if ($slavemodifiers[$key] -ne $null -and $slavemodifiers[$key] -lt $mastermodifiers[$key]) {
+            $modifiertable[$key] = $slavemodifiers[$key]
+        } else {
+            $modifiertable[$key] = $mastermodifiers[$key]
+        }
+    }
+    foreach ($key in $slavemodifiers.Keys) {
+        if ($mastermodifiers[$key] -ne $null) {
+            #we would have already looked at this key above
+            continue
+        } else {
+            $modifiertable[$key] = $slavemodifiers[$key]
+        }
+    }
+} else {
+    #one or both of these arrays will be empty, which is fine
+    $modifiertable = $mastermodifiers + $slavemodifiers
+}
+
 
 #quick shortcut function for running queries on the slave
 Function Invoke-Slave($query) {

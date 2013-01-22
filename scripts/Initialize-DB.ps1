@@ -184,6 +184,29 @@ Function Create-DB ($server, $db, $type, $user, $password) {
     }
 }
 
+Function Get-Modifiers([System.Xml.XmlNodeList]$modifiers) {
+    $columnmodifiers = $null 
+    foreach ($modifier in $modifiers) {
+        if (!$modifier) {
+            continue
+        }
+        if ($columnmodifiers -eq $null) {
+            $columnmodifiers = "<root>"
+        }
+        $columnmodifiers += [string]$modifier.OuterXML        
+    }
+    return $columnmodifiers
+}
+
+Function Get-Columns([System.Xml.XmlNode]$columns) {    
+    $columnlist = $null
+    if ($columns -ne $null) {
+        $columnlist = [string]$columns.OuterXML
+    }
+    return $columnlist
+}
+
+
 ####################
 # Initialize variables based on arguments
 ####################
@@ -457,33 +480,20 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
         write-host ("This master doesn't publish " + $tableconf.name + ", skipping")
         continue
     }
-    $modifiers = $tableconf.SelectNodes("columnModifier") 
-    $columnmodifiers = $null 
-    foreach ($modifier in $modifiers) {
-        if (!$modifier) {
-            continue
-        }
-        if ($columnmodifiers -eq $null) {
-            "yup"
-            $columnmodifiers = "<root>"
-        }
-        $columnmodifiers += [string]$modifier.OuterXML        
-    }
-    if ($columnmodifiers -ne $null) {
-        $columnmodifiers += "</root>"
-    }
-    $columns = $tableconf.SelectSingleNode("columnList")
-    $columnlist = $null
-    if ($columns -ne $null) {
-        $columnlist = [string]$columns.OuterXML
-    }
+    #get XML for master config so that we can get any custom column modifiers/column lists
+    $masterconf = ($mastertableconf.SelectNodes("table") | ? {$_.name -eq $tableconf.name -and $_.schemaname -eq $tableconf.schemaname}).OuterXML
+    #parse column modifiers and column lists for master and slave version of this table
+    $mastermodifiers = Get-Modifiers $masterconf.SelectNodes("columnModifier") 
+    $slavemodifiers = Get-Modifiers $tableconf.SelectNodes("columnModifier") 
+    $mastercolumnlist = Get-Columns $masterconf.SelectSingleNode("columnList")
+    $slavecolumnlist = Get-Columns $tableconf.SelectSingleNode("columnList")
     Write-Host ("Calling .\AddTable-ToCT for table " + $tableconf.name)
     #many of these params (i.e. the netezza ones) may be null or empty but that's fine
     #note, switches can be specfied using a bool with the : syntax, i.e. -switch:$true
     .\AddTable-ToCT -master $master -masterdb $masterdb -slave $slave -slavedb $slavedb -slavetype $slavetype `
         -table $tableconf.name -schema $tableconf.schemaname -user $slaveuser -password $slavepassword `
-        -columnlist $columnlist -columnmodifiers $columnmodifiers -netezzastringlength $netezzastringlength `
-        -mappingsfile $mappingsfile -sshuser $sshuser -pkpath $pkpath -plinkpath $plinkpath `
+        -slavecolumnlist $slavecolumnlist -mastercolumnlist $mastercolumnlist -slavecolumnmodifiers $slavecolumnmodifiers -mastercolumnmodifiers $mastercolumnmodifiers `
+        -netezzastringlength $netezzastringlength -mappingsfile $mappingsfile -sshuser $sshuser -pkpath $pkpath -plinkpath $plinkpath `
         -nzloadscript $nzloadscript  -bcppath $bcppath -reinitialize:$reinitialize -notlast:$notlastslave -notfirstshard:$notfirstshard
 }
 
