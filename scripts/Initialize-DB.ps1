@@ -55,6 +55,9 @@ for this to work.
 .PARAMETER yes
 Skips prompts for confirmation that occur before dropping all tables on a CT database. Use this
 flag only if you're sure the database names in your config file are correct.
+.PARAMETER maxthreads
+When initializing more than one table, table initialization happens in parallel. This parameter configures
+the maximum number of threads to use. The default is 4.
 .INPUTS
 You cannot pipe objects to Initialize-DB.
 .OUTPUTS
@@ -77,6 +80,13 @@ Initialize a new sharded setup with two MSSQL slaves. Carefully note the use of 
 Add two new tables to an existing Tesla setup on two slaves:
 .\Initialize-DB -masterconfigfile "D:\tesla\master.xml" -slaveconfigfile "D:\tesla\MSSQLslave1.xml" -tablelist "table1,table2" -notlast 
 .\Initialize-DB -masterconfigfile "D:\tesla\master.xml" -slaveconfigfile "D:\tesla\MSSQLslave2.xml" -tablelist "table1,table2" 
+.EXAMPLE
+Add a new slave to an existing setup
+.\Initialize-DB -masterconfigfile "D:\tesla\master.xml" -slaveconfigfile "D:\tesla\MSSQLslave3.xml" -newslave
+.EXAMPLE
+Add a new shard to an existing sharded setup
+.\Initialize-DB -masterconfigfile "D:\tesla\master_shard3.xml" -slaveconfigfile "D:\tesla\MSSQLslave1.xml" -newshard -notlastslave
+.\Initialize-DB -masterconfigfile "D:\tesla\master_shard3.xml" -slaveconfigfile "D:\tesla\MSSQLslave2.xml" -newshard
 .NOTES
 Version History
 v1.0   - Scott Sandler - Initial release
@@ -92,7 +102,8 @@ Param(
  [switch]$notlastslave,
  [switch]$notfirstshard,
  [switch]$reinitialize,
- [switch]$yes
+ [switch]$yes,
+ [Parameter(Mandatory=$false)][int]$maxthreads=4
 )
 Push-Location (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)
 Import-Module .\Modules\DB
@@ -109,7 +120,7 @@ Function Drop-AllTables {
     [Parameter(Position=2, Mandatory=$true)] [bool]$yes
     )
     if ($yes) {
-        $prompt -eq "y"        
+        $prompt = "y"   
     } else {
         $prompt = read-host "Dropping all tables on database $Database on server $ServerInstance. Are you sure? [y/n]"
     }
@@ -139,7 +150,7 @@ Function Drop-AllNetezzaTables {
     [Parameter(Position=4, Mandatory=$true)] [bool]$yes
     )
     if ($yes) {
-        $prompt -eq "y"        
+        $prompt = "y"        
     } else {
         $prompt = read-host "Dropping all tables on database $Database on server $ServerInstance. Are you sure? [y/n]"
     }
@@ -470,8 +481,15 @@ if ($sharding) {
 }
 $slavectid = $result.maxctid
 
-#foreach table, AddTable-ToCT
-#TODO add parallelism
+
+########################
+# Begin initialization of actual tables
+########################
+
+#this array wll hold a hashtable listing all the arguments that need to be passed for each table to be initialized
+$tablestoinitialize = @()
+
+#loop through tables and determine the appropriate arguments to pass to AddTable-ToCT
 foreach ($tableconf in $tables.SelectNodes("table")) {
     if ($tablestoinclude.length -gt 0 -and $tablestoinclude -notcontains $tableconf.name) {
         continue
@@ -481,22 +499,57 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
         continue
     }
     #get XML for master config so that we can get any custom column modifiers/column lists
-    $masterconf = ($mastertableconf.SelectNodes("table") | ? {$_.name -eq $tableconf.name -and $_.schemaname -eq $tableconf.schemaname}).OuterXML
+    [xml]$masterconf = ($mastertableconf.SelectNodes("table") | ? {$_.name -eq $tableconf.name -and $_.schemaname -eq $tableconf.schemaname}).OuterXML
     #parse column modifiers and column lists for master and slave version of this table
     $mastermodifiers = Get-Modifiers $masterconf.SelectNodes("columnModifier") 
     $slavemodifiers = Get-Modifiers $tableconf.SelectNodes("columnModifier") 
     $mastercolumnlist = Get-Columns $masterconf.SelectSingleNode("columnList")
     $slavecolumnlist = Get-Columns $tableconf.SelectSingleNode("columnList")
-    Write-Host ("Calling .\AddTable-ToCT for table " + $tableconf.name)
-    #many of these params (i.e. the netezza ones) may be null or empty but that's fine
-    #note, switches can be specfied using a bool with the : syntax, i.e. -switch:$true
-    .\AddTable-ToCT -master $master -masterdb $masterdb -slave $slave -slavedb $slavedb -slavetype $slavetype `
-        -table $tableconf.name -schema $tableconf.schemaname -user $slaveuser -password $slavepassword `
-        -slavecolumnlist $slavecolumnlist -mastercolumnlist $mastercolumnlist -slavecolumnmodifiers $slavecolumnmodifiers -mastercolumnmodifiers $mastercolumnmodifiers `
-        -netezzastringlength $netezzastringlength -mappingsfile $mappingsfile -sshuser $sshuser -pkpath $pkpath -plinkpath $plinkpath `
-        -nzloadscript $nzloadscript  -bcppath $bcppath -reinitialize:$reinitialize -notlast:$notlastslave -notfirstshard:$notfirstshard
+    
+    #hashtable of the arguments we will use when calling AddTable-ToCT
+    $arguments = @{"master" = $master; 
+        "masterdb" = $masterdb; 
+        "slave" = $slave; 
+        "slavedb" = $slavedb;
+        "slavetype" = $slavetype; 
+        "table" = $tableconf.name;
+        "schema" = $tableconf.schemaname;
+        "user" = $slaveuser;
+        "password" = $slavepassword; 
+        "slavecolumnlist" = $slavecolumnlist;
+        "mastercolumnlist" = $mastercolumnlist;
+        "slavecolumnmodifiers" = $slavecolumnmodifiers;
+        "mastercolumnmodifiers" = $mastercolumnmodifiers; 
+        "netezzastringlength" = $netezzastringlength;
+        "mappingsfile" = $mappingsfile;
+        "sshuser" = $sshuser;
+        "pkpath" = $pkpath;
+        "plinkpath" = $plinkpath;
+        "nzloadscript" = $nzloadscript;
+        "bcppath" = $bcppath;
+        "reinitialize" = $reinitialize;
+        "notlast" = $notlastslave;
+        "notfirstshard" = $notfirstshard;
+        "directory" = $pwd #$pwd is a magic variable for the current working directory
+    }
+    $tablestoinitialize += $arguments
 }
 
+#initialize tables in parallel with a configurable throttle
+$tablestoinitialize | Invoke-Parallel -Throttle $maxthreads {
+    Write-Host ("Calling .\AddTable-ToCT for table " + $_.table)    
+    #switch to directory containing the script. required because this is inside a runspace which
+    #doesn't inherit the environment of the parent scope.
+    cd $_.directory
+    #many of these params (i.e. the netezza ones) may be null or empty but that's fine
+    #note, switches can be specfied using a bool with the : syntax, i.e. -switch:$true
+    .\AddTable-ToCT -master $_.master -masterdb $_.masterdb -slave $_.slave -slavedb $_.slavedb -slavetype $_.slavetype `
+        -table $_.table -schema $_.schema -user $_.user -password $_.password -slavecolumnlist $_.slavecolumnlist `
+        -mastercolumnlist $_.mastercolumnlist -slavecolumnmodifiers $_.slavecolumnmodifiers -mastercolumnmodifiers $_.mastercolumnmodifiers `
+        -netezzastringlength $_.netezzastringlength -mappingsfile $_.mappingsfile -sshuser $_.sshuser -pkpath $_.pkpath -plinkpath $_.plinkpath `
+        -nzloadscript $_.nzloadscript -bcppath $_.bcppath -reinitialize:$_.reinitialize -notlast:$_.notlastslave -notfirstshard:$_.notfirstshard
+   Write-Host ("Initialization complete for table " + $_.table)
+}
 
 #update row of tblCTVersion, setting syncbitwise to 7
 if (($newdatabase -or $newslave) -and !$notfirstshard) {
