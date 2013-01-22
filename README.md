@@ -52,7 +52,7 @@ Also your relay doesn't have to be its own server. The relay can be the same ser
 
 ## Developing
 
-To build Tesla, simply open the csproj file in Visual Studio and press Build, or use msbuild.
+To build Tesla, simply open the csproj file in Visual Studio and press Build, or use msbuild. Once done, what you need to actually deploy is TeslaSQL\bin\Release\TeslaSQL.exe, log4net.dll and gelf4net.dll.
 
 To run the unit tests, use Tests/xunit-1.9.1/xunit.gui.x86.exe or run the console version. Make sure all tests pass before submitting a pull request!
 
