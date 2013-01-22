@@ -270,12 +270,12 @@ namespace TeslaSQL.Tests {
                 tables = new TableConf[2];
                 //first table has no column list
                 tables[0] = new TableConf();
-                tables[0].name = "test1";
+                tables[0].Name = "test1";
 
                 //second one has column list
                 tables[1] = new TableConf();
-                tables[1].name = "test2";
-                tables[1].columnList = new string[2] { "column1", "column2" };
+                tables[1].Name = "test2";
+                tables[1].ColumnList = new string[2] { "column1", "column2" };
 
                 dataUtils = new TestDataUtils(TServer.MASTER);                
                 dataUtils.ReloadData("test1");

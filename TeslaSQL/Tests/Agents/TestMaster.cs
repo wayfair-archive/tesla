@@ -25,7 +25,7 @@ namespace TeslaSQL.Tests.Agents {
             this.destDataUtils = fixture.destDataUtils;
             ((TestDataUtils)sourceDataUtils).ReloadData("test1");
             ((TestDataUtils)destDataUtils).ReloadData("test1");
-            SetFieldLists("testdb", Config.tables, sourceDataUtils);
+            SetFieldLists("testdb", Config.Tables, sourceDataUtils);
         }
 
         [Fact]
@@ -87,7 +87,7 @@ namespace TeslaSQL.Tests.Agents {
             //create tblCTSchemaChange_100
             destDataUtils.CreateSchemaChangeTable("CT_testdb", 101);
             //publish schema changes from tblDDLevent
-            PublishSchemaChanges(Config.tables, "testdb", "CT_testdb", 101, new DateTime(2000, 1, 1));
+            PublishSchemaChanges(Config.Tables, "testdb", "CT_testdb", 101, new DateTime(2000, 1, 1));
             //retrieve results from tblCTSchemaChange_101
             DataTable results = destDataUtils.GetSchemaChanges("CT_testdb", 101);
             //parse schema change object for the resulting row
@@ -110,8 +110,8 @@ namespace TeslaSQL.Tests.Agents {
         [Fact]
         public void TestOverrideZeroStartVersion() {
             var table = new TableConf();
-            table.name = "tableName";
-            table.schemaName = "schema";
+            table.Name = "tableName";
+            table.SchemaName = "schema";
             string db = "db";
             string ctdb = "ctdb";
             long minValidVersion = 5;
@@ -119,13 +119,13 @@ namespace TeslaSQL.Tests.Agents {
 
             var sourceUtils = new Mock<IDataUtils>();
             this.sourceDataUtils = sourceUtils.Object;
-            sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.name, table.schemaName))
+            sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.Name, table.SchemaName))
                        .Returns(minValidVersion).Verifiable();
-            sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.name, It.IsAny<string>()))
+            sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.Name, It.IsAny<string>()))
                         .Returns(true);
-            sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.name, table.schemaName))
+            sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.Name, table.SchemaName))
                         .Returns(true);
-            sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.name, table.schemaName))
+            sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.Name, table.SchemaName))
                         .Returns(true);
 
             CreateChangeTable(table, db, ctdb, batch);
@@ -136,21 +136,21 @@ namespace TeslaSQL.Tests.Agents {
         [Fact]
         public void TestNoOverrideNonZeroStartVersion() {
             var table = new TableConf();
-            table.name = "tableName";
-            table.schemaName = "schmea";
+            table.Name = "tableName";
+            table.SchemaName = "schmea";
             string db = "db";
             string ctdb = "ctdb";
             var batch = new ChangeTrackingBatch(1, 1, 10, 0);
 
             var sourceUtils = new Mock<IDataUtils>();
             this.sourceDataUtils = sourceUtils.Object;
-            sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.name, table.schemaName))
+            sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.Name, table.SchemaName))
                        .Returns(5);
-            sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.name, It.IsAny<string>()))
+            sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.Name, It.IsAny<string>()))
                         .Returns(true);
-            sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.name, table.schemaName))
+            sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.Name, table.SchemaName))
                         .Returns(true);
-            sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.name, table.schemaName))
+            sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.Name, table.SchemaName))
                         .Returns(true);
             sourceUtils.Setup((ut) => ut.IsBeingInitialized(ctdb, It.IsAny<TableConf>()))
                         .Returns(false);
@@ -161,7 +161,7 @@ namespace TeslaSQL.Tests.Agents {
             //sourceUtils.Verify(
             //    (ut) => ut.SelectIntoCTTable(It.IsAny<string>(), It.IsAny<TableConf>(), It.IsAny<string>(
             sourceUtils.Verify(
-                (ut) => ut.SelectIntoCTTable(ctdb, It.IsAny<TableConf>(), db, It.IsAny<ChangeTrackingBatch>(), It.IsAny<int>(), batch.syncStartVersion),
+                (ut) => ut.SelectIntoCTTable(ctdb, It.IsAny<TableConf>(), db, It.IsAny<ChangeTrackingBatch>(), It.IsAny<int>(), batch.SyncStartVersion),
                 Times.Never(),
                 "Should not select into CT table when the start version is less than minValidVersion");
         }
@@ -185,7 +185,7 @@ namespace TeslaSQL.Tests.Agents {
             //undo changes
             ((TestDataUtils)destDataUtils).ReloadData("test1");
             ctb = new ChangeTrackingBatch(101, 1000, 2000, 0);
-            PublishTableInfo(Config.tables, "CT_testdb", changesCaptured, ctb.CTID);
+            PublishTableInfo(Config.Tables, "CT_testdb", changesCaptured, ctb.CTID);
             DataRow actual = ((TestDataUtils)destDataUtils).testData.Tables["dbo.tblCTTableInfo_101", "RELAY.CT_testdb"].Rows[0];
             Assert.True(actual.Field<string>("CtiTableName") == "test1"
                 && actual.Field<string>("CtiSchemaName") == "dbo"
@@ -201,13 +201,13 @@ namespace TeslaSQL.Tests.Agents {
 
         [Fact]
         public void TestGetRowCounts_NonZero() {
-            var rowCounts = GetRowCounts(Config.tables, "CT_testdb", 101);
+            var rowCounts = GetRowCounts(Config.Tables, "CT_testdb", 101);
             Assert.Equal(1, rowCounts["dbo.test1"]);
         }
 
         [Fact]
         public void TestGetRowCounts_Zero() {
-            var rowCounts = GetRowCounts(Config.tables, "CT_testdb", 101);
+            var rowCounts = GetRowCounts(Config.Tables, "CT_testdb", 101);
             Assert.Equal(0, rowCounts["dbo.test2"]);
         }
 
@@ -261,24 +261,24 @@ namespace TeslaSQL.Tests.Agents {
         public MasterTestFixture() {
             var tables = new TableConf[2];
             tables[0] = new TableConf();
-            tables[0].name = "test1";
-            tables[0].schemaName = "dbo";
+            tables[0].Name = "test1";
+            tables[0].SchemaName = "dbo";
 
             tables[1] = new TableConf();
-            tables[1].name = "test2";
-            tables[1].schemaName = "dbo";
+            tables[1].Name = "test2";
+            tables[1].SchemaName = "dbo";
 
             sourceDataUtils = new TestDataUtils(TServer.MASTER);
             sourceDataUtils.testData = new DataSet();
             destDataUtils = new TestDataUtils(TServer.RELAY);
             destDataUtils.testData = new DataSet();
 
-            Config.masterDB = "testdb";
-            Config.masterCTDB = "CT_testdb";
-            Config.relayDB = "CT_testdb";
-            Config.tables = tables.ToList();
-            Config.masterType = SqlFlavor.MSSQL;
-            Config.relayType = SqlFlavor.MSSQL;
+            Config.MasterDB = "testdb";
+            Config.MasterCTDB = "CT_testdb";
+            Config.RelayDB = "CT_testdb";
+            Config.Tables = tables.ToList();
+            Config.MasterType = SqlFlavor.MSSQL;
+            Config.RelayType = SqlFlavor.MSSQL;
         }
 
         //TODO move this somewhere else

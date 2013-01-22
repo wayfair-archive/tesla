@@ -29,7 +29,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
         private DataTable SqlQuery(string dbName, SqlCommand cmd, int? timeout = null) {
-            int commandTimeout = timeout ?? Config.queryTimeout;
+            int commandTimeout = timeout ?? Config.QueryTimeout;
             foreach (IDataParameter p in cmd.Parameters) {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
@@ -75,7 +75,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
         internal int SqlNonQuery(string dbName, SqlCommand cmd, int? timeout = null) {
-            int commandTimeout = timeout ?? Config.queryTimeout;
+            int commandTimeout = timeout ?? Config.QueryTimeout;
             foreach (IDataParameter p in cmd.Parameters) {
                 if (p.Value == null)
                     p.Value = DBNull.Value;
@@ -122,19 +122,19 @@ namespace TeslaSQL.DataUtils {
 
             switch (server) {
                 case TServer.MASTER:
-                    sqlhost = Config.master;
-                    sqluser = Config.masterUser;
-                    sqlpass = (new cTripleDes().Decrypt(Config.masterPassword));
+                    sqlhost = Config.Master;
+                    sqluser = Config.MasterUser;
+                    sqlpass = (new cTripleDes().Decrypt(Config.MasterPassword));
                     break;
                 case TServer.SLAVE:
-                    sqlhost = Config.slave;
-                    sqluser = Config.slaveUser;
-                    sqlpass = (new cTripleDes().Decrypt(Config.slavePassword));
+                    sqlhost = Config.Slave;
+                    sqluser = Config.SlaveUser;
+                    sqlpass = (new cTripleDes().Decrypt(Config.SlavePassword));
                     break;
                 case TServer.RELAY:
-                    sqlhost = Config.relayServer;
-                    sqluser = Config.relayUser;
-                    sqlpass = (new cTripleDes().Decrypt(Config.relayPassword));
+                    sqlhost = Config.RelayServer;
+                    sqluser = Config.RelayUser;
+                    sqlpass = (new cTripleDes().Decrypt(Config.RelayPassword));
                     break;
             }
 
@@ -216,17 +216,17 @@ namespace TeslaSQL.DataUtils {
              * actual database objects at this point. The database names are also validated to be legal database identifiers.
              * Only the start and stop versions are actually parametrizable.
              */
-            string query = "SELECT " + table.modifiedMasterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
-            query += " INTO " + table.schemaName + "." + table.ToCTName(ctb.CTID);
-            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.schemaName + "." + table.name + ", @startversion) CT";
-            query += " LEFT OUTER JOIN " + sourceDB + "." + table.schemaName + "." + table.name + " P ON " + table.pkList;
+            string query = "SELECT " + table.ModifiedMasterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
+            query += " INTO " + table.SchemaName + "." + table.ToCTName(ctb.CTID);
+            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.SchemaName + "." + table.Name + ", @startversion) CT";
+            query += " LEFT OUTER JOIN " + sourceDB + "." + table.SchemaName + "." + table.Name + " P ON " + table.PkList;
             query += " WHERE (SYS_CHANGE_VERSION <= @stopversion OR SYS_CHANGE_CREATION_VERSION <= @stopversion)";
-            query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + table.notNullPKList + ")";
+            query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + table.NotNullPKList + ")";
 
             SqlCommand cmd = new SqlCommand(query);
 
-            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = (overrideStartVersion.HasValue ? overrideStartVersion.Value : ctb.syncStartVersion);
-            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.syncStopVersion;
+            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = (overrideStartVersion.HasValue ? overrideStartVersion.Value : ctb.SyncStartVersion);
+            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.SyncStopVersion;
 
             return SqlNonQuery(sourceCTDB, cmd, 1200);
         }
@@ -274,10 +274,10 @@ namespace TeslaSQL.DataUtils {
 
             cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = ctb.CTID;
             cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = slaveIdentifier;
-            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = ctb.syncStartVersion;
-            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.syncStopVersion;
-            cmd.Parameters.Add("@starttime", SqlDbType.DateTime).Value = ctb.syncStartTime;
-            cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = ctb.syncBitWise;
+            cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = ctb.SyncStartVersion;
+            cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.SyncStopVersion;
+            cmd.Parameters.Add("@starttime", SqlDbType.DateTime).Value = ctb.SyncStartTime;
+            cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = ctb.SyncBitWise;
 
             SqlNonQuery(dbName, cmd, 30);
         }
@@ -331,19 +331,19 @@ namespace TeslaSQL.DataUtils {
                 " @basedatatype, @charactermaximumlength, @numericprecision, @numericscale)";
 
             var cmd = new SqlCommand(query);
-            cmd.Parameters.Add("@ddeid", SqlDbType.Int).Value = schemaChange.ddeID;
-            cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = schemaChange.tableName;
-            cmd.Parameters.Add("@eventtype", SqlDbType.VarChar, 50).Value = schemaChange.eventType;
-            cmd.Parameters.Add("@schema", SqlDbType.VarChar, 100).Value = schemaChange.schemaName;
-            cmd.Parameters.Add("@columnname", SqlDbType.VarChar, 500).Value = schemaChange.columnName;
-            cmd.Parameters.Add("@newcolumnname", SqlDbType.VarChar, 500).Value = schemaChange.newColumnName;
-            if (schemaChange.dataType != null) {
-                cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = schemaChange.dataType.baseType;
-                cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = schemaChange.dataType.characterMaximumLength;
-                cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = schemaChange.dataType.numericPrecision;
-                cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = schemaChange.dataType.numericScale;
+            cmd.Parameters.Add("@ddeid", SqlDbType.Int).Value = schemaChange.DdeID;
+            cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = schemaChange.TableName;
+            cmd.Parameters.Add("@eventtype", SqlDbType.VarChar, 50).Value = schemaChange.EventType;
+            cmd.Parameters.Add("@schema", SqlDbType.VarChar, 100).Value = schemaChange.SchemaName;
+            cmd.Parameters.Add("@columnname", SqlDbType.VarChar, 500).Value = schemaChange.ColumnName;
+            cmd.Parameters.Add("@newcolumnname", SqlDbType.VarChar, 500).Value = schemaChange.NewColumnName;
+            if (schemaChange.DataType != null) {
+                cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = schemaChange.DataType.BaseType;
+                cmd.Parameters.Add("@charactermaximumlength", SqlDbType.Int).Value = schemaChange.DataType.CharacterMaximumLength;
+                cmd.Parameters.Add("@numericprecision", SqlDbType.Int).Value = schemaChange.DataType.NumericPrecision;
+                cmd.Parameters.Add("@numericscale", SqlDbType.Int).Value = schemaChange.DataType.NumericScale;
             } else {
-                if (schemaChange.eventType == SchemaChangeType.Add) {
+                if (schemaChange.EventType == SchemaChangeType.Add) {
                     throw new Exception("Cannot add a schema change without a valid datatype");
                 }
                 cmd.Parameters.Add("@basedatatype", SqlDbType.VarChar, 100).Value = DBNull.Value;
@@ -552,7 +552,7 @@ namespace TeslaSQL.DataUtils {
                 query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid AND SyncBitWise & @syncbitwise = 0";
                 cmd = new SqlCommand(query);
                 cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = value;
-                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = Config.slave;
+                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = Config.Slave;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             } else {
                 query = "UPDATE dbo.tblCTVersion SET SyncBitWise = SyncBitWise + @syncbitwise";
@@ -572,7 +572,7 @@ namespace TeslaSQL.DataUtils {
                 query = "SELECT syncBitWise from dbo.tblCTSlaveVersion WITH(NOLOCK)";
                 query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
                 cmd = new SqlCommand(query);
-                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = Config.slave;
+                cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 100).Value = Config.Slave;
                 cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             } else {
                 query = "SELECT syncBitWise from dbo.tblCTVersion WITH(NOLOCK)";
@@ -635,17 +635,17 @@ namespace TeslaSQL.DataUtils {
         public void LogError(string message) {
             SqlCommand cmd = new SqlCommand("INSERT INTO tblCtError (CelError) VALUES ( @error )");
             cmd.Parameters.Add("@error", SqlDbType.VarChar, -1).Value = message;
-            SqlNonQuery(Config.errorLogDB, cmd);
+            SqlNonQuery(Config.ErrorLogDB, cmd);
         }
 
         public DataTable GetUnsentErrors() {
             SqlCommand cmd = new SqlCommand("SELECT CelError, CelId FROM tblCtError WHERE CelSent = 0");
-            return SqlQuery(Config.errorLogDB, cmd);
+            return SqlQuery(Config.ErrorLogDB, cmd);
         }
 
         public void MarkErrorsSent(IEnumerable<int> celIds) {
             SqlCommand cmd = new SqlCommand("UPDATE tblCtError SET CelSent = 1 WHERE CelId IN (" + string.Join(",", celIds) + ")");
-            SqlNonQuery(Config.errorLogDB, cmd);
+            SqlNonQuery(Config.ErrorLogDB, cmd);
         }
 
         private bool CheckColumnExists(string dbName, string schema, string table, string column) {
@@ -668,7 +668,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //check for history table, if it is configured and contains the column we need to modify that too
-            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
                 cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
@@ -686,7 +686,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //modify on history table if that exists too
-            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History ALTER COLUMN " + columnName + " " + dataType);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
@@ -702,7 +702,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //add column to history table if the table exists and the column doesn't
-            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History ADD " + columnName + " " + dataType);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
@@ -718,7 +718,7 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(dbName, cmd);
             }
             //if history table exists and column exists, drop it there too
-            if (t.recordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
                 cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History DROP COLUMN " + columnName);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
@@ -749,8 +749,8 @@ namespace TeslaSQL.DataUtils {
             SqlCommand cmd = new SqlCommand(
                String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows)
                   VALUES (@tableName, @schemaName, @pkList, @expectedRows)", CTID));
-            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = t.name;
-            cmd.Parameters.Add("@schemaName", SqlDbType.VarChar, 500).Value = t.schemaName;
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = t.Name;
+            cmd.Parameters.Add("@schemaName", SqlDbType.VarChar, 500).Value = t.SchemaName;
             cmd.Parameters.Add("@pkList", SqlDbType.VarChar, 500).Value = string.Join(",", t.columns.Where(c => c.isPk));
             cmd.Parameters.Add("@expectedRows", SqlDbType.Int).Value = expectedRows;
 
@@ -797,15 +797,15 @@ namespace TeslaSQL.DataUtils {
             if (archiveTable != null) {
                 tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName));
             }
-            var s = TransactionQuery(tableSql, dbName, Config.queryTimeout);
+            var s = TransactionQuery(tableSql, dbName, Config.QueryTimeout);
             int inserted = s[0].Rows[0].Field<int>("insertcount");
             int deleted = s[0].Rows[0].Field<int>("deletecount");
-            logger.Log("table " + table.name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
+            logger.Log("table " + table.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
             var rowCounts = new RowCounts(inserted, deleted);
             if (archiveTable != null) {
                 inserted = s[1].Rows[0].Field<int>("insertcount");
                 deleted = s[1].Rows[0].Field<int>("deletecount");
-                logger.Log("table " + archiveTable.name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
+                logger.Log("table " + archiveTable.Name + ": insert: " + inserted + " | delete: " + deleted, LogLevel.Info);
                 rowCounts = new RowCounts(rowCounts.Inserted + inserted, rowCounts.Deleted + deleted);
             }
             return rowCounts;
@@ -828,13 +828,13 @@ namespace TeslaSQL.DataUtils {
                   SELECT @insertcount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('INSERT', 'UPDATE'); 
                   SELECT @deletecount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE');",
                           dbName,
-                          table.name,
+                          table.Name,
                           table.ToFullCTName(ctid),
-                          table.pkList,
-                          table.mergeUpdateList.Length > 2 ? table.mergeUpdateList : table.pkList.Replace("AND", ","),
-                          table.simpleColumnList,
-                          table.masterColumnList.Replace("P.", "CT."),
-                          table.schemaName,
+                          table.PkList,
+                          table.MergeUpdateList.Length > 2 ? table.MergeUpdateList : table.PkList.Replace("AND", ","),
+                          table.SimpleColumnList,
+                          table.MasterColumnList.Replace("P.", "CT."),
+                          table.SchemaName,
                           CTDBName
                           );
             sql += "\nDELETE @rowcounts;\n";
@@ -965,7 +965,7 @@ namespace TeslaSQL.DataUtils {
 
 
         public void MergeCTTable(TableConf table, string destDB, string sourceDB, long CTID) {
-            var mergeList = table.columns.Any(c => !c.isPk) ? table.mergeUpdateList : string.Join(",", table.columns.Select(c => String.Format("P.{0} = CT.{0}", c.name)));
+            var mergeList = table.columns.Any(c => !c.isPk) ? table.MergeUpdateList : string.Join(",", table.columns.Select(c => String.Format("P.{0} = CT.{0}", c.name)));
             var columnList = string.Join(",", table.columns.Select(c => c.name));
             var insertList = string.Join(",", table.columns.Select(c => "CT." + c.name));
             //the logic here is that if the same primary key changed on multiple shards, we take the first row we find for that PK.
@@ -978,7 +978,7 @@ namespace TeslaSQL.DataUtils {
 	                 THEN UPDATE SET {3}, P.SYS_CHANGE_OPERATION = CT.SYS_CHANGE_OPERATION, P.SYS_CHANGE_VERSION = CT.SYS_CHANGE_VERSION
 	               WHEN NOT MATCHED
 	                 THEN INSERT ({4},SYS_CHANGE_VERSION, SYS_CHANGE_OPERATION) VALUES ({5}, CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION);",
-                   table.ToCTName(CTID), sourceDB, table.pkList, mergeList, columnList, insertList);
+                   table.ToCTName(CTID), sourceDB, table.PkList, mergeList, columnList, insertList);
             SqlCommand cmd = new SqlCommand(sql);
             SqlNonQuery(destDB, cmd);
         }
@@ -986,7 +986,7 @@ namespace TeslaSQL.DataUtils {
         public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long CTID, string database) {
             string sql = string.Format(@"SELECT CtipkList FROM tblCTTableInfo_{0} WHERE CtiTableName = @tableName", CTID);
             SqlCommand cmd = new SqlCommand(sql);
-            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 5000).Value = table.name;
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 5000).Value = table.Name;
             var res = SqlQueryToScalar<string>(database, cmd);
             return res.Split(new char[] { ',' });
         }
@@ -999,14 +999,14 @@ namespace TeslaSQL.DataUtils {
             string sql = string.Format("SELECT CtiTableName, CtipkList FROM tblCTTableInfo_{0} WHERE CtiTableName IN ( {1} )",
                            batch.CTID, string.Join(",", placeHolders));
             var cmd = new SqlCommand(sql);
-            foreach (var pht in placeHolders.Zip(tables, (ph, t) => Tuple.Create(ph, t.name))) {
+            foreach (var pht in placeHolders.Zip(tables, (ph, t) => Tuple.Create(ph, t.Name))) {
                 cmd.Parameters.Add(pht.Item1, SqlDbType.VarChar, 500).Value = pht.Item2;
             }
             var res = SqlQuery(dbName, cmd);
             var tablePks = new Dictionary<TableConf, IList<string>>();
             foreach (DataRow row in res.Rows) {
                 var tableName = row.Field<string>("CtiTableName");
-                var table = tables.FirstOrDefault(t => t.name == tableName);
+                var table = tables.FirstOrDefault(t => t.Name == tableName);
                 var pks = row.Field<string>("CtipkList").Split(new char[] { ',' });
                 tablePks[table] = pks;
             }
@@ -1091,7 +1091,7 @@ namespace TeslaSQL.DataUtils {
             string sql = string.Format(@"SELECT 1 FROM tblCTInitialize WHERE tableName = @tableName AND inProgress = 1",
                                        sourceCTDB);
             var cmd = new SqlCommand(sql);
-            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = table.name;
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = table.Name;
             var res = SqlQuery(sourceCTDB, cmd);
             return res.Rows.Count > 0;
         }
@@ -1099,7 +1099,7 @@ namespace TeslaSQL.DataUtils {
         public long? GetInitializeStartVersion(string sourceCTDB, TableConf table) {
             string sql = @"SELECT nextSynchVersion FROM tblCTInitialize WHERE tableName = @tableName";
             var cmd = new SqlCommand(sql);
-            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = table.name;
+            cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = table.Name;
             var res = SqlQuery(sourceCTDB, cmd);
             if (res.Rows.Count == 0) {
                 return null;

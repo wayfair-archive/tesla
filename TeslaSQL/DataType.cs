@@ -11,10 +11,10 @@ namespace TeslaSQL {
     public class DataType {
         private static Dictionary<SqlFlavor, IList<string>> dataMappings = new Dictionary<SqlFlavor, IList<string>>();
 
-        public string baseType { get; set; }
-        public int? characterMaximumLength { get; set; }
-        public int? numericPrecision { get; set; }
-        public int? numericScale { get; set; }
+        public string BaseType { get; set; }
+        public int? CharacterMaximumLength { get; set; }
+        public int? NumericPrecision { get; set; }
+        public int? NumericScale { get; set; }
 
         public static void LoadDataMappingsFromFile(string filePath) {
             string s;
@@ -52,10 +52,10 @@ namespace TeslaSQL {
 
 
         public DataType(string baseType, int? characterMaximumLength = null, int? numericPrecision = null, int? numericScale = null) {
-            this.baseType = baseType;
-            this.characterMaximumLength = characterMaximumLength;
-            this.numericPrecision = numericPrecision;
-            this.numericScale = numericScale;
+            this.BaseType = baseType;
+            this.CharacterMaximumLength = characterMaximumLength;
+            this.NumericPrecision = numericPrecision;
+            this.NumericScale = numericScale;
         }
 
         /// <summary>
@@ -71,10 +71,10 @@ namespace TeslaSQL {
             if (expected == null || actual == null) {
                 return false;
             }
-            if (expected.baseType != actual.baseType
-                || expected.characterMaximumLength != actual.characterMaximumLength
-                || expected.numericPrecision != actual.numericPrecision
-                || expected.numericScale != actual.numericScale
+            if (expected.BaseType != actual.BaseType
+                || expected.CharacterMaximumLength != actual.CharacterMaximumLength
+                || expected.NumericPrecision != actual.NumericPrecision
+                || expected.NumericScale != actual.NumericScale
                 ) {
                 return false;
             }
@@ -90,14 +90,14 @@ namespace TeslaSQL {
             var typesUsingScale = new string[2] { "numeric", "decimal" };
 
             string suffix = "";
-            if (typesUsingMaxLen.Contains(baseType) && characterMaximumLength != null) {
+            if (typesUsingMaxLen.Contains(BaseType) && CharacterMaximumLength != null) {
                 //(n)varchar(max) types stored with a maxlen of -1, so change that to max
-                suffix = "(" + (characterMaximumLength == -1 ? "max" : Convert.ToString(characterMaximumLength)) + ")";
-            } else if (typesUsingScale.Contains(baseType) && numericPrecision != null && numericScale != null) {
-                suffix = "(" + numericPrecision + ", " + numericScale + ")";
+                suffix = "(" + (CharacterMaximumLength == -1 ? "max" : Convert.ToString(CharacterMaximumLength)) + ")";
+            } else if (typesUsingScale.Contains(BaseType) && NumericPrecision != null && NumericScale != null) {
+                suffix = "(" + NumericPrecision + ", " + NumericScale + ")";
             }
 
-            return baseType + suffix;
+            return BaseType + suffix;
         }
     }
 }

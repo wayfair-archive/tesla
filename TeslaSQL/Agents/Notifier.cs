@@ -19,8 +19,8 @@ namespace TeslaSQL.Agents {
         }
 
         public override void ValidateConfig() {
-            Config.ValidateRequiredHost(Config.relayServer);
-            if (Config.relayType == null) {
+            Config.ValidateRequiredHost(Config.RelayServer);
+            if (Config.RelayType == SqlFlavor.None) {
                 throw new Exception("Notifier agent requires a valid SQL flavor for relay");
             }
         }
@@ -36,7 +36,7 @@ namespace TeslaSQL.Agents {
             if (errorList.Count == 0) {
                 return;
             }
-            emailClient.SendEmail(Config.emailErrorRecipient, "Errors occurred during changetracking", string.Join("\r\n", errorList));
+            emailClient.SendEmail(Config.EmailErrorRecipient, "Errors occurred during changetracking", string.Join("\r\n", errorList));
             sourceDataUtils.MarkErrorsSent(ids);
         }
     }

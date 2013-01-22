@@ -242,12 +242,12 @@ namespace TeslaSQL.Tests.Agents {
                 tables = new TableConf[2];
                 //first table has no column list
                 tables[0] = new TableConf();
-                tables[0].name = "test1";
+                tables[0].Name = "test1";
 
                 //second one has column list
                 tables[1] = new TableConf();
-                tables[1].name = "test2";
-                tables[1].columnList = new string[2] { "column1", "column2" };
+                tables[1].Name = "test2";
+                tables[1].ColumnList = new string[2] { "column1", "column2" };
 
                 sourceDataUtils = new TestDataUtils(TServer.RELAY);
                 destDataUtils = new TestDataUtils(TServer.SLAVE);
@@ -258,8 +258,8 @@ namespace TeslaSQL.Tests.Agents {
                 //this method, conveniently, sets up the datatable schema we need
                 sourceDataUtils.CreateSchemaChangeTable("CT_testdb", 1);
 
-                Config.tables = tables.ToList();
-                Config.relayDB = "CT_testdb";
+                Config.Tables = tables.ToList();
+                Config.RelayDB = "CT_testdb";
                 var logger = new Logger(null, null, null, "");
                 slave = new Slave(sourceDataUtils, destDataUtils, logger);
             }
@@ -298,7 +298,7 @@ namespace TeslaSQL.Tests.Agents {
                     ));
 
             foreach (var test in testCases) {
-                Config.magicHours = test.magicHours;
+                Config.MagicHours = test.magicHours;
                 var mockDataUtils = new Mock<IDataUtils>();
                 mockDataUtils.Setup(du => du.GetLastStartTime(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<AgentType>(), It.IsAny<string>()))
                     .Returns(test.lastRun);
@@ -314,15 +314,16 @@ namespace TeslaSQL.Tests.Agents {
             string slaveName = "slave";
             var tableConf = new List<TableConf>();
             var tables = new HashSet<ChangeTable>();
+            
             var table = new TableConf();
-            table.name = "tblName";
+            table.Name = "tblName";
             var aTable = new TableConf();
-            aTable.name = "tblNameArchive";
+            aTable.Name = "tblNameArchive";
             tableConf.Add(aTable);
             tableConf.Add(table);
-            Config.tables = tableConf;
-            tables.Add(new ChangeTable(aTable.name, ctid, schema, slaveName));
-            tables.Add(new ChangeTable(table.name, ctid, schema, slaveName));
+            Config.Tables = tableConf;
+            tables.Add(new ChangeTable(aTable.Name, ctid, schema, slaveName));
+            tables.Add(new ChangeTable(table.Name, ctid, schema, slaveName));
 
             var s = ValidTablesAndArchives(tables, ctid);
             Assert.True(s.ContainsKey(table));

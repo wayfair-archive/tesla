@@ -12,8 +12,8 @@ namespace TeslaSQL.Tests.Agents {
     public class TestMasterMaintenance : MasterMaintenance {
         [Fact]
         public void TestTableDeletions() {
-            Config.masterCTDB = "alksdjf";
-            Config.changeRetentionHours = 10;
+            Config.MasterCTDB = "alksdjf";
+            Config.ChangeRetentionHours = 10;
             var dataUtils = new Mock<IDataUtils>();
             var destDataUtils = new Mock<IDataUtils>();
             var ctidsToDel = new List<long> { 3, 4, 5 };
@@ -41,7 +41,7 @@ namespace TeslaSQL.Tests.Agents {
             foreach (var otherT in tablesToDel) {
                 dataUtils.Verify(
                     du => du.DropTableIfExists(
-                        Config.masterCTDB, otherT.name, otherT.schema)
+                        Config.MasterCTDB, otherT.name, otherT.schema)
                         );
             }
             

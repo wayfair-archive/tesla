@@ -126,7 +126,7 @@ namespace TeslaSQL.DataUtils {
         public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch ctb, int timeout, long? overrideStartVersion) {
             //no good way to fake this with DataTables so just return and make sure we are also unit testing the
             //methods that generate these sfield lists
-            return testData.Tables[table.schemaName + "." + table.ToCTName(ctb.CTID), GetTableSpace(sourceCTDB)].Rows.Count;
+            return testData.Tables[table.SchemaName + "." + table.ToCTName(ctb.CTID), GetTableSpace(sourceCTDB)].Rows.Count;
         }
 
         public ChangeTrackingBatch CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
@@ -196,16 +196,16 @@ namespace TeslaSQL.DataUtils {
             string schemaChangeTableName = "dbo.tblCTSchemaChange_" + Convert.ToString(CTID);
             DataRow row = testData.Tables[schemaChangeTableName, GetTableSpace(dbName)].NewRow();
             //set its values
-            row["CscDdeID"] = schemaChange.ddeID;
-            row["CscTableName"] = schemaChange.tableName;
-            row["CscEventType"] = schemaChange.eventType;
-            row["CscSchema"] = schemaChange.schemaName;
-            row["CscColumnName"] = schemaChange.columnName;
-            row["CscNewColumnName"] = schemaChange.newColumnName;
-            row["CscBaseDataType"] = schemaChange.dataType.baseType;
-            row["CscCharacterMaximumLength"] = (object)schemaChange.dataType.characterMaximumLength ?? DBNull.Value;
-            row["CscNumericPrecision"] = (object)schemaChange.dataType.numericPrecision ?? DBNull.Value;
-            row["CscNumericScale"] = (object)schemaChange.dataType.numericScale ?? DBNull.Value;
+            row["CscDdeID"] = schemaChange.DdeID;
+            row["CscTableName"] = schemaChange.TableName;
+            row["CscEventType"] = schemaChange.EventType;
+            row["CscSchema"] = schemaChange.SchemaName;
+            row["CscColumnName"] = schemaChange.ColumnName;
+            row["CscNewColumnName"] = schemaChange.NewColumnName;
+            row["CscBaseDataType"] = schemaChange.DataType.BaseType;
+            row["CscCharacterMaximumLength"] = (object)schemaChange.DataType.CharacterMaximumLength ?? DBNull.Value;
+            row["CscNumericPrecision"] = (object)schemaChange.DataType.NumericPrecision ?? DBNull.Value;
+            row["CscNumericScale"] = (object)schemaChange.DataType.NumericScale ?? DBNull.Value;
             //add it to the datatable
             testData.Tables[schemaChangeTableName, GetTableSpace(dbName)].Rows.Add(row);
             //commit the change
@@ -305,7 +305,7 @@ namespace TeslaSQL.DataUtils {
                 //find the table
                 table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
                 //find the row
-                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + Config.slave + "'")[0];
+                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + Config.Slave + "'")[0];
             } else {
                 //find the table
                 table = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
@@ -329,7 +329,7 @@ namespace TeslaSQL.DataUtils {
                 //find the table
                 table = testData.Tables["dbo.tblCTSlaveVersion", GetTableSpace(dbName)];
                 //find the row
-                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + Config.slave + "'")[0];
+                row = table.Select("CTID = " + Convert.ToString(CTID) + " AND slaveIdentifier = '" + Config.Slave + "'")[0];
             } else {
                 //find the table
                 table = testData.Tables["dbo.tblCTVersion", GetTableSpace(dbName)];
@@ -468,8 +468,8 @@ namespace TeslaSQL.DataUtils {
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
             DataTable table = testData.Tables["dbo.tblCTTableInfo_" + Convert.ToString(CTID), GetTableSpace(dbName)];
             DataRow row = table.NewRow();
-            row["CtiTableName"] = t.name;
-            row["CtiSchemaName"] = t.schemaName;
+            row["CtiTableName"] = t.Name;
+            row["CtiSchemaName"] = t.SchemaName;
             row["CtiPKList"] = string.Join(",", t.columns.Where(c => c.isPk));
             row["CtiExpectedRows"] = expectedRows;
             table.Rows.Add(row);

@@ -10,19 +10,19 @@ namespace TeslaSQL {
     /// An instance of this class represents a parsed schema change event
     /// </summary>
     public class SchemaChange {
-        public int ddeID { get; set; }
+        public int DdeID { get; set; }
 
-        public SchemaChangeType eventType { get; set; }
+        public SchemaChangeType EventType { get; set; }
 
-        public string schemaName { get; set; }
+        public string SchemaName { get; set; }
 
-        public string tableName { get; set; }
+        public string TableName { get; set; }
 
-        public string columnName { get; set; }
+        public string ColumnName { get; set; }
 
-        public string newColumnName { get; set; }
+        public string NewColumnName { get; set; }
 
-        public DataType dataType { get; set; }
+        public DataType DataType { get; set; }
 
         /// <summary>
         /// Construct a SchemaChange event, used when parsing DDL events
@@ -35,13 +35,13 @@ namespace TeslaSQL {
         /// <param name="newColumnName">New column name (for rename events only)</param>
         /// <param name="dataType">Data type of the column (for modify/add events only)</param>
         public SchemaChange(int ddeID, SchemaChangeType eventType, string schemaName, string tableName, string columnName, string newColumnName, DataType dataType = null) {
-            this.ddeID = ddeID;
-            this.eventType = eventType;
-            this.schemaName = schemaName;
-            this.tableName = tableName;
-            this.columnName = columnName;
-            this.newColumnName = newColumnName;
-            this.dataType = dataType;
+            this.DdeID = ddeID;
+            this.EventType = eventType;
+            this.SchemaName = schemaName;
+            this.TableName = tableName;
+            this.ColumnName = columnName;
+            this.NewColumnName = newColumnName;
+            this.DataType = dataType;
         }
 
 
@@ -50,13 +50,13 @@ namespace TeslaSQL {
         /// </summary>
         /// <param name="row">DataRow from querying schema change table</param>
         public SchemaChange(DataRow row) {
-            ddeID = row.Field<int>("CscDdeID");
-            eventType = (SchemaChangeType)Enum.Parse(typeof(SchemaChangeType), row.Field<string>("CscEventType"));
-            schemaName = row.Field<string>("CscSchema");
-            tableName = row.Field<string>("CscTableName");
-            columnName = row.Field<string>("CscColumnName");
-            newColumnName = row.Field<string>("CscNewColumnName");
-            dataType = new DataType(row.Field<string>("CscBaseDataType"), row.Field<int?>("CscCharacterMaximumLength"), 
+            DdeID = row.Field<int>("CscDdeID");
+            EventType = (SchemaChangeType)Enum.Parse(typeof(SchemaChangeType), row.Field<string>("CscEventType"));
+            SchemaName = row.Field<string>("CscSchema");
+            TableName = row.Field<string>("CscTableName");
+            ColumnName = row.Field<string>("CscColumnName");
+            NewColumnName = row.Field<string>("CscNewColumnName");
+            DataType = new DataType(row.Field<string>("CscBaseDataType"), row.Field<int?>("CscCharacterMaximumLength"),
                 row.Field<int?>("CscNumericPrecision"), row.Field<int?>("CscNumericScale"));
         }
 
@@ -66,22 +66,17 @@ namespace TeslaSQL {
         /// <param name="toCompare">The schema change to compare to</param>
         /// <returns>True if all properties are the same, false otherwise</returns>
         public bool Equals(SchemaChange toCompare) {
-            if (ddeID != toCompare.ddeID
-                || !eventType.Equals(toCompare.eventType)
-                || schemaName != toCompare.schemaName
-                || tableName != toCompare.tableName
-                || columnName != toCompare.columnName
-                || newColumnName != toCompare.newColumnName
-                || !DataType.Equals(dataType, toCompare.dataType)
-               ) {
-                return false;
-            } else {
-                return true;
-            }
+            return (DdeID == toCompare.DdeID
+                && EventType == toCompare.EventType
+                && SchemaName == toCompare.SchemaName
+                && TableName == toCompare.TableName
+                && ColumnName == toCompare.ColumnName
+                && NewColumnName == toCompare.NewColumnName
+                && DataType.Equals(DataType, toCompare.DataType));
         }
 
         public override string ToString() {
-            return new { SchemaChangeType = eventType, Schema = schemaName, Table = tableName, Column = columnName, NewColumn = newColumnName }.ToString();
+            return new { SchemaChangeType = EventType, Schema = SchemaName, Table = TableName, Column = ColumnName, NewColumn = NewColumnName }.ToString();
         }
     }
 

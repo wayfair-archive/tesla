@@ -12,35 +12,35 @@ namespace TeslaSQL {
 
         public Int64 CTID { get; set; }
 
-        public Int64 syncStartVersion { get; set; }
+        public Int64 SyncStartVersion { get; set; }
 
-        public Int64 syncStopVersion { get; set; }
+        public Int64 SyncStopVersion { get; set; }
 
-        public Int32 syncBitWise { get; set; }
+        public Int32 SyncBitWise { get; set; }
 
-        public DateTime? syncStartTime { get; set; }
+        public DateTime? SyncStartTime { get; set; }
 
         public ChangeTrackingBatch(Int64 CTID, Int64 syncStartVersion, Int64 syncStopVersion, Int32 syncBitWise) {
             this.CTID = CTID;
-            this.syncStartVersion = syncStartVersion;
-            this.syncStopVersion = syncStopVersion;
-            this.syncBitWise = syncBitWise;
+            this.SyncStartVersion = syncStartVersion;
+            this.SyncStopVersion = syncStopVersion;
+            this.SyncBitWise = syncBitWise;
         }
 
         public ChangeTrackingBatch(Int64 CTID, Int64 syncStartVersion, Int64 syncStopVersion, Int32 syncBitWise, DateTime syncStartTime)
             : this(CTID, syncStartVersion, syncStopVersion, syncBitWise) {
-            this.syncStartTime = syncStartTime;
+            this.SyncStartTime = syncStartTime;
         }
 
         public ChangeTrackingBatch(DataRow row) {
             CTID = row.Field<Int64>("CTID");
             long? start = row.Field<Int64?>("syncStartVersion");
-            if (start.HasValue) { syncStartVersion = start.Value; }
+            if (start.HasValue) { SyncStartVersion = start.Value; }
             long? stop = row.Field<Int64?>("syncStopVersion");
-            if (stop.HasValue) { syncStopVersion = stop.Value; }
-            syncBitWise = row.Field<Int32>("syncBitWise");
+            if (stop.HasValue) { SyncStopVersion = stop.Value; }
+            SyncBitWise = row.Field<Int32>("syncBitWise");
             if (row.Table.Columns.Contains("syncStartTime")) {
-                syncStartTime = row.Field<DateTime>("syncStartTime");
+                SyncStartTime = row.Field<DateTime>("syncStartTime");
             }
         }
 
@@ -48,15 +48,10 @@ namespace TeslaSQL {
         /// Compare two ChangeTrackingBatch objects. Used for unit tests.
         /// </summary>
         public bool Equals(ChangeTrackingBatch expected) {
-            if (CTID != expected.CTID
-                || syncStartVersion != expected.syncStartVersion
-                || syncStopVersion != expected.syncStopVersion
-                || syncBitWise != expected.syncBitWise
-               ) {
-                return false;
-            } else {
-                return true;
-            }
+            return (CTID == expected.CTID
+                && SyncStartVersion == expected.SyncStartVersion
+                && SyncStopVersion == expected.SyncStopVersion
+                && SyncBitWise == expected.SyncBitWise);
         }
 
         public string schemaChangeTable { get { return "tblCTSchemaChange_" + CTID; } }
