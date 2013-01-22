@@ -10,15 +10,15 @@ namespace TeslaSQL {
     /// </summary>
     public class ChangeTrackingBatch {
 
-        public Int64 CTID { get; set; }
+        public Int64 CTID { get; private set; }
 
-        public Int64 SyncStartVersion { get; set; }
+        public Int64 SyncStartVersion { get; private set; }
 
         public Int64 SyncStopVersion { get; set; }
 
         public Int32 SyncBitWise { get; set; }
 
-        public DateTime? SyncStartTime { get; set; }
+        public DateTime? SyncStartTime { get; private set; }
 
         public ChangeTrackingBatch(Int64 CTID, Int64 syncStartVersion, Int64 syncStopVersion, Int32 syncBitWise) {
             this.CTID = CTID;

@@ -16,9 +16,9 @@ namespace TeslaSQL {
     /// Class repsenting a DDL event captured by a t-sql DDL trigger
     /// </summary>
     public class DDLEvent {
-        public int ddeID { get; set; }
+        public int DdeID { get; private set; }
 
-        public string eventData { get; set; }
+        public string EventData { get; private set; }
 
         /// <summary>
         /// Constructor used when initializing this object based on data from a DDL trigger
@@ -26,8 +26,8 @@ namespace TeslaSQL {
         /// <param name="ddeID">Unique id for this event</param>
         /// <param name="eventData">XmlDocument from the EVENTDATA() SQL function</param>
         public DDLEvent(int ddeID, string eventData) {
-            this.ddeID = ddeID;
-            this.eventData = eventData;
+            this.DdeID = ddeID;
+            this.EventData = eventData;
         }
 
         /// <summary>
@@ -45,10 +45,10 @@ namespace TeslaSQL {
             string newColumnName;
             XmlNode node;
             var xml = new XmlDocument();
-            xml.LoadXml(eventData);
+            xml.LoadXml(EventData);
             if (xml == null) {
                 Console.WriteLine("XML failed to load");
-                Console.WriteLine(eventData);
+                Console.WriteLine(EventData);
             }
             
             string eventType = xml.SelectSingleNode("EVENT_INSTANCE/EventType").InnerText;
@@ -91,7 +91,7 @@ namespace TeslaSQL {
                     columnName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
                     newColumnName = xml.SelectSingleNode("/EVENT_INSTANCE/NewObjectName").InnerText;
                     if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
-                        sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, newColumnName);
+                        sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, newColumnName);
                         schemaChanges.Add(sc);
                     }
                     break;
@@ -101,7 +101,7 @@ namespace TeslaSQL {
                         columnName = xColumn.InnerText;
                         if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                             dataType = ParseDataType(dataUtils.GetDataType(dbName, tableName, schemaName, columnName));
-                            sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
+                            sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
                         }
                     }
@@ -117,7 +117,7 @@ namespace TeslaSQL {
                         if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                             var type = dataUtils.GetDataType(dbName, tableName, schemaName, columnName);
                             dataType = ParseDataType(type);
-                            sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, dataType);
+                            sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, dataType);
                             schemaChanges.Add(sc);
                         }
                     }
@@ -128,7 +128,7 @@ namespace TeslaSQL {
                     foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Drop/Columns/Name")) {                        
                         columnName = xColumn.InnerText;
                         if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
-                            sc = new SchemaChange(ddeID, changeType, schemaName, tableName, columnName, null, null);
+                            sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, null);
                             schemaChanges.Add(sc);
                         }
                     }

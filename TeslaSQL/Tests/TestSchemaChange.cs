@@ -12,19 +12,16 @@ namespace TeslaSQL.Tests {
         public void TestEquals() {
             SchemaChange one = new SchemaChange(1, SchemaChangeType.Add, "sname", "tname", "cname", "ncname");
             SchemaChange two = new SchemaChange(1, SchemaChangeType.Add, "sname", "tname", "cname", "ncname");
-
-            two.EventType = SchemaChangeType.Drop;
-            Assert.False(one.Equals(two));
-            two.EventType = SchemaChangeType.Add;
-            two.SchemaName = "asdf";
-
-            Assert.False(one.Equals(two));
-            two.SchemaName = "sname";
-
             Assert.True(one.Equals(two));
-            two.ColumnName = "asdf";
+
+            two = new SchemaChange(1, SchemaChangeType.Drop, "sname", "tname", "cname", "ncname");
+
             Assert.False(one.Equals(two));
-            two.ColumnName = "cname";
+            two = new SchemaChange(1, SchemaChangeType.Add, "asdf", "tname", "cname", "ncname");
+
+            Assert.False(one.Equals(two));
+            two = new SchemaChange(1, SchemaChangeType.Add, "sname", "tname", "asdf", "ncname");
+            Assert.False(one.Equals(two));
         }
     }
 }

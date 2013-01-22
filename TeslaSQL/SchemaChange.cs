@@ -10,19 +10,19 @@ namespace TeslaSQL {
     /// An instance of this class represents a parsed schema change event
     /// </summary>
     public class SchemaChange {
-        public int DdeID { get; set; }
+        public int DdeID { get; private set; }
 
-        public SchemaChangeType EventType { get; set; }
+        public SchemaChangeType EventType { get; private set; }
 
-        public string SchemaName { get; set; }
+        public string SchemaName { get; private set; }
 
-        public string TableName { get; set; }
+        public string TableName { get; private set; }
 
-        public string ColumnName { get; set; }
+        public string ColumnName { get; private set; }
 
-        public string NewColumnName { get; set; }
+        public string NewColumnName { get; private set; }
 
-        public DataType DataType { get; set; }
+        public DataType DataType { get; private set; }
 
         /// <summary>
         /// Construct a SchemaChange event, used when parsing DDL events

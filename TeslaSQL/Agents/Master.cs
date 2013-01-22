@@ -202,7 +202,7 @@ namespace TeslaSQL.Agents {
             foreach (DataRow row in ddlEvents.Rows) {
                 logger.Log("Processing DDLevent...", LogLevel.Trace);
                 dde = new DDLEvent(row.Field<int>("DdeID"), row.Field<string>("DdeEventData"));
-                logger.Log("Event initialized. DDEID is " + Convert.ToString(dde.ddeID), LogLevel.Trace);
+                logger.Log("Event initialized. DDEID is " + Convert.ToString(dde.DdeID), LogLevel.Trace);
 
                 //a DDL event can yield 0 or more schema change events, hence the List<SchemaChange>
                 logger.Log("Parsing DDL event XML", LogLevel.Trace);

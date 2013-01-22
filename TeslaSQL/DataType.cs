@@ -11,10 +11,10 @@ namespace TeslaSQL {
     public class DataType {
         private static Dictionary<SqlFlavor, IList<string>> dataMappings = new Dictionary<SqlFlavor, IList<string>>();
 
-        public string BaseType { get; set; }
-        public int? CharacterMaximumLength { get; set; }
-        public int? NumericPrecision { get; set; }
-        public int? NumericScale { get; set; }
+        public string BaseType { get; private set; }
+        public int? CharacterMaximumLength { get; private set; }
+        public int? NumericPrecision { get; private set; }
+        public int? NumericScale { get; private set; }
 
         public static void LoadDataMappingsFromFile(string filePath) {
             string s;
