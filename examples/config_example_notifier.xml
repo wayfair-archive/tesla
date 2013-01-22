@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- global application configuration -->
+<!-- Please read each comment thoroughly. You will have to change most of these variables -->
+<conf>
+  <!--Hostname or IP of the relay server-->
+  <relayServer>RELAYHOSTNAME</relayServer>
+  <!--Database engine type of the slave server-->
+  <relayType>MSSQL</relayType>
+  <!--Username to use when connected to the relay server-->
+  <relayUser>tesla</relayUser>
+  <!--Encrypted password for the relay user. Encrypt using scripts\EncryptPassword.ps1-->
+  <relayPassword>lTXVebm+gWoc2j5E93hEJVw==</relayPassword>  
+  <!--Database on the relay server to read errors from-->
+  <errorLogDB>shared_error_database_name</errorLogDB>
+  <!--Hostname or IP of your smtp server. Must allow unauthenticated e-mail sending-->
+  <emailServerHost>mysmtp.mydomain.com</emailServerHost>
+  <!--Standard port is 25, configure this if you use something else-->
+  <emailServerPort>25</emailServerPort>
+  <!--Address for tesla to send e-mails from-->
+  <emailFromAddress>tesla@mydomain.com</emailFromAddress>
+  <!--Who to send the e-mails to-->
+  <emailErrorRecipient>dba@mydomain.com</emailErrorRecipient>
+</conf>

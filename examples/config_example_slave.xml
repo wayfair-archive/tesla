@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- global application configuration -->
+<!-- Please read each comment thoroughly. You will have to change most of these variables -->
+<conf>
+  <!--Hostname or IP of the slave server-->
+  <slave>SLAVEHOSTNAME</slave>
+  <!--Database engine type of the slave server-->
+  <slaveType>MSSQL</slaveType>
+  <!--Hostname or IP of the relay server-->
+  <relayServer>RELAYHOSTNAME</relayServer>
+  <!--Database engine type of the relay server-->
+  <relayType>MSSQL</relayType>
+  <!--Database name for the slave database-->
+  <slaveDB>slave_database_name</slaveDB>
+  <!--Database the changesets are stored in when generated before being copied to the relay.-->
+  <slaveCTDB>CT_slave_database_name</slaveCTDB>
+  <!--Relay database name to copy changes to-->
+  <relayDB>CT_slave_database_name</relayDB>
+  <!--Database on the relay server to log errors to. Multiple tesla setups can all share the same error db and table.-->
+  <errorLogDB>shared_error_database_name</errorLogDB>
+  <!--Table on the relay server to log errors to-->
+  <errorTable>tblcterror</errorTable>
+  <!--Username to use when connected to the slave-->
+  <slaveUser>tesla</slaveUser>
+  <!--Encrypted password for the slave user. Encrypt using scripts\EncryptPassword.ps1. -->
+  <slavePassword>TXVebm+gWoc2j5E93hEJVw==</slavePassword>
+  <!--Username to use when connected to the relay server-->
+  <relayUser>tesla</relayUser>
+  <!--Encrypted password for the relay user. Encrypt using scripts\EncryptPassword.ps1-->
+  <relayPassword>lTXVebm+gWoc2j5E93hEJVw==</relayPassword>  
+  <!--Host/IP and port for logging to statsd. If you don't want to use statsd, just comment these parameters out entirely.-->
+  <statsdHost>10.20.30.40</statsdHost>
+  <statsdPort>8125</statsdPort>
+  <!--Timeout for copying data between servers in seconds. 0 disables the timeout.-->
+  <dataCopyTimeout>3600</dataCopyTimeout>
+  <!--Timeout for queries. 0 disables the timeout.-->
+  <queryTimeout>3600</queryTimeout>
+  <!--Maximum number of threads to use for multi threaded portions of tesla.-->
+  <maxThreads>4</maxThreads>
+  <!--How long to keep changetables around (Maintenance agents use this).-->
+  <changeRetentionHours>96</changeRetentionHours>
+  <!--How long to keep tblCTVersion rows around (Maintenance agents use this).-->
+  <batchRecordRetentionDays>30</batchRecordRetentionDays>
+  <!--How far behind can the slave get before consolidating batches? There is some overhead
+  associated with consolidation so it only provides benefit after several batches-->
+  <batchConsolidationThreshold>5</batchConsolidationThreshold>
+  <!--Magic hours are used for slaves that only want to sync at certain times of the day. You 
+  generally don't need this so it's commented out by default.
+    <magicHours>
+    <magicHour>0:00</magicHour>
+    <magicHour>16:00</magicHour>
+    <magicHour>23:00</magicHour>    
+  </magicHours>
+  -->
+<!-- begin table specific information -->  
+  <tables>   
+    <table>    
+      <!--Schema the table is in-->
+      <schemaName>dbo</schemaName>
+      <!--The name of the table-->
+      <name>table1</name>
+      <!--If an error happens while operating on this table, should Tesla exit with a failure status (true) or
+      just keep going and write an alert to the errors table (which a Notifier agent will send out later)?  
+      This is an important decision you should make for each table, or just set all tables to true.
+      You should generally only use false if you don't mind that you may have to reinitialize the table
+      if something goes wrong.-->    
+      <stopOnError>true</stopOnError>  
+      <!--Column modifiers can be used to restrict the size of a particular field. 
+      In this example, we publish only the first 500 characters of a very large text field-->
+      <columnModifier type="ShortenField" length="500" columnName="myfield1" />
+    </table>
+    <table>
+      <schemaName>dbo</schemaName>
+      <name>table2</name>
+      <stopOnError>true</stopOnError>  
+    </table>
+    <table>
+      <schemaName>dbo</schemaName>
+      <name>tblTest2</name>
+      <!--If a column list is specified, only columns in the list will be subscribed to. Any other published columns are ignored.
+      If you want to add a new column to the table and to this list, you should add it to the list first, then add it to the table. -->
+      <columnList>
+        <column>column1</column>
+        <column>column2</column>
+        <column>column3</column>
+      </columnList>      
+      <stopOnError>false</stopOnError>
+    </table>     
+  </tables>
+</conf>
