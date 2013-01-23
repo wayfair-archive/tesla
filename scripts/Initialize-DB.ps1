@@ -340,7 +340,7 @@ $relaydb = $xml.SelectSingleNode("/conf/relayDB").InnerText
 $relayuser = $xml.SelectSingleNode("/conf/relayUser").InnerText
 $relaypassword = $xml.SelectSingleNode("/conf/relayPassword").InnerText
 $tables = $xml.SelectSingleNode("/conf/tables")
-$errorlogdb = $xml.SelectSingleNode("/conf/errorLogDB")
+$errorlogdb = $xml.SelectSingleNode("/conf/errorLogDB").InnerText
 
 Write-Host "Loading master XML settings"
 [xml]$xml = Get-Content $masterconfigfile
