@@ -58,8 +58,7 @@ namespace TeslaSQL {
         public string ModifiedMasterColumnList {
             get {
                 return string.Join(",",
-                        columns.Where(col => ColumnList == null || ColumnList.Contains(col.name))
-                        .Select(col => {
+                        columns.Select(col => {
                             if (ParsedColumnModifiers.ContainsKey(col.name)) {
                                 return ParsedColumnModifiers[col.name];
                             } else {
