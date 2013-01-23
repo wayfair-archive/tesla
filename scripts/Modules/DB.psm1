@@ -264,52 +264,82 @@ namespace TeslaSQL {
 
 Add-Type -TypeDefinition $Source -Language CSharpVersion3
 
-function Invoke-Parallel { 
+Function Invoke-Parallel { 
 <# 
 .SYNOPSIS 
-A parallel ForEach that uses runspaces 
- 
-.PARAMETER ScriptBlock 
-ScriptBlock to execute for each InputObject 
+Function to control parallel processing using runspaces 
  
 .PARAMETER ScriptFile 
-Script file to execute for each InputObject 
+File to run against all computers.  Must include parameter to take in a computername.  Example: C:\script.ps1 
  
-.PARAMETER InputObject 
-Object(s) to run script against in parallel 
+.PARAMETER ScriptBlock 
+Scriptblock to run against all computers.  The parameter $_ is added to the first line to allow behavior similar to foreach(){}. 
+ 
+.PARAMETER inputObject 
+Run script against specified objects. 
  
 .PARAMETER Throttle 
-Maximum number of threads to run at one time.  Default: 5 
- 
-.PARAMETER Timeout 
-Stop each thread after this many minutes.  Default: 0 
- 
-WARNING:  This parameter should be used as a failsafe only 
-Set it for roughly the entire duration you expect for all threads to complete 
+Maximum number of threads open at a single time.  Default: 20 
  
 .PARAMETER SleepTimer 
-When looping through open threads, wait this many milliseconds before looping again.  Default: 200 
+Milliseconds to sleep after checking for completed runspaces.  Default: 200 (milliseconds) 
+ 
+.PARAMETER Timeout 
+Maximum time in minutes a single thread can run.  If execution of your scriptblock takes longer than this, it is disposed.  Default: 0 (minutes) 
+ 
+WARNING:  Depending on your usage, this timeout may not be entirely accurate.  Please read the warning on this webpage: 
+ 
+http://gallery.technet.microsoft.com/Run-Parallel-Parallel-377fd430 
  
 .EXAMPLE 
-(0..50) | Invoke-Parallel -Throttle 4 { $_; sleep (Get-Random -Minimum 0 -Maximum 5) } 
-} 
+Each example uses Test-ForPacs.ps1 which includes the following code: 
+    param($computer) 
  
-Send the number 0 through 50 to scriptblock.  For each, display the number and then sleep for 0 to 5 seconds.  Only execute 4 threads at a time. 
+    if(test-connection $computer -count 1 -quiet -BufferSize 16){ 
+        $object = [pscustomobject] @{ 
+            Computer=$computer; 
+            Available=1; 
+            Kodak=$( 
+                if((test-path "\\$computer\c$\users\public\desktop\Kodak Direct View Pacs.url") -or (test-path "\\$computer\c$\documents and settings\all users 
+ 
+\desktop\Kodak Direct View Pacs.url") ){"1"}else{"0"} 
+            ) 
+        } 
+    } 
+    else{ 
+        $object = [pscustomobject] @{ 
+            Computer=$computer; 
+            Available=0; 
+            Kodak="NA" 
+        } 
+    } 
+ 
+    $object 
  
 .EXAMPLE 
-$servers | Invoke-Parallel -Throttle 20 -Timeout 60 -sleeptimer 200 -verbose -scriptFile C:\query.ps1 
+Invoke-Parallel -scriptfile C:\public\Test-ForPacs.ps1 -inputobject $(get-content C:\pcs.txt) -timeout 5 -throttle 10 
  
-Run query.ps1 against each computer in $servers.  Run 20 threads at a time, timeout a thread if it takes longer than 60 minutes to run, give verbose output. 
+    Pulls list of PCs from C:\pcs.txt, 
+    Runs Test-ForPacs against each 
+    If any query takes longer than 5 minutes, it is disposed 
+    Only run 10 threads at a time 
  
-.FUNCTIONALITY  
+.EXAMPLE 
+Invoke-Parallel -scriptfile C:\public\Test-ForPacs.ps1 -inputobject c-is-ts-91, c-is-ts-95 
+ 
+    Runs against c-is-ts-91, c-is-ts-95 (-computername) 
+    Runs Test-ForPacs against each 
+ 
+.FUNCTIONALITY 
 PowerShell Language 
  
 .NOTES 
-Credit to Tome Tanasovski 
-http://powertoe.wordpress.com/2012/05/03/Invoke-Parallel/ 
+Credit to Boe Prox  
+http://learn-powershell.net/2012/05/10/speedy-network-information-query-using-powershell/ 
+http://gallery.technet.microsoft.com/scriptcenter/Speedy-Network-Information-5b1406fb#content 
 #> 
     [cmdletbinding()] 
-    param( 
+    Param (    
         [Parameter(Mandatory=$false,position=0,ParameterSetName='ScriptBlock')] 
             [System.Management.Automation.ScriptBlock]$ScriptBlock, 
  
@@ -318,109 +348,184 @@ http://powertoe.wordpress.com/2012/05/03/Invoke-Parallel/
             $scriptFile, 
  
         [Parameter(Mandatory=$true,ValueFromPipeline=$true)] 
+        [Alias('CN','__Server','IPAddress','Server','ComputerName')]     
             [PSObject]$InputObject, 
  
-            [int]$Throttle=5, 
+        [parameter()] 
+            [int]$Throttle = 20, 
  
-            [double]$sleepTimer = 200, 
+            $SleepTimer = 200, 
  
-            [double]$Timeout = 0 
+            $Timeout = 0 
     ) 
-    BEGIN { 
+    Begin { 
+      
+        #Function that will be used to process runspace jobs 
+        Function Get-RunspaceData { 
+            [cmdletbinding()] 
+            param( [switch]$Wait ) 
+             
+            Do { 
+                #set more to false 
+                $more = $false 
+ 
+                #Progress bar if we have inputobject count (bound parameter) 
+                if($bound){ 
+                    Write-Progress  -Activity "Running Query"` 
+                        -Status "Starting threads"` 
+                        -CurrentOperation "$startedCount threads defined - $totalCount input objects - $completedCount input objects processed"` 
+                        -PercentComplete ($completedCount / $totalCount * 100) 
+                } 
+ 
+                #run through each runspace.            
+                Foreach($runspace in $runspaces) { 
+                     
+                    #get the duration - inaccurate 
+                    $runtime = (get-date) - $runspace.startTime 
+ 
+                    #If runspace completed, end invoke, dispose, recycle, counter++ 
+                    If ($runspace.Runspace.isCompleted) { 
+                        $runspace.powershell.EndInvoke($runspace.Runspace) 
+                        $runspace.powershell.dispose() 
+                        $runspace.Runspace = $null 
+                        $runspace.powershell = $null 
+                        $script:completedCount++ 
+                    } 
+ 
+                    #If runtime exceeds max, dispose the runspace 
+                    ElseIf ( $timeout -ne 0 -and ( (get-date) - $runspace.startTime ).totalMinutes -gt $timeout) { 
+                        $runspace.powershell.dispose() 
+                        $runspace.Runspace = $null 
+                        $runspace.powershell = $null 
+                        $script:completedCount++ 
+                        Write-Warning "$($runspace.object) timed out" 
+                    } 
+                    
+                    #If runspace isn't null set more to true   
+                    ElseIf ($runspace.Runspace -ne $null) { 
+                        $more = $true 
+                    } 
+                } 
+ 
+                #After looping through runspaces, if more and wait, sleep 
+                If ($more -AND $PSBoundParameters['Wait']) { 
+                    Start-Sleep -Milliseconds $SleepTimer 
+                }    
+ 
+                #Clean out unused runspace jobs 
+                $temphash = $runspaces.clone() 
+                $temphash | Where { $_.runspace -eq $Null } | ForEach { 
+                    Write-Verbose ("Removing {0}" -f $_.object) 
+                    $Runspaces.remove($_) 
+                } 
+ 
+            #Stop this loop only when $more if false and wait                  
+            } while ($more -AND $PSBoundParameters['Wait']) 
          
+        #End of runspace function 
+        } 
+ 
         #Build the scriptblock depending on the parameter used 
         switch ($PSCmdlet.ParameterSetName){ 
             'ScriptBlock' {$ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n" + $Scriptblock.ToString())} 
             'ScriptFile' {$scriptblock = [scriptblock]::Create($(get-content $scriptFile | out-string))} 
             Default {Write-Error ("Must provide ScriptBlock or ScriptFile"); Return} 
         } 
-         
-        #Define the initial sessionstate, create the runspacepool 
-        Write-Verbose "Creating runspace pool with $Throttle threads" 
-        $sessionState = [system.management.automation.runspaces.initialsessionstate]::CreateDefault() 
-        $pool = [Runspacefactory]::CreateRunspacePool(1, $Throttle, $sessionState, $host) 
-        $pool.open() 
-         
-        #array to hold details on each thread 
-        $threads = @() 
  
+        #Create runspace pool 
+        Write-Verbose ("Creating runspace pool and session states") 
+        $sessionstate = [system.management.automation.runspaces.initialsessionstate]::CreateDefault() 
+        $runspacepool = [runspacefactory]::CreateRunspacePool(1, $Throttle, $sessionstate, $Host) 
+        $runspacepool.Open()   
+         
+        Write-Verbose ("Creating empty collection to hold runspace jobs") 
+        $Script:runspaces = New-Object System.Collections.ArrayList         
+         
+        #initialize counters 
+        $script:startedCount = 0 
+        $script:completedCount = 0 
+         
         #If inputObject is bound get a total count and set bound to true 
         $bound = $false 
         if( $PSBoundParameters.ContainsKey("inputObject") ){ 
             $bound = $true 
             $totalCount = $inputObject.count 
         } 
-         
+ 
+        <# 
+        Calculate a maximum number of runspaces to allow queued up 
+ 
+            ($Throttle * 2) + 1 ensures the pool always has at least double the throttle + 1 
+                This means $throttle + 1 items will be queued up and their actual start time will drift from the startTime we create 
+                For better timeout accuracy or performance, pick an appropriate maxQueue below or define it to fit your needs 
+        #> 
+        #PERFORMANCE - don't worry about timeout accuracy, throw 10x the throttle in the queue 
+        #$maxQueue = $throttle * 10 
+        #ACCURACY - sacrifice performance for an accurate timeout.  Don't keep anything in the pool beyond the throttle 
+        #$maxQueue = $throttle 
+        #BALANCE - performance and reasonable timeout accuracy 
+        $maxQueue = ($Throttle * 2) + 1 
+ 
     } 
  
-    PROCESS { 
-         
+    Process { 
+ 
 $run = @' 
-        #For each pipeline object, create a new powershell instance, add to runspacepool 
-        $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject) 
-        $powershell.runspacepool=$pool 
-        $startTime = get-date 
+            #Create the powershell instance and supply the scriptblock with the other parameters  
+            $powershell = [powershell]::Create().AddScript($ScriptBlock).AddArgument($inputobject) 
+             
+            #Add the runspace into the powershell instance 
+            $powershell.RunspacePool = $runspacepool 
+             
+            #Create a temporary collection for each runspace 
+            $temp = "" | Select-Object PowerShell,Runspace,object,StartTime 
+            $temp.object = $inputObject 
+            $temp.PowerShell = $powershell 
+            $temp.StartTime = get-date 
+             
+            #Save the handle output when calling BeginInvoke() that will be used later to end the runspace 
+            $temp.Runspace = $powershell.BeginInvoke() 
+            Write-Verbose ("Adding {0} collection" -f $temp.object) 
+            $runspaces.Add($temp) | Out-Null 
+            $startedCount++ 
  
-        #add references to inputobject, instance, handle and startTime to threads array 
-        $threads += New-Object psobject -Property @{ 
-            Object = $inputObject; 
-            instance = $powershell; 
-            handle = $powershell.begininvoke(); 
-            startTime = $startTime 
-        } 
- 
-        Write-Verbose "Added $inputobject to the runspacepool at $startTime" 
+            Write-Verbose ("Checking status of runspace jobs") 
+            Get-RunspaceData 
 '@ 
  
+        #Calculate number of running runspaces 
+        $runningCount = $startedCount - $completedCount 
+ 
+        #If we have more running that necessary, run get-runspace data and sleep for a short whilt 
+        while ($runningCount -ge $maxQueue) 
+        { 
+            Write-Verbose "'$runningCount' items running - exceeded '$maxQueue' limit." 
+            Get-RunspaceData 
+            Start-Sleep -milliseconds $sleepTimer 
+ 
+            #recalculate number of running runspaces 
+            $runningCount = $startedCount - $completedCount 
+        } 
+         
         #Run the here string.  Put it in a foreach loop if it didn't come from the pipeline 
         if($bound){    
             $run = $run -replace 'inputObject', 'object' 
-            foreach($object in $inputObject){  
+            foreach($object in $inputObject){ 
                 Invoke-Expression -command $run 
             } 
         } 
- 
         else{ 
-         
             Invoke-Expression -command $run 
         } 
  
     } 
-    END { 
-        $notdone = $true 
-         
-        #Loop through threads. 
-        while ($notdone) { 
  
-            $notdone = $false 
-            for ($i=0; $i -lt $threads.count; $i++) { 
-                $thread = $threads[$i] 
-                if ($thread) { 
+    End {                      
+        Write-Verbose ("Finish processing the remaining runspace jobs: {0}" -f (@(($runspaces | Where {$_.Runspace -ne $Null}).Count))) 
  
-                    #If thread is complete, dispose of it. 
-                    if ($thread.handle.iscompleted) { 
-                        Write-verbose "Closing thread for $($thread.Object)" 
-                        $thread.instance.endinvoke($thread.handle) 
-                        $thread.instance.dispose() 
-                        $threads[$i] = $null 
-                    } 
+        Get-RunspaceData -wait 
  
-                    #Thread exceeded maxruntime timeout threshold 
-                    elseif( $Timeout -ne 0 -and ( (get-date) - $thread.startTime ).totalminutes -gt $Timeout ){ 
-                        Write-Error "Closing thread for $($thread.Object): Thread exceeded $Timeout minute limit" -TargetObject $thread.inputObject 
-                        $thread.instance.dispose() 
-                        $threads[$i] = $null 
-                    } 
- 
-                    #Thread is running, loop again! 
-                    else { 
-                        $notdone = $true 
-                    } 
-                }            
-            } 
- 
-            #Sleep for specified time before looping again 
-            Start-Sleep -Milliseconds $sleepTimer 
-        } 
+        Write-Verbose ("Closing the runspace pool") 
+        $runspacepool.close()                
     } 
-}
+} 
