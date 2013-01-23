@@ -252,7 +252,7 @@ namespace TeslaSQL.DataUtils {
             string sql = refresh.Command;
             var cmd = new OleDbCommand(sql);
             try {
-                SqlNonQuery(dbName, cmd);
+                SqlNonQuery(refresh.Db, cmd);
             } catch (Exception) {
                 throw new Exception("Please check any pending schema changes to be applied on Netezza before refreshing the view::" + dbName + ".." + refresh.ViewName);
             }

@@ -269,6 +269,9 @@ if (!$notfirstshard) {
         $numerictypes = @("numeric","decimal")
         $maxlengthtypes = @("varchar", "nvarchar", "char", "nchar", "varbinary")
         #build table creation command
+        #the actual column list is the intersection of the master column list (if specified), the slave column list (if specified), 
+        #and the columns that actually exist on the master side (based on the above query). that's what this loop calculates, as well as appropriate
+        #data types based on the types existing in the database and the consolidated column modifiers from master and slave.
         foreach ($column in $columns) {
             if (($columnarray.Length -eq 0) -or ($columnarray -contains $column.COLUMN_NAME)) {
                 $typeexpression = $column.DATA_TYPE
