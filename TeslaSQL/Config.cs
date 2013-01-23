@@ -33,7 +33,6 @@ namespace TeslaSQL {
             SlaveDB = ValidateNullableIdentifier(c.slaveDB);
             RelayDB = ValidateNullableIdentifier(c.relayDB);
             ErrorLogDB = ValidateNullableIdentifier(c.errorLogDB);
-            ErrorTable = c.errorTable;
             MasterUser = ValidateNullableIdentifier(c.masterUser);
             MasterPassword = c.masterPassword;
             SlaveUser = ValidateNullableIdentifier(c.slaveUser);
@@ -317,8 +316,6 @@ namespace TeslaSQL {
         //database to log errors to
         public static string ErrorLogDB { get; set; }
 
-        public static string ErrorTable { get; set; }
-
         /// <summary>
         /// how many hours to retain changes for in the relay server
         /// </summary>
@@ -492,7 +489,6 @@ namespace TeslaSQL {
         public int emailServerPort { get; set; }
         public string emailFromAddress { get; set; }
         public string emailErrorRecipient { get; set; }
-        public string errorTable { get; set; }
         public int dataCopyTimeout { get; set; }
         public int queryTimeout { get; set; }
         public string netezzaUser { get; set; }

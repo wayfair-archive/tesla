@@ -60,6 +60,8 @@ namespace TeslaSQL.Agents {
                 Consolidate(batch);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, batch.CTID,
                     Convert.ToInt32(SyncBitWise.CaptureChanges) | Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.ShardCoordinator);
+                //now that the current batch is done, create a new one for the masters to work on
+                CreateNewVersionsForShards(batch);
             } else {
                 logger.Log("Not all shards are done yet, waiting until they catch up", LogLevel.Info);
             }

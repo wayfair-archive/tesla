@@ -249,6 +249,8 @@ $relaydb = $xml.SelectSingleNode("/conf/relayDB").InnerText
 $relayuser = $xml.SelectSingleNode("/conf/relayUser").InnerText
 $relaypassword = $xml.SelectSingleNode("/conf/relayPassword").InnerText
 $tables = $xml.SelectSingleNode("/conf/tables")
+$errorlogdb = $xml.SelectSingleNode("/conf/errorLogDB")
+
 Write-Host "Loading master XML settings"
 [xml]$xml = Get-Content $masterconfigfile
 
@@ -364,8 +366,10 @@ if ($newdatabase -or $newshard) {
     Write-Host "creating $relaydb on server $relay"
     Create-DB $relay $relaydb $relaytype $relayuser $ctripledes.Decrypt($relaypassword)
 
-    Write-Host "dropping all tables on $relaydb on server $relay"
-    Drop-AllTables $relay $relaydb $yes
+    if ($relay -ne $master) {
+        Write-Host "dropping all tables on $relaydb on server $relay"
+        Drop-AllTables $relay $relaydb $yes
+    }
 
     #tblCTversion has no identity on sharded CT dbs
     if ($sharding) {
@@ -463,11 +467,28 @@ if ($newdatabase -or $newslave) {
     Write-Host "creating $slavectdb on server $slave"
     Create-DB $slave $slavectdb $slavetype $slaveuser $ctripledes.Decrypt($slavepassword)
 
-    Write-Host "dropping all tables on $slavectdb on server $slave"
-    if ($slavetype -eq "MSSQL") {        
-        Drop-AllTables $slave $slavectdb $yes
-    } elseif ($slavetype -eq "Netezza") {
-        Drop-AllTables $slave $slavectdb $slaveuser $slavepassword $yes
+    Write-Host "creating $errorlogdb on server $relay"
+    Create-DB $relay $errorlogdb $relaytype $relayuser $ctripledes.Decrypt($relaypassword)
+    
+    Write-Host "creating tblCTError in $errorlogdb"
+    $query = "
+    IF OBJECT_ID('tblCTError') IS NULL
+    CREATE TABLE [dbo].[tblCTError](
+    	[CelId] [int] IDENTITY(1,1) NOT NULL,
+    	[CelError] [nvarchar](max) NULL,
+    	[CelLogDate] [datetime] NOT NULL DEFAULT GETDATE(),
+    	[CelSent] [bit] NOT NULL DEFAULT 0,
+    	[CelAcknowledged] [bit] NOT NULL DEFAULT 0
+    )"
+    invoke-sqlcmd2 -serverinstance $relay -database $errorlogdb -query $query
+    
+    if ($relay -ne $slave ) {
+        Write-Host "dropping all tables on $slavectdb on server $slave"
+        if ($slavetype -eq "MSSQL") {        
+            Drop-AllTables $slave $slavectdb $yes
+        } elseif ($slavetype -eq "Netezza") {
+            Drop-AllTables $slave $slavectdb $slaveuser $slavepassword $yes
+        }
     }
     Write-Host "creating $slavedb on server $slave"
     Create-DB $slave $slavedb $slavetype $slaveuser $ctripledes.Decrypt($slavepassword)
@@ -541,6 +562,7 @@ $tablestoinitialize | Invoke-Parallel -Throttle $maxthreads {
     #switch to directory containing the script. required because this is inside a runspace which
     #doesn't inherit the environment of the parent scope.
     cd $_.directory
+    $starttime = Get-Date
     #many of these params (i.e. the netezza ones) may be null or empty but that's fine
     #note, switches can be specfied using a bool with the : syntax, i.e. -switch:$true
     .\AddTable-ToCT -master $_.master -masterdb $_.masterdb -slave $_.slave -slavedb $_.slavedb -slavetype $_.slavetype `
@@ -548,7 +570,9 @@ $tablestoinitialize | Invoke-Parallel -Throttle $maxthreads {
         -mastercolumnlist $_.mastercolumnlist -slavecolumnmodifiers $_.slavecolumnmodifiers -mastercolumnmodifiers $_.mastercolumnmodifiers `
         -netezzastringlength $_.netezzastringlength -mappingsfile $_.mappingsfile -sshuser $_.sshuser -pkpath $_.pkpath -plinkpath $_.plinkpath `
         -nzloadscript $_.nzloadscript -bcppath $_.bcppath -reinitialize:$_.reinitialize -notlast:$_.notlastslave -notfirstshard:$_.notfirstshard
-   Write-Host ("Initialization complete for table " + $_.table)
+   
+   $duration = [math]::Round((Get-Date).Subtract($starttime).TotalMinutes, 2)
+   Write-Host ("Initialization complete for table " + $_.table + " in " + $duration + " minutes")
 }
 
 #update row of tblCTVersion, setting syncbitwise to 7

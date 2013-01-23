@@ -633,18 +633,18 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void LogError(string message) {
-            SqlCommand cmd = new SqlCommand("INSERT INTO tblCtError (CelError) VALUES ( @error )");
+            SqlCommand cmd = new SqlCommand("INSERT INTO tblCTError (CelError) VALUES ( @error )");
             cmd.Parameters.Add("@error", SqlDbType.VarChar, -1).Value = message;
             SqlNonQuery(Config.ErrorLogDB, cmd);
         }
 
         public DataTable GetUnsentErrors() {
-            SqlCommand cmd = new SqlCommand("SELECT CelError, CelId FROM tblCtError WHERE CelSent = 0");
+            SqlCommand cmd = new SqlCommand("SELECT CelError, CelId FROM tblCTError WHERE CelSent = 0");
             return SqlQuery(Config.ErrorLogDB, cmd);
         }
 
         public void MarkErrorsSent(IEnumerable<int> celIds) {
-            SqlCommand cmd = new SqlCommand("UPDATE tblCtError SET CelSent = 1 WHERE CelId IN (" + string.Join(",", celIds) + ")");
+            SqlCommand cmd = new SqlCommand("UPDATE tblCTError SET CelSent = 1 WHERE CelId IN (" + string.Join(",", celIds) + ")");
             SqlNonQuery(Config.ErrorLogDB, cmd);
         }
 

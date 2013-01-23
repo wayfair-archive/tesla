@@ -18,8 +18,6 @@
   <relayDB>CT_master_database_name</relayDB>
   <!--Database on the relay server to log errors to. Multiple tesla setups can all share the same error db and table.-->
   <errorLogDB>shared_error_database_name</errorLogDB>
-  <!--Table on the relay server to log errors to-->
-  <errorTable>tblcterror</errorTable>
   <!--Username to use when connected to the master-->
   <masterUser>tesla</masterUser>
   <!--Encrypted password for the master user. Encrypt using scripts\EncryptPassword.ps1. -->
