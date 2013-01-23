@@ -6,7 +6,6 @@ using System.Xml.Serialization;
 using TeslaSQL.DataUtils;
 
 namespace TeslaSQL {
-
     [XmlType("table")]
     public class TableConf {
         [XmlElement("name")]
@@ -18,6 +17,7 @@ namespace TeslaSQL {
         [XmlElement("stopOnError")]
         public bool StopOnError { get; set; }
 
+        [XmlArray("columnList")]
         [XmlArrayItem("column")]
         public string[] ColumnList { get; set; }
 
@@ -58,7 +58,8 @@ namespace TeslaSQL {
         public string ModifiedMasterColumnList {
             get {
                 return string.Join(",",
-                        columns.Select(col => {
+                        columns.Where(col => ColumnList == null || ColumnList.Contains(col.name))
+                        .Select(col => {
                             if (ParsedColumnModifiers.ContainsKey(col.name)) {
                                 return ParsedColumnModifiers[col.name];
                             } else {

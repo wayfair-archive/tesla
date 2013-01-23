@@ -247,7 +247,7 @@ namespace TeslaSQL.Tests.Agents {
                 //second one has column list
                 tables[1] = new TableConf();
                 tables[1].Name = "test2";
-                tables[1].ColumnList = new string[2] { "column1", "column2" };
+                tables[1].ColumnList = new string[] { "column1", "column2" };
 
                 sourceDataUtils = new TestDataUtils(TServer.RELAY);
                 destDataUtils = new TestDataUtils(TServer.SLAVE);

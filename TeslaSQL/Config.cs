@@ -82,7 +82,7 @@ namespace TeslaSQL {
             MasterType = c.masterType;
             SlaveType = c.slaveType;
 
-            Tables = c.t;
+            Tables = c.tables;
             //this is the simplest way to simulate a "default value" when doing this deserialization
             foreach (TableConf t in Tables) {
                 if (t.SchemaName == null) {
@@ -508,7 +508,7 @@ namespace TeslaSQL {
         public string[] magicHours { get; set; }
 
         [XmlArray("tables")]
-        public List<TableConf> t { get; set; }
+        public List<TableConf> tables { get; set; }
 
         [XmlArrayItem("shardDatabase")]
         public string[] shardDatabases { get; set; }

@@ -275,7 +275,7 @@ namespace TeslaSQL.Tests {
                 //second one has column list
                 tables[1] = new TableConf();
                 tables[1].Name = "test2";
-                tables[1].ColumnList = new string[2] { "column1", "column2" };
+                tables[1].ColumnList = new string[] { "column1", "column2" };
 
                 dataUtils = new TestDataUtils(TServer.MASTER);                
                 dataUtils.ReloadData("test1");
