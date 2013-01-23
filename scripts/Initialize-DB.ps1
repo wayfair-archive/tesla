@@ -410,7 +410,10 @@ if ($newdatabase -or $newshard) {
     Write-Host "getting CHANGE_TRACKING_CURRENT_VERSION() from master"
     $result = invoke-sqlcmd2 -serverinstance $master -database $masterdb -query "SELECT CHANGE_TRACKING_CURRENT_VERSION() as v"
     $version = $result.v
-
+    
+    #if this is the first shard in a sharded setup we also need to create the consolidated CT database    
+    #otherwise, if it's not the first shard, or if it's a new shard in an existing setup, we skip this portion
+    #since the consolidated DB will already have been created.
     if ($sharding -and !$notfirstshard -and !$newshard) {
         Write-Host "creating $consolidatedctdb on server $relay"
         Create-DB $relay $consolidatedctdb $relaytype $relayuser $ctripledes.Decrypt($relaypassword)
@@ -443,7 +446,7 @@ CREATE TABLE [dbo].[tblCTSlaveVersion](
         
         Write-Host "writing version number $version to consolidated tblCTVersion"
         $query = "INSERT INTO tblCTVersion (syncStartVersion, syncStartTime, syncStopVersion, syncBitWise) 
-        VALUES ($version, '1/1/1990', $version, 0);"
+        VALUES (0, '1/1/1990', 0, 0);"
         $result = invoke-sqlcmd2 -serverinstance $relay -database $consolidatedctdb -query $query
     }
 
@@ -487,7 +490,7 @@ if ($newdatabase -or $newslave) {
         if ($slavetype -eq "MSSQL") {        
             Drop-AllTables $slave $slavectdb $yes
         } elseif ($slavetype -eq "Netezza") {
-            Drop-AllTables $slave $slavectdb $slaveuser $slavepassword $yes
+            Drop-AllNetezzaTables $slave $slavectdb $slaveuser $slavepassword $yes
         }
     }
     Write-Host "creating $slavedb on server $slave"
