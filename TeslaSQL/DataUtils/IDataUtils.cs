@@ -416,6 +416,8 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         /// <param name="batch">The batch of the appropriate Info table to use.</param>
         Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch);
+
+        Dictionary<TableConf, IEnumerable<string>> GetAllPrimaryKeysMaster(string database, IEnumerable<TableConf> tableConfss);
     }
     public struct TTable {
         public readonly string name;

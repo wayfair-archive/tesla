@@ -533,12 +533,12 @@ namespace TeslaSQL.DataUtils {
             var fields = new Dictionary<TableConf, IList<string>>();
             foreach (DataRow row in res.Rows) {
                 var tableName = row.Field<string>("TABLE_NAME");
-                var tc = t.Keys.FirstOrDefault(table => t[table] == tableName);
+                var tc = t.Keys.FirstOrDefault(table => t[table].Equals(tableName, StringComparison.OrdinalIgnoreCase));
+                if (tc == null) { continue; }
                 if (!fields.ContainsKey(tc)) {
                     fields[tc] = new List<string>();
                 }
                 fields[tc].Add(row.Field<string>("COLUMN_NAME"));
-
             }
             return fields;
         }
@@ -1006,11 +1006,43 @@ namespace TeslaSQL.DataUtils {
             var tablePks = new Dictionary<TableConf, IList<string>>();
             foreach (DataRow row in res.Rows) {
                 var tableName = row.Field<string>("CtiTableName");
-                var table = tables.FirstOrDefault(t => t.Name == tableName);
+                var table = tables.FirstOrDefault(t => t.Name.Equals(tableName,StringComparison.OrdinalIgnoreCase));
                 var pks = row.Field<string>("CtipkList").Split(new char[] { ',' });
                 tablePks[table] = pks;
             }
             return tablePks;
+        }
+
+        public Dictionary<TableConf, IEnumerable<string>> GetAllPrimaryKeysMaster(string database, IEnumerable<TableConf> tableConfs) {
+            if (tableConfs.Count() == 0) {
+                return new Dictionary<TableConf, IEnumerable<string>>();
+            }
+            var placeHolders = tableConfs.Select((t, i) => "@table" + i);
+            string sql = String.Format(
+                @"  SELECT cu.CONSTRAINT_NAME, cu.COLUMN_NAME, cu.TABLE_NAME
+                    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu 
+                    WHERE EXISTS ( 
+	                  SELECT tc.* FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc 
+	                  WHERE tc.TABLE_NAME IN ({0})
+	                  AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY' 
+	                  AND tc.CONSTRAINT_NAME = cu.CONSTRAINT_NAME 
+                    )", string.Join(",", placeHolders));
+            var cmd = new SqlCommand(sql);
+            foreach (var pht in placeHolders.Zip(tableConfs, (ph, t) => Tuple.Create(ph, t.Name))) {
+                cmd.Parameters.Add(pht.Item1, SqlDbType.VarChar, 500).Value = pht.Item2;
+            }
+            var res = SqlQuery(database, cmd);
+            var tablePks = new Dictionary<TableConf, IList<string>>();
+            foreach (DataRow row in res.Rows) {
+                var tableName = row.Field<string>("TABLE_NAME");
+                var table = tableConfs.FirstOrDefault(t => t.Name.Equals(tableName, StringComparison.OrdinalIgnoreCase));
+                var pk = row.Field<string>("COLUMN_NAME");
+                if (!tablePks.ContainsKey(table)) {
+                    tablePks[table] = new List<string>();
+                }
+                tablePks[table].Add(pk);
+            }
+            return tablePks.ToDictionary(t => t.Key, t => t.Value.AsEnumerable());
         }
 
         public void RecreateView(string dbName, string viewName, string viewSelect) {
@@ -1129,7 +1161,6 @@ namespace TeslaSQL.DataUtils {
             var cmd = new SqlCommand(query);
             return SqlQuery(dbName, cmd);
         }
-
 
     }
 }

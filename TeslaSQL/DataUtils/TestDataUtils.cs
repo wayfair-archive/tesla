@@ -625,5 +625,10 @@ namespace TeslaSQL.DataUtils {
         public Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch) {
             throw new NotImplementedException();
         }
+
+
+        public Dictionary<TableConf, IEnumerable<string>> GetAllPrimaryKeysMaster(string database, IEnumerable<TableConf> tableConfss) {
+            throw new NotImplementedException();
+        }
     }
 }
