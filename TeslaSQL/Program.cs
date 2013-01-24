@@ -50,10 +50,6 @@ namespace TeslaSQL {
                 ShowHelp(parameters.optionSet);
                 return;
             }
-            if (parameters.agentType == AgentType.None) {
-                Console.WriteLine("Please specify a valid agent type. use --help for more information.");
-                Environment.Exit(1);
-            }
 
             if (String.IsNullOrEmpty(parameters.configFile) || !ValidatePath(parameters.configFile)) {
                 Console.WriteLine("Please specify a valid config file path!");
@@ -90,11 +86,16 @@ namespace TeslaSQL {
                 return;
             }
 
+            if (parameters.agentType == AgentType.None) {
+                Console.WriteLine("Please specify a valid agent type. use --help for more information.");
+                Environment.Exit(1);
+            }
+
             if (parameters.dataMappingFile != null) {
                 try {
                     DataType.LoadDataMappingsFromFile(parameters.dataMappingFile);
                 } catch (Exception e) {
-                    Console.WriteLine("UNable to initialize logging facility due to error: " + e.Message + ". Stack Trace: " + e.StackTrace);
+                    Console.WriteLine("Unable to load data mappings file due to error: " + e.Message + ". Stack Trace: " + e.StackTrace);
                     Environment.Exit(1);
                 }
             }

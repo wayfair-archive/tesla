@@ -50,10 +50,10 @@ namespace TeslaSQL {
                 Console.WriteLine("XML failed to load");
                 Console.WriteLine(EventData);
             }
-            
+
             string eventType = xml.SelectSingleNode("EVENT_INSTANCE/EventType").InnerText;
 
-            if (eventType == "ALTER_TABLE" ) {
+            if (eventType == "ALTER_TABLE") {
                 node = xml.SelectSingleNode("EVENT_INSTANCE/AlterTableActionList");
             } else if (eventType == "RENAME") {
                 node = xml.SelectSingleNode("EVENT_INSTANCE/Parameters");
@@ -100,9 +100,15 @@ namespace TeslaSQL {
                     foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Alter/Columns/Name")) {
                         columnName = xColumn.InnerText;
                         if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
-                            dataType = ParseDataType(dataUtils.GetDataType(dbName, tableName, schemaName, columnName));
-                            sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, dataType);
-                            schemaChanges.Add(sc);
+                            try {
+                                dataType = ParseDataType(dataUtils.GetDataType(dbName, tableName, schemaName, columnName));
+                                sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, dataType);
+                                schemaChanges.Add(sc);
+                            } catch (DoesNotExistException) {
+                                //if we get a does not exist exception, it generally means the column was created and then dropped,
+                                //which is ok.
+                                break;
+                            }
                         }
                     }
                     break;
@@ -115,17 +121,23 @@ namespace TeslaSQL {
                         //slaves adding a new column that we don't plan to publish changes for.
                         //if column list is null, we want changes associated with all columns.
                         if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
-                            var type = dataUtils.GetDataType(dbName, tableName, schemaName, columnName);
-                            dataType = ParseDataType(type);
-                            sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, dataType);
-                            schemaChanges.Add(sc);
+                            try {
+                                var type = dataUtils.GetDataType(dbName, tableName, schemaName, columnName);
+                                dataType = ParseDataType(type);
+                                sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, dataType);
+                                schemaChanges.Add(sc);
+                            } catch (DoesNotExistException) {
+                                //if we get a does not exist exception, it generally means the column was created and then dropped, 
+                                //which is ok.
+                                break;
+                            }
                         }
                     }
                     break;
                 case "Drop":
                     changeType = SchemaChangeType.Drop;
                     tableName = xml.SelectSingleNode("/EVENT_INSTANCE/ObjectName").InnerText;
-                    foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Drop/Columns/Name")) {                        
+                    foreach (XmlNode xColumn in xml.SelectNodes("/EVENT_INSTANCE/AlterTableActionList/Drop/Columns/Name")) {
                         columnName = xColumn.InnerText;
                         if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                             sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, null);
