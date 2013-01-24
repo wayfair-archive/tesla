@@ -414,7 +414,7 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-        public void LogError(string message) {
+        public void LogError(string message, string headers) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 

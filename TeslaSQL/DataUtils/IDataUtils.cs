@@ -218,7 +218,8 @@ namespace TeslaSQL.DataUtils {
         /// Logs an error to the database. These errors are intended to be picked up and emailed out wholesale, to avoid spam.
         /// </summary>
         /// <param name="message">error to log</param>
-        void LogError(string message);
+        /// <param name="headers">headers - any information about program state, etc, that should be separate from the actual error.</param>
+        void LogError(string message, string headers);
 
         /// <summary>
         /// Returns a list of errors that have not been marked sent

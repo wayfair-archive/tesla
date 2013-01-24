@@ -632,14 +632,15 @@ namespace TeslaSQL.DataUtils {
             return t_smo.ChangeTrackingEnabled;
         }
 
-        public void LogError(string message) {
-            SqlCommand cmd = new SqlCommand("INSERT INTO tblCTError (CelError) VALUES ( @error )");
+        public void LogError(string message, string headers) {
+            SqlCommand cmd = new SqlCommand("INSERT INTO tblCTError (CelError, CelHeaders) VALUES ( @error, @headers )");
             cmd.Parameters.Add("@error", SqlDbType.VarChar, -1).Value = message;
+            cmd.Parameters.Add("@headers", SqlDbType.VarChar, -1).Value = headers;
             SqlNonQuery(Config.ErrorLogDB, cmd);
         }
 
         public DataTable GetUnsentErrors() {
-            SqlCommand cmd = new SqlCommand("SELECT CelError, CelId FROM tblCTError WHERE CelSent = 0");
+            SqlCommand cmd = new SqlCommand("SELECT CelError, CelId, CelHeaders, CelLogDate FROM tblCTError WHERE CelSent = 0");
             return SqlQuery(Config.ErrorLogDB, cmd);
         }
 

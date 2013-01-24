@@ -398,7 +398,7 @@ namespace TeslaSQL.DataUtils {
             return true;
         }
 
-        public void LogError(string message) {
+        public void LogError(string message,string headers) {
             return;
         }
 

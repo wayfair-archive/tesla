@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Data;
 using TeslaSQL.DataUtils;
+using System.Text.RegularExpressions;
 
 namespace TeslaSQL.Agents {
     /// <summary>
@@ -27,16 +28,21 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             var errors = sourceDataUtils.GetUnsentErrors();
-            var errorList = new List<string>();
+            var errorBlocks = new List<string>();
             var ids = new List<int>();
+            
             foreach (DataRow row in errors.Rows) {
-                errorList.Add(row.Field<string>("CelError"));
+                var block = "<div><p><b>" + row.Field<string>("CelHeaders") + "</b></p>";
+                block += row.Field<string>("CelError");
+                block += "</div><br/>";
+                block = Regex.Replace(block, "\r?\n", "<br />");
+                errorBlocks.Add(block);
                 ids.Add(row.Field<int>("CelId"));
             }
-            if (errorList.Count == 0) {
+            if (errorBlocks.Count == 0) {
                 return;
             }
-            emailClient.SendEmail(Config.EmailErrorRecipient, "Errors occurred during changetracking", string.Join("\r\n", errorList));
+            emailClient.SendEmail(Config.EmailErrorRecipient, "Errors occurred during changetracking", "<html>" + string.Join("", errorBlocks) + "</html>");
             sourceDataUtils.MarkErrorsSent(ids);
         }
     }

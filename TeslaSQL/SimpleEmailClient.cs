@@ -16,6 +16,7 @@ namespace TeslaSQL {
         }
         public void SendEmail(string recipient, string subject, string body) {
             MailMessage message = new MailMessage(fromAddress, recipient, subject, body);
+            message.IsBodyHtml = true;
             SmtpClient client = new SmtpClient(host, port);
             client.Send(message);
         }
