@@ -434,7 +434,7 @@ if ($newdatabase -or $newshard) {
     invoke-sqlcmd2 -serverinstance $master -database $masterdb -query $query
     
     #granting tesla login permissions on master database
-    Grant-Permissions $master $masterdb $masteruser $masterpassword
+    Grant-Permissions $master $masterdb $masteruser $masterpassword.Decrypt($masterpassword)
     
     Write-Host "creating $masterctdb on server $master"
     Create-DB $master $masterctdb $mastertype $masteruser $ctripledes.Decrypt($masterpassword)
