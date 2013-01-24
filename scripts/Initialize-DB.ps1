@@ -54,7 +54,8 @@ etc. you may have made on the slave side. Note that the schema for the slave MUS
 for this to work.
 .PARAMETER yes
 Skips prompts for confirmation that occur before dropping all tables on a CT database. Use this
-flag only if you're sure the database names in your config file are correct.
+flag only if you're sure the database names in your config file are correct. Also skips prompt
+that confirms the intentions of this script at the beginning.
 .PARAMETER maxthreads
 When initializing more than one table, table initialization happens in parallel. This parameter configures
 the maximum number of threads to use. The default is 4.
@@ -108,6 +109,96 @@ Param(
 Push-Location (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)
 Import-Module .\Modules\DB
 $erroractionpreference = "Stop"
+
+#########################
+# This script is somewhat dangerous if the wrong parameters are passed, so 
+# unless they explicitly skipped the prompt, we're going to tell them exactly 
+# what this script is about to do.
+#########################
+if (!$yes) {
+    Write-Host -ForegroundColor green "Okay, so here's the plan:"
+    Write-Host "* We'll load master settings from $masterconfigfile"
+    Write-Host "* We'll load slave settings from $slaveconfigfile"
+    
+    if ($tablelist.length -gt 1) {
+        Write-Host "* We're initializing tables only in this list: $tablelist"
+    } else {
+        Write-Host "* We're initializing all configured tables since -tablelist isn't specified."
+    }
+    
+    if ($mappingsfile.length -gt 1) {
+        Write-Host "* We'll use data type mappings from this file: $mappingsfile"
+    } else {
+        Write-Host "* We won't use a data type mappings file because -mappingsfile isn't specified."
+    }
+    
+    if ($newdatabase) {
+        Write-Host "* This is a brand new database setup, which means no existing agents related 
+        to this database are running anywhere. No masters, no other shards, no other slaves, 
+        nothing else for this database is happening yet. All necessary CT and
+        slave databases will be created, and all tables will be dropped on the CT databases."
+    } else {
+        Write-Host "* This is not a new database, which means there are master and slave agents
+        related to this database that are already set up."
+    }
+    
+    if ($newslave) {
+        Write-Host "* This is a new slave running on an existing setup for the first time, which means the master
+        is already publishing batches and other slaves are already subscribing to those,
+        so we will only create objects on the slave side."
+    } else {
+        Write-Host "* This is not a new slave being added to an existing setup."
+    }
+    
+    if ($newshard) {
+        Write-Host "* This is a new shard that will be added to an existing sharded setup,
+        which means you already have one or more shards publishing batches, slaves
+        already running, and shardcoordinator already set up. All we are going to do
+        is set up change tracking on the new shard master side and copy any initial data on
+        to the slave (without truncating the slave tables)."
+    } else {
+        Write-Host "* This is not a new shard being added to an existing sharded setup."
+    }
+    
+    if ($notlastslave) {
+        Write-Host "* This is not the last slave that will be initialized for this database
+        from this master, which means we will not mark the tables as complete on
+        tblCTInitialize yet, and we will not mark the initial batch as published in 
+        tblCTVersion."
+    } else {
+        Write-Host "* This is the last slave that will be initialized for this database from 
+        this master, which means we will mark the tables as complete on tblCTInitialize and
+        the first batch as published on tblCTVersion."
+    }
+    
+    if ($notfirstshard) {
+        Write-Host "* This is a sharded setup, and this is not the first shard being initialized,
+        so we will not create or modify the consolidated shard relay DB."
+    } elseif (!$newshard) {
+        Write-Host "* This is either not a sharded setup, or this is the first shard being initialized
+        in a new sharded setup."
+    }
+    
+    if ($reinitialize) {
+        Write-Host "* We will be reinitializing tables, which means the appropriate schema is already
+        in place on the slave and we do not want to drop and recreate that table. We'll just 
+        truncate it and load the data in instead."
+    } else {
+        Write-Host "* We're initializing the slave tables from scratch, which means they will be
+        dropped if they exist. Any custom indexes or table distribution on the slave for these
+        tables will be lost."
+    }
+    
+    Write-Host "* We will use at most $maxthreads thread(s) for initializing tables in parallel."
+    
+    Write-Host -foregroundcolor green "`r`nDo you believe, to the best of your knowledge, 
+    that the above information is correct and we're about to do what you need done? "
+    
+    $result = read-host "[y/n]"
+    if ($result -ne "y") {
+        throw ("Confirmation to continue not given, exiting with failure.")
+    }        
+}
 
 #########################
 # Function definitions
@@ -249,7 +340,7 @@ $relaydb = $xml.SelectSingleNode("/conf/relayDB").InnerText
 $relayuser = $xml.SelectSingleNode("/conf/relayUser").InnerText
 $relaypassword = $xml.SelectSingleNode("/conf/relayPassword").InnerText
 $tables = $xml.SelectSingleNode("/conf/tables")
-$errorlogdb = $xml.SelectSingleNode("/conf/errorLogDB")
+$errorlogdb = $xml.SelectSingleNode("/conf/errorLogDB").InnerText
 
 Write-Host "Loading master XML settings"
 [xml]$xml = Get-Content $masterconfigfile
@@ -343,7 +434,7 @@ if ($newdatabase -or $newshard) {
     invoke-sqlcmd2 -serverinstance $master -database $masterdb -query $query
     
     #granting tesla login permissions on master database
-    Grant-Permissions $master $masterdb $masteruser $masterpassword
+    Grant-Permissions $master $masterdb $masteruser $masterpassword.Decrypt($masterpassword)
     
     Write-Host "creating $masterctdb on server $master"
     Create-DB $master $masterctdb $mastertype $masteruser $ctripledes.Decrypt($masterpassword)
@@ -572,7 +663,7 @@ $tablestoinitialize | Invoke-Parallel -Throttle $maxthreads {
         -table $_.table -schema $_.schema -user $_.user -password $_.password -slavecolumnlist $_.slavecolumnlist `
         -mastercolumnlist $_.mastercolumnlist -slavecolumnmodifiers $_.slavecolumnmodifiers -mastercolumnmodifiers $_.mastercolumnmodifiers `
         -netezzastringlength $_.netezzastringlength -mappingsfile $_.mappingsfile -sshuser $_.sshuser -pkpath $_.pkpath -plinkpath $_.plinkpath `
-        -nzloadscript $_.nzloadscript -bcppath $_.bcppath -reinitialize:$_.reinitialize -notlast:$_.notlastslave -notfirstshard:$_.notfirstshard
+        -nzloadscript $_.nzloadscript -bcppath $_.bcppath -reinitialize:$_.reinitialize -notlast:$_.notlast -notfirstshard:$_.notfirstshard
    
    $duration = [math]::Round((Get-Date).Subtract($starttime).TotalMinutes, 2)
    Write-Host ("Initialization complete for table " + $_.table + " in " + $duration + " minutes")

@@ -268,6 +268,7 @@ if (!$notfirstshard) {
         $columns = Invoke-SqlCmd2 -serverinstance $master -database $masterdb -query $query
         $numerictypes = @("numeric","decimal")
         $maxlengthtypes = @("varchar", "nvarchar", "char", "nchar", "varbinary")
+        $columnsadded = @()
         #build table creation command
         #the actual column list is the intersection of the master column list (if specified), the slave column list (if specified), 
         #and the columns that actually exist on the master side (based on the above query). that's what this loop calculates, as well as appropriate
@@ -294,6 +295,8 @@ if (!$notfirstshard) {
                     $creationcmd += " NOT NULL"
                 }
                 $creationcmd += ","
+                #keep track of which columns we added for use below
+                $columnsadded += $column.COLUMN_NAME
             }
         }
         #create the table        
@@ -313,8 +316,25 @@ if (!$notfirstshard) {
         from @indextable where description not like '%primary key%'  "
         $indexes = Invoke-SqlCmd2 -serverinstance $master -database $masterdb -query $query
         #create same indexes on slave
-        foreach ($index in $indexes) {    
-            Invoke-Slave $index.indexcmd
+        foreach ($index in $indexes) {  
+            #keys set to null for the primary key, since we always want that
+            $docreateindex = $true
+            if ($index.keys -ne $null) {        
+                #split index keys into list of columns and check if all of them are in the list of ones we put on
+                #the slave side. if any column isn't, we will skip that index and make a note of it in the console output.       
+                $indexcolumns = $index.keys.Split(",") | %{$_.TrimStart(" ").TrimEnd(" ")}                
+                foreach ($col in $indexcolumns) {
+                    if ($columnsadded -notcontains $col) {
+                        $docreateindex = $false
+                        break
+                    }
+                }
+            }
+            if ($docreateindex) {
+                Invoke-Slave $index.indexcmd
+            } else {
+                Write-Host "Skipping index because not all columns on slave: " + $index.indexcmd
+            }
         }
     } elseif ($slavetype -eq "Netezza") {
         $exists = invoke-slave ("select 1 from _v_table where objtype = 'TABLE' and tablename = '" + $table.ToUpper() + "'")
@@ -325,6 +345,13 @@ if (!$notfirstshard) {
         invoke-slave $createcmd
     }
 }
+
+#enable change tracking on the master table if necessary
+
+$query = "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables where object_id = OBJECT_ID('[$schema].[$table]'))
+	ALTER TABLE [$schema].[$table] ENABLE CHANGE_TRACKING;"
+    
+Invoke-SqlCmd2 -serverinstance $master -database $masterdb -query $query
 
 #insert table name and current change tracking version into tblCTInitialize
 #this will only do anything for the first slave being initialized across multiple slaves

@@ -98,4 +98,11 @@
       <stopOnError>false</stopOnError>
     </table>     
   </tables>
+  <refreshViews>
+    <refreshView>
+      <db>MY_DATABASE</db>
+      <viewName>VWTEST1</viewName>
+      <command>CREATE OR REPLACE VIEW VWTEST1 AS SELECT * FROM TBLTEST1;</command>
+    </refreshView>
+  </refreshViews>
 </conf>

@@ -6,6 +6,7 @@
         </layout>
     </appender>
     <appender name="RollingFile" type="log4net.Appender.RollingFileAppender">
+        <!-- This path won't be used, in fact the D drive doesn't even have to exist, but log4net fails if the value isn't specified at all. -->
         <file value="D:\tesla\tesla.log" />
         <rollingStyle value="Size" />
         <appendToFile value="true" />
