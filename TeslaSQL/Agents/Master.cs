@@ -19,11 +19,8 @@ namespace TeslaSQL.Agents {
     public class Master : Agent {
         protected ChangeTrackingBatch ctb;
 
-        public Master(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger) {
-            this.sourceDataUtils = sourceDataUtils;
-            this.destDataUtils = destDataUtils;
-            //log server is dest since dest is relay for slave
-            this.logger = logger;
+        public Master(IDataUtils sourceDataUtils, IDataUtils destDataUtils, Logger logger)
+            : base(sourceDataUtils, destDataUtils, logger) {
         }
 
         public Master() {
@@ -99,7 +96,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("Beginning capture changes phase", LogLevel.Info);
                 logger.Log("Resizing batch based on batch threshold", LogLevel.Trace);
                 Int64 resizedStopVersion = ResizeBatch(ctb.SyncStartVersion, ctb.SyncStopVersion, currentVersion, Config.MaxBatchSize,
-                    Config.TthresholdIgnoreStartTime, Config.TthresholdIgnoreEndTime, DateTime.Now);
+                    Config.ThresholdIgnoreStartTime, Config.ThresholdIgnoreEndTime, DateTime.Now);
 
                 if (resizedStopVersion != ctb.SyncStopVersion) {
                     logger.Log("Resized batch due to threshold. Stop version changed from " + ctb.SyncStopVersion +

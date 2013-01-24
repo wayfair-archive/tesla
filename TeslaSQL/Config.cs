@@ -42,7 +42,7 @@ namespace TeslaSQL {
             ChangeRetentionHours = c.changeRetentionHours;
             batchRecordRetentionDays = c.batchRecordRetentionDays;
             MaxBatchSize = c.maxBatchSize;
-            BbatchConsolidationThreshold = c.batchConsolidationThreshold;
+            BatchConsolidationThreshold = c.batchConsolidationThreshold;
             StatsdHost = c.statsdHost;
             StatsdPort = c.statsdPort;
             RelayServer = c.relayServer;
@@ -71,10 +71,10 @@ namespace TeslaSQL {
             }
 
             if (c.thresholdIgnoreStartTime != null) {
-                TthresholdIgnoreStartTime = TimeSpan.Parse(c.thresholdIgnoreStartTime);
+                ThresholdIgnoreStartTime = TimeSpan.Parse(c.thresholdIgnoreStartTime);
             }
             if (c.thresholdIgnoreEndTime != null) {
-                TthresholdIgnoreEndTime = TimeSpan.Parse(c.thresholdIgnoreEndTime);
+                ThresholdIgnoreEndTime = TimeSpan.Parse(c.thresholdIgnoreEndTime);
             }
 
             RelayType = c.relayType;
@@ -348,13 +348,13 @@ namespace TeslaSQL {
         public static int MaxBatchSize { get; set; }
 
         //start time for when we ignore the max batch size each day (to catch up if we are behind)
-        public static TimeSpan? TthresholdIgnoreStartTime { get; set; }
+        public static TimeSpan? ThresholdIgnoreStartTime { get; set; }
 
         //end time for when we ignore the max batch size each day (to catch up if we are behind)
-        public static TimeSpan? TthresholdIgnoreEndTime { get; set; }
+        public static TimeSpan? ThresholdIgnoreEndTime { get; set; }
 
         //once a slave gets this many batches behind it will start consolidating them into a bigger batch
-        public static int BbatchConsolidationThreshold { get; set; }
+        public static int BatchConsolidationThreshold { get; set; }
 
         //hostname or ip to write statsd calls to
         public static string StatsdHost { get; set; }

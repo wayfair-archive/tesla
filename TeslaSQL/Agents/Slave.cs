@@ -95,7 +95,7 @@ namespace TeslaSQL.Agents {
              * If you run a batch as Multi, and that batch fails, and before the next run,
              * you increase the batchConsolidationThreshold, this can lead to unexpected behaviour.
              */
-            if (Config.BbatchConsolidationThreshold == 0 || batches.Count < Config.BbatchConsolidationThreshold) {
+            if (Config.BatchConsolidationThreshold == 0 || batches.Count < Config.BatchConsolidationThreshold) {
                 foreach (var batch in batches) {
                     Logger.SetProperty("CTID", batch.CTID);
                     logger.Log("Running single batch " + batch.CTID, LogLevel.Debug);
