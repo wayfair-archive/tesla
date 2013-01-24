@@ -346,6 +346,13 @@ if (!$notfirstshard) {
     }
 }
 
+#enable change tracking on the master table if necessary
+
+$query = "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables where object_id = OBJECT_ID('[$schema].[$table]'))
+	ALTER TABLE [$schema].[$table] ENABLE CHANGE_TRACKING;"
+    
+Invoke-SqlCmd2 -serverinstance $master -database $masterdb -query $query
+
 #insert table name and current change tracking version into tblCTInitialize
 #this will only do anything for the first slave being initialized across multiple slaves
 $query = "insert into CT_" + $masterdb + "..tblctinitialize 
