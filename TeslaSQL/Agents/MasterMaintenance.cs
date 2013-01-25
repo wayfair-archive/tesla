@@ -41,7 +41,7 @@ namespace TeslaSQL.Agents {
             var CTIDs = destDataUtils.GetOldCTIDsMaster(Config.RelayDB, chopDate);
 
             var tables = sourceDataUtils.GetTables(Config.MasterCTDB);
-            logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
+            logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Info);
             MaintenanceHelper.DeleteOldTables(CTIDs, tables, sourceDataUtils, Config.MasterCTDB);
         }
     }

@@ -43,7 +43,7 @@ namespace TeslaSQL.Agents {
             }
             foreach (string db in allDbs) {
                 var tables = relayDataUtils.GetTables(db);
-                logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
+                logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Info);
                 MaintenanceHelper.DeleteOldTables(CTIDs, tables, relayDataUtils, db);
                 relayDataUtils.DeleteOldCTVersions(db, rowChopDate);
             }

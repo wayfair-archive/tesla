@@ -1078,7 +1078,7 @@ namespace TeslaSQL.DataUtils {
         }
 
         public IEnumerable<long> GetOldCTIDsMaster(string dbName, DateTime chopDate) {
-            string sql = "SELECT ctid FROM tblCTVersion WHERE syncStartTime < @chopDate";
+            string sql = "SELECT ctid FROM [dbo].[tblCTVersion] WHERE syncStartTime < @chopDate";
             var cmd = new SqlCommand(sql);
             cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
             var res = SqlQuery(dbName, cmd);
@@ -1090,7 +1090,7 @@ namespace TeslaSQL.DataUtils {
         }
         public IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate) {
             string sql = @"SELECT ctid, MAX(syncstoptime) AS maxstop
-                           FROM [CT_csn_cttest].[dbo].[tblCTSlaveVersion]
+                           FROM [dbo].[tblCTSlaveVersion]
                            GROUP BY CTID
                            HAVING MAX(syncstoptime) < @chopDate";
             var cmd = new SqlCommand(sql);
@@ -1105,7 +1105,7 @@ namespace TeslaSQL.DataUtils {
 
         public IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier) {
             string sql = @"SELECT ctid 
-                           FROM [CT_csn_cttest].[dbo].[tblCTSlaveVersion]
+                           FROM [dbo].[tblCTSlaveVersion]
                            WHERE slaveIdentifier = @slaveIdentifier
                            AND syncstoptime < @chopDate";
             var cmd = new SqlCommand(sql);
