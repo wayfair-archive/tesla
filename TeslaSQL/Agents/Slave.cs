@@ -286,7 +286,10 @@ namespace TeslaSQL.Agents {
                 var sw = Stopwatch.StartNew();
                 total = ApplyChanges(existingCTTables, endBatch.CTID);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
-                RecordRowCounts(total, endBatch);
+                //Expected rowcounts across multiple batches are not currently calculated, it's unclear
+                //how we would actually want to calculate them since by the nature of consolidation duplicate inserts/updates are eliminated.
+                //Commenting this out for now.
+                //RecordRowCounts(total, endBatch);
                 logger.Timing(StepTimingKey("ApplyChanges"), (int)sw.ElapsedMilliseconds);
             }
             var lastChangedTables = new List<ChangeTable>();
