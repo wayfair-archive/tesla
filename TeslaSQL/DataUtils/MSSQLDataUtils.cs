@@ -1072,7 +1072,7 @@ namespace TeslaSQL.DataUtils {
         }
 
         public int GetExpectedRowCounts(string ctDbName, long CTID) {
-            string sql = string.Format("SELECT ISNULL(SUM(CtiExpectedRows), 0) FROM tblCTTableInfo_{0};", CTID);
+            string sql = string.Format("SELECT ISNULL(SUM(CtiInsertCount), 0) FROM tblCTTableInfo_{0};", CTID);
             var cmd = new SqlCommand(sql);
             return SqlQueryToScalar<int>(ctDbName, cmd);
         }
