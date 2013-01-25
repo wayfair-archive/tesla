@@ -64,58 +64,19 @@ namespace TeslaSQL.Agents {
             logger.Log(ctb, LogLevel.Debug);
 
             logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
-            DateTime previousSyncStartTime;
             IDictionary<string, Int64> changesCaptured;
 
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
-                sw = Stopwatch.StartNew();
-                logger.Log("Beginning publish schema changes phase", LogLevel.Info);
-
-                logger.Log("Creating tblCTSchemaChange_" + ctb.CTID + " on relay server", LogLevel.Trace);
-                destDataUtils.CreateSchemaChangeTable(Config.RelayDB, ctb.CTID);
-
-                //get the start time of the last batch where we successfully uploaded changes
-                logger.Log("Finding start time of the most recent successful batch on relay server", LogLevel.Trace);
-                previousSyncStartTime = destDataUtils.GetLastStartTime(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
-                logger.Log("Retrieved previousSyncStartTime of " + previousSyncStartTime + " from relay server", LogLevel.Trace);
-
-                logger.Log("Publishing schema changes from master to relay server", LogLevel.Debug);
-                PublishSchemaChanges(Config.Tables, Config.MasterDB, Config.RelayDB, ctb.CTID, previousSyncStartTime);
-                logger.Log("Successfully published schema changes, persisting bitwise value now", LogLevel.Debug);
-
-                logger.Log("Writing bitwise value of " + Convert.ToInt32(SyncBitWise.PublishSchemaChanges) + " to tblCTVersion", LogLevel.Trace);
+                PublishSchemaChanges();
                 destDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
-                logger.Timing(StepTimingKey("PublishSchemaChanges"), (int)sw.ElapsedMilliseconds);
             }
 
             logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
             SetFieldLists(Config.MasterDB, Config.Tables, sourceDataUtils);
 
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
-                sw = Stopwatch.StartNew();
-                logger.Log("Beginning capture changes phase", LogLevel.Info);
-                logger.Log("Resizing batch based on batch threshold", LogLevel.Trace);
-                Int64 resizedStopVersion = ResizeBatch(ctb.SyncStartVersion, ctb.SyncStopVersion, currentVersion, Config.MaxBatchSize,
-                    Config.ThresholdIgnoreStartTime, Config.ThresholdIgnoreEndTime, DateTime.Now);
-
-                if (resizedStopVersion != ctb.SyncStopVersion) {
-                    logger.Log("Resized batch due to threshold. Stop version changed from " + ctb.SyncStopVersion +
-                        " to " + resizedStopVersion, LogLevel.Debug);
-                    ctb.SyncStopVersion = resizedStopVersion;
-
-                    logger.Log("Writing new stopVersion back to tblCTVersion", LogLevel.Trace);
-                    destDataUtils.UpdateSyncStopVersion(Config.RelayDB, resizedStopVersion, ctb.CTID);
-                }
-
-                logger.Log("Beginning creation of CT tables", LogLevel.Debug);
-                changesCaptured = CreateChangeTables(Config.MasterDB, Config.MasterCTDB, ctb);
-                logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
-
-                RecordRowCounts(changesCaptured);
-
+                changesCaptured = CaptureChanges(currentVersion);
                 destDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
-                logger.Log("Wrote bitwise value of " + Convert.ToInt32(SyncBitWise.CaptureChanges) + " to tblCTVersion", LogLevel.Trace);
-                logger.Timing(StepTimingKey("CaptureChanges"), (int)sw.ElapsedMilliseconds);
             } else {
                 logger.Log("CreateChangeTables succeeded on the previous run, running GetRowCounts instead to populate changesCaptured object", LogLevel.Debug);
                 changesCaptured = GetRowCounts(Config.Tables, Config.MasterCTDB, ctb.CTID);
@@ -143,6 +104,53 @@ namespace TeslaSQL.Agents {
         }
 
 
+
+        private void PublishSchemaChanges() {
+            var sw = Stopwatch.StartNew();
+            logger.Log("Beginning publish schema changes phase", LogLevel.Info);
+
+            logger.Log("Creating tblCTSchemaChange_" + ctb.CTID + " on relay server", LogLevel.Trace);
+            destDataUtils.CreateSchemaChangeTable(Config.RelayDB, ctb.CTID);
+
+            //get the start time of the last batch where we successfully uploaded changes
+            logger.Log("Finding start time of the most recent successful batch on relay server", LogLevel.Trace);
+            var previousSyncStartTime = destDataUtils.GetLastStartTime(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.Master);
+            logger.Log("Retrieved previousSyncStartTime of " + previousSyncStartTime + " from relay server", LogLevel.Trace);
+
+            logger.Log("Publishing schema changes from master to relay server", LogLevel.Debug);
+            PublishSchemaChanges(Config.Tables, Config.MasterDB, Config.RelayDB, ctb.CTID, previousSyncStartTime);
+            logger.Log("Successfully published schema changes, persisting bitwise value now", LogLevel.Debug);
+
+            logger.Log("Writing bitwise value of " + Convert.ToInt32(SyncBitWise.PublishSchemaChanges) + " to tblCTVersion", LogLevel.Trace);
+            logger.Timing(StepTimingKey("PublishSchemaChanges"), (int)sw.ElapsedMilliseconds);
+        }
+
+        private IDictionary<string, long> CaptureChanges(Int64 currentVersion) {
+            var sw = Stopwatch.StartNew();
+            logger.Log("Beginning capture changes phase", LogLevel.Info);
+            logger.Log("Resizing batch based on batch threshold", LogLevel.Trace);
+            Int64 resizedStopVersion = ResizeBatch(ctb.SyncStartVersion, ctb.SyncStopVersion, currentVersion, Config.MaxBatchSize,
+                Config.ThresholdIgnoreStartTime, Config.ThresholdIgnoreEndTime, DateTime.Now);
+
+            if (resizedStopVersion != ctb.SyncStopVersion) {
+                logger.Log("Resized batch due to threshold. Stop version changed from " + ctb.SyncStopVersion +
+                    " to " + resizedStopVersion, LogLevel.Debug);
+                ctb.SyncStopVersion = resizedStopVersion;
+
+                logger.Log("Writing new stopVersion back to tblCTVersion", LogLevel.Trace);
+                destDataUtils.UpdateSyncStopVersion(Config.RelayDB, resizedStopVersion, ctb.CTID);
+            }
+
+            logger.Log("Beginning creation of CT tables", LogLevel.Debug);
+            var changesCaptured = CreateChangeTables(Config.MasterDB, Config.MasterCTDB, ctb);
+            logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
+
+            RecordRowCounts(changesCaptured);
+
+            logger.Log("Wrote bitwise value of " + Convert.ToInt32(SyncBitWise.CaptureChanges) + " to tblCTVersion", LogLevel.Trace);
+            logger.Timing(StepTimingKey("CaptureChanges"), (int)sw.ElapsedMilliseconds);
+            return changesCaptured;
+        }
 
         /// <summary>
         /// Initializes version/batch info for a run and creates CTID
