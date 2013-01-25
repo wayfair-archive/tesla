@@ -743,6 +743,7 @@ namespace TeslaSQL.DataUtils {
             [CtiSchemaName] [varchar](100) NOT NULL,
             [CtiPKList] [varchar](500) NOT NULL,
             [CtiExpectedRows] [int] NOT NULL,
+            [CtiInsertCount] [int] NOT NULL,
             )";
 
             SqlCommand cmd = new SqlCommand(query);
@@ -752,9 +753,17 @@ namespace TeslaSQL.DataUtils {
 
 
         public void PublishTableInfo(string dbName, TableConf t, long CTID, long expectedRows) {
-            SqlCommand cmd = new SqlCommand(
-               String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows)
-                  VALUES (@tableName, @schemaName, @pkList, @expectedRows)", CTID));
+            String sql;
+            if (expectedRows > 0) {
+                sql = String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows, CtiInsertCount)
+                               VALUES (@tableName, @schemaName, @pkList, @expectedRows,
+                                ( SELECT COUNT(*) FROM {1} WHERE SYS_CHANGE_OPERATION IN ('I', 'U') )
+                               )", CTID, t.ToCTName(CTID));
+            } else {
+                sql = String.Format(@"INSERT INTO tblCTTableInfo_{0} (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows, CtiInsertCount)
+                               VALUES (@tableName, @schemaName, @pkList, @expectedRows, 0)", CTID, t.ToCTName(CTID));
+            }
+            SqlCommand cmd = new SqlCommand(sql);
             cmd.Parameters.Add("@tableName", SqlDbType.VarChar, 500).Value = t.Name;
             cmd.Parameters.Add("@schemaName", SqlDbType.VarChar, 500).Value = t.SchemaName;
             cmd.Parameters.Add("@pkList", SqlDbType.VarChar, 500).Value = string.Join(",", t.columns.Where(c => c.isPk));
@@ -1012,7 +1021,7 @@ namespace TeslaSQL.DataUtils {
             var tablePks = new Dictionary<TableConf, IList<string>>();
             foreach (DataRow row in res.Rows) {
                 var tableName = row.Field<string>("CtiTableName");
-                var table = tables.FirstOrDefault(t => t.Name.Equals(tableName,StringComparison.OrdinalIgnoreCase));
+                var table = tables.FirstOrDefault(t => t.Name.Equals(tableName, StringComparison.OrdinalIgnoreCase));
                 var pks = row.Field<string>("CtipkList").Split(new char[] { ',' });
                 tablePks[table] = pks;
             }
