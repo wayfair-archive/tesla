@@ -159,8 +159,6 @@ namespace TeslaSQL.Agents {
 
             if (lastBatch == null) {
                 logger.Log("No existing batches found, tblCTVersion was empty", LogLevel.Debug);
-                //TODO figure out a better way to handle this case, determine an appropriate syncStartVersion. Perhaps use 0 and specially handle that using
-                //CHANGE_TRACKING_MIN_VALID_VERSION?
                 throw new Exception("Unable to determine appropriate syncStartVersion - version table seems to be empty.");
             }
 

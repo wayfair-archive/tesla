@@ -280,34 +280,5 @@ namespace TeslaSQL.Tests.Agents {
             Config.MasterType = SqlFlavor.MSSQL;
             Config.RelayType = SqlFlavor.MSSQL;
         }
-
-        //TODO move this somewhere else
-        public void TestData() {
-            //this will resolve to something like "C:\tesla\TeslaSQL\bin\Debug"
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            //relative path to the tests folder will be four directories up from that
-            string filePath = baseDir + @"..\..\..\..\Tests\test1\input_data.xml";
-            DataSet ds = new DataSet();
-            ds.ReadXml(filePath, XmlReadMode.ReadSchema);
-            //ds.AcceptChanges();
-            filePath = baseDir + @"..\..\..\..\Tests\test1\expected_data.xml";
-            DataSet expected = new DataSet();
-            expected.ReadXml(filePath, XmlReadMode.ReadSchema);
-
-            //expected.AcceptChanges();
-            Console.WriteLine(TestDataUtils.CompareDataSets(expected, ds));
-            Console.WriteLine("one hop this time");
-            DataRow row = ds.Tables["tblCTSlaveVersion"].NewRow();
-            row["CTID"] = 500;
-            row["slaveIdentifier"] = "TESTSLAVE";
-            row["syncStartVersion"] = 1000;
-            row["syncStopVersion"] = 2000;
-            row["syncStartTime"] = new DateTime(2012, 1, 1, 12, 0, 0);
-            row["syncBitWise"] = 0;
-            ds.Tables["tblCTSlaveVersion"].Rows.Add(row);
-
-            Console.WriteLine(TestDataUtils.CompareDataSets(expected, ds));
-            Console.ReadLine();
-        }
     }
 }
