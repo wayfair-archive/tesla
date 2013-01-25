@@ -73,7 +73,7 @@ namespace TeslaSQL {
         /// <param name="key">The name of the counter</param>
         /// <param name="magnitude">How much to increment by</param>
         /// <param name="sampleRate">Fraction of values to actually send</param>
-        public void Increment(string key, int magnitude, double sampleRate = 1.0) {
+        public void Increment(string key, long magnitude, double sampleRate = 1.0) {
             if (statsd == null) { return; }
             statsd.Increment(key, magnitude, sampleRate);
             Log(String.Format("Increment: {0}, {1} @{2}", key, magnitude, sampleRate), LogLevel.Trace);
@@ -233,11 +233,11 @@ namespace TeslaSQL {
                 return Increment(key, 1, 1.0);
             }
 
-            public bool Increment(string key, int magnitude) {
+            public bool Increment(string key, long magnitude) {
                 return Increment(key, magnitude, 1.0);
             }
 
-            public bool Increment(string key, int magnitude, double sampleRate) {
+            public bool Increment(string key, long magnitude, double sampleRate) {
                 string stat = String.Format("{0}:{1}|c", key, magnitude);
                 return Send(stat, sampleRate);
             }

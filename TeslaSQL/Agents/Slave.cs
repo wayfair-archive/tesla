@@ -63,7 +63,7 @@ namespace TeslaSQL.Agents {
                         logger.Log("Magic hour criteria reached, processing batch(es)", LogLevel.Debug);
                         ProcessBatches(batches);
                     } else {
-                        logger.Log("Schema changes for all pending batches complete and gimagic hour not yet reached", LogLevel.Debug);
+                        logger.Log("Schema changes for all pending batches complete and magic hour not yet reached", LogLevel.Debug);
                     }
                 } else if (batches.Count > 0 && IsFullRunTime(batches.Last().SyncStartTime.Value)) {
                     logger.Log("Magic hour criteria reached, retrying processing batch(es)", LogLevel.Debug);
@@ -225,7 +225,17 @@ namespace TeslaSQL.Agents {
             var expected = sourceDataUtils.GetExpectedRowCounts(Config.RelayDB, ctb.CTID);
             logger.Log("Expected row counts: " + expected + " | actual: " + actual, LogLevel.Info);
             double diff = expected - actual.Inserted;
-            double mismatch = diff / expected;
+            double mismatch;
+            if (expected == 0) {
+                if (actual.Inserted == 0) {
+                    mismatch = 0.0;
+                } else {
+                    logger.Log("Expected 0 rows, got " + actual.Inserted + " rows inserted on slave.", LogLevel.Error);
+                    return;
+                }
+            } else {
+                mismatch = diff / expected;
+            }
             int percentDiff = (int)(mismatch * 100);
             string key = string.Format("db.mssql_changetracking_counters.RecordCountMismatchProd{0}.{1}", Config.Slave.Replace('.', '_'), Config.SlaveDB);
             logger.Increment(key, percentDiff);

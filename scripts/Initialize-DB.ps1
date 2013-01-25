@@ -569,6 +569,7 @@ if ($newdatabase -or $newslave) {
     IF OBJECT_ID('tblCTError') IS NULL
     CREATE TABLE [dbo].[tblCTError](
     	[CelId] [int] IDENTITY(1,1) NOT NULL,
+        [CelHeaders] [nvarchar](max) NULL,
     	[CelError] [nvarchar](max) NULL,
     	[CelLogDate] [datetime] NOT NULL DEFAULT GETDATE(),
     	[CelSent] [bit] NOT NULL DEFAULT 0,

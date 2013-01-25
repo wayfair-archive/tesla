@@ -111,6 +111,8 @@ namespace TeslaSQL.Agents {
                 changesCaptured = CreateChangeTables(Config.MasterDB, Config.MasterCTDB, ctb);
                 logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
 
+                RecordRowCounts(changesCaptured);
+
                 destDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
                 logger.Log("Wrote bitwise value of " + Convert.ToInt32(SyncBitWise.CaptureChanges) + " to tblCTVersion", LogLevel.Trace);
                 logger.Timing(StepTimingKey("CaptureChanges"), (int)sw.ElapsedMilliseconds);
@@ -426,6 +428,16 @@ namespace TeslaSQL.Agents {
                 }
                 SetFieldList(table, columns);
             }
+        }
+
+        /// <summary>
+        /// Writes total captured rowcounts to log and graphite
+        /// </summary>
+        private void RecordRowCounts(IDictionary<string, long> changesCaptured) {
+            long total = changesCaptured.Sum(x => x.Value);
+            logger.Log("Total rowcount across all tables: " + total, LogLevel.Info);
+            string key = string.Format("db.mssql_changetracking_counters.RowCountsMaster.{0}.{1}", Config.Master.Replace('.', '_'), Config.MasterDB);
+            logger.Increment(key, total);
         }
 
     }
