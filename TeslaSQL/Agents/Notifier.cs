@@ -31,13 +31,13 @@ namespace TeslaSQL.Agents {
             var errorBlocks = new List<string>();
             var ids = new List<int>();
             
-            foreach (DataRow row in errors.Rows) {
-                var block = "<div><p><b>" + row.Field<string>("CelHeaders") + "</b></p>";
-                block += row.Field<string>("CelError");
+            foreach (var error in errors) {
+                var block = "<div><p><span>" + error.logDate  +"</span>&nbsp;<span><b>" +error.headers  + "</b></span></p>";
+                block += error.message;
                 block += "</div><br/>";
                 block = Regex.Replace(block, "\r?\n", "<br />");
                 errorBlocks.Add(block);
-                ids.Add(row.Field<int>("CelId"));
+                ids.Add(error.id);
             }
             if (errorBlocks.Count == 0) {
                 return;

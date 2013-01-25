@@ -225,7 +225,7 @@ namespace TeslaSQL.DataUtils {
         /// Returns a list of errors that have not been marked sent
         /// </summary>
         /// <returns>DataTable containing at least the fields "CelError" and "CelId"</returns>
-        DataTable GetUnsentErrors();
+        IEnumerable<TError> GetUnsentErrors();
 
         /// <summary>
         /// Marks as sent the errors corresponding to the passed in list of IDs.

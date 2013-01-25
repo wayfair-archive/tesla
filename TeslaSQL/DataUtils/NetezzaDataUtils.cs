@@ -418,7 +418,7 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 
-        public DataTable GetUnsentErrors() {
+        public IEnumerable<TError> GetUnsentErrors() {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
 

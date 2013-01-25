@@ -639,9 +639,14 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(Config.ErrorLogDB, cmd);
         }
 
-        public DataTable GetUnsentErrors() {
+        public IEnumerable<TError> GetUnsentErrors() {
             SqlCommand cmd = new SqlCommand("SELECT CelError, CelId, CelHeaders, CelLogDate FROM tblCTError WHERE CelSent = 0");
-            return SqlQuery(Config.ErrorLogDB, cmd);
+            var res = SqlQuery(Config.ErrorLogDB, cmd);
+            var errors = new List<TError>();
+            foreach (DataRow row in res.Rows) {
+                errors.Add(new TError(row.Field<string>("CelHeaders"), row.Field<string>("CelError"), row.Field<DateTime>("CelLogDate"), row.Field<int>("CelId")));
+            }
+            return errors;
         }
 
         public void MarkErrorsSent(IEnumerable<int> celIds) {

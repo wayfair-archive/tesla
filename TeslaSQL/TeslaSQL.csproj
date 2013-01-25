@@ -138,6 +138,7 @@
     <Compile Include="SimpleEmailClient.cs" />
     <Compile Include="DataUtils\TestDataUtils.cs" />
     <Compile Include="TableConf.cs" />
+    <Compile Include="TError.cs" />
     <Compile Include="Tests\Agents\TestMasterMaintenance.cs" />
     <Compile Include="Tests\Agents\TestAgent.cs" />
     <Compile Include="Tests\Agents\TestMaster.cs" />

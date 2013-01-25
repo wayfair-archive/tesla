@@ -402,8 +402,8 @@ namespace TeslaSQL.DataUtils {
             return;
         }
 
-        public DataTable GetUnsentErrors() {
-            return new DataTable();
+        public IEnumerable<TError> GetUnsentErrors() {
+            return new List<TError>();
         }
 
 
