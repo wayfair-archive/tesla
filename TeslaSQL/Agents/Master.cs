@@ -48,7 +48,6 @@ namespace TeslaSQL.Agents {
         }
 
         public override void Run() {
-            Stopwatch sw;
             DateTime start = DateTime.Now;
             logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
             Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(Config.MasterDB);
@@ -66,23 +65,21 @@ namespace TeslaSQL.Agents {
             logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
             IDictionary<string, Int64> changesCaptured;
 
-            if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.PublishSchemaChanges)) == 0) {
+            //capture changes/publish schema changes is now one unit, so we can just check either.
+            if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
+                logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
+                SetFieldLists(Config.MasterDB, Config.Tables, sourceDataUtils);
+                changesCaptured = CaptureChanges(currentVersion);
                 PublishSchemaChanges();
                 destDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
-            }
-
-            logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
-            SetFieldLists(Config.MasterDB, Config.Tables, sourceDataUtils);
-
-            if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
-                changesCaptured = CaptureChanges(currentVersion);
                 destDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
             } else {
                 logger.Log("CreateChangeTables succeeded on the previous run, running GetRowCounts instead to populate changesCaptured object", LogLevel.Debug);
                 changesCaptured = GetRowCounts(Config.Tables, Config.MasterCTDB, ctb.CTID);
                 logger.Log("Successfully populated changesCaptured with a list of rowcounts for each changetable", LogLevel.Trace);
             }
-            sw = Stopwatch.StartNew();
+
+            var sw = Stopwatch.StartNew();
             //copy change tables from master to relay server
             logger.Log("Beginning publish changetables step, copying CT tables to the relay server", LogLevel.Info);
             PublishChangeTables(Config.MasterCTDB, Config.RelayDB, ctb.CTID, changesCaptured);
@@ -100,7 +97,6 @@ namespace TeslaSQL.Agents {
             logger.Timing(TimingKey, (int)elapsed.TotalMinutes);
 
             sourceDataUtils.CleanUpInitializeTable(Config.MasterCTDB, ctb.SyncStartTime.Value);
-            return;
         }
 
 
