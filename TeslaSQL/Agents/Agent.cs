@@ -43,11 +43,10 @@ namespace TeslaSQL.Agents {
         /// <param name="Database">Database name to run on</param>
         /// <param name="tableConfArray">Array of tableconf objects to loop through and set field lists on</param>
         public virtual void SetFieldLists(string database, IEnumerable<TableConf> tableConfArray, IDataUtils dataUtils) {
-            Dictionary<string, bool> dict;
             foreach (TableConf t in tableConfArray) {
                 try {
-                    dict = dataUtils.GetFieldList(database, t.Name, t.SchemaName);
-                    SetFieldList(t, dict);
+                    List<TColumn> columns = dataUtils.GetFieldList(database, t.Name, t.SchemaName);
+                    SetFieldList(t, columns);
                 } catch (Exception e) {
                     HandleException(e, t, "Error setting field lists for table " + t.SchemaName + "." + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace);
                 }
@@ -59,13 +58,13 @@ namespace TeslaSQL.Agents {
         /// </summary>
         /// <param name="t">A table configuration object</param>
         /// <param name="fields">Dictionary of field names with a bool for whether they are part of the primary key</param>
-        public void SetFieldList(TableConf t, Dictionary<string, bool> fields) {
+        public void SetFieldList(TableConf t, IEnumerable<TColumn> fields) {
             Stopwatch st = new Stopwatch();
             st.Start();
             t.columns.Clear();
-            foreach (KeyValuePair<string, bool> c in fields) {
-                if (t.ColumnList == null || t.ColumnList.Contains(c.Key, StringComparer.OrdinalIgnoreCase)) {
-                    t.columns.Add(new TColumn(c.Key, c.Value));
+            foreach (TColumn c in fields) {
+                if (t.ColumnList == null || t.ColumnList.Contains(c.name, StringComparer.OrdinalIgnoreCase)) {
+                    t.columns.Add(c);
                 }
             }
             st.Stop();

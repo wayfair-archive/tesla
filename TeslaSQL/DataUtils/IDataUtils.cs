@@ -154,13 +154,12 @@ namespace TeslaSQL.DataUtils {
         bool DropTableIfExists(string dbName, string table, string schema);
 
         /// <summary>
-        /// Gets a dictionary of columns for a table
+        /// Gets a list of columns for a table
         /// </summary>
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table name</param>
         /// <param name="schema">Table's schema</param>
-        /// <returns>Dictionary with column name as key and a bool representing whether it's part of the primary key as value.</returns>
-        Dictionary<string, bool> GetFieldList(string dbName, string table, string schema);
+        List<TColumn> GetFieldList(string dbName, string table, string schema);
 
         /// <summary>
         /// Adds the specified bit to the syncBitWise column in tblCTVersion/tblCTSlaveVersion
@@ -410,7 +409,7 @@ namespace TeslaSQL.DataUtils {
         /// Gets a list of all columns for the table confs passed in.
         /// </summary>
         /// <param name="tableConfCTTableName">A map from a TableConf to the corresponding CT table to query.</param>
-        Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> tableConfCTTableName);
+        Dictionary<TableConf, IList<TColumn>> GetAllFields(string dbName, Dictionary<TableConf, string> tableConfCTTableName);
 
         /// <summary>
         /// Gets a list of all the primary keys for each of the tables passed in.

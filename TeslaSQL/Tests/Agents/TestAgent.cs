@@ -20,14 +20,14 @@ namespace TeslaSQL.Tests.Agents {
         }
 
         [Fact]
-        public void TestSetFieldList() {             
+        public void TestSetFieldList() {
             TableConf t = new TableConf();
             t.ColumnList = new string[] { "col1", "col2", "col3", "col4" };
-            var fields = new Dictionary<string, bool>{
-                {"col1", true},
-                {"col2", false},
-                {"col3", false},
-                {"col4", true}
+            var fields = new List<TColumn>{
+                {new TColumn("col1", true, null)},
+                {new TColumn("col2", true, null)},
+                {new TColumn("col3", true, null)},
+                {new TColumn("col4", true, null)}
             };
             var cm = new ColumnModifier();
             cm.type = "ShortenField";

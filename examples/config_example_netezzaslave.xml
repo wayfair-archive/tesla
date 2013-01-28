@@ -56,6 +56,10 @@
   <changeRetentionHours>96</changeRetentionHours>
   <!--How long to keep tblCTVersion rows around (Maintenance agents use this).-->
   <batchRecordRetentionDays>30</batchRecordRetentionDays>
+  <!--Netezza is case sensitive, if using a case insensitive master use this setting to have all
+  comparisons on primary keys of string types be wrapped in an UPPER() function on both sides to mimic
+  a case insensitive comparison -->
+  <ignoreCase>true</ignoreCase>
     <!--Magic hours are used for slaves that only want to sync at certain times of the day. 
     Netezza slaves are more likely to use this, since Netezza is bad at doing big queries while changes are being applied-->
     <magicHours>

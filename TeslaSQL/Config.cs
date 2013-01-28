@@ -65,6 +65,7 @@ namespace TeslaSQL {
             NzLoadScriptPath = c.nzLoadScriptPath;
             NetezzaStringLength = c.netezzaStringLength;
             PlinkPath = c.plinkPath;
+            IgnoreCase = c.ignoreCase;
 
             if (c.magicHours != null) {
                 MagicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
@@ -424,6 +425,11 @@ namespace TeslaSQL {
             set { maxThreads_local = value; }
         }
 
+        //when replicating data from a case insensitive technology to a case sensitive
+        //technology, specify this as true to wrap all comparisons of primary keys
+        //when applying changes on the slave side in UPPER() functions to effectively ignore case.
+        public static bool IgnoreCase { get; set; }
+
         #endregion
 
 
@@ -499,6 +505,7 @@ namespace TeslaSQL {
         public string bcpPath { get; set; }
         public string nzLoadScriptPath { get; set; }
         public string plinkPath { get; set; }
+        public bool ignoreCase { get; set; }
 
         [XmlArrayItem("magicHour")]
         public string[] magicHours { get; set; }
@@ -526,15 +533,20 @@ namespace TeslaSQL {
 
     public class TColumn : IEquatable<TColumn> {
         public readonly string name;
-        public readonly bool isPk;
-        public TColumn(string name, bool isPk) {
+        public bool isPk;
+        public readonly string dataType;
+        public TColumn(string name, bool isPk, string dataType) {
             this.name = name;
             this.isPk = isPk;
+            this.dataType = dataType;
         }
         public override string ToString() {
             return name;
         }
 
+        public bool IsStringType() {
+            return dataType.ToLower().Contains("text") || dataType.ToLower().Contains("char");
+        }
         public bool Equals(TColumn other) {
             return name == other.name && isPk == other.isPk;
         }

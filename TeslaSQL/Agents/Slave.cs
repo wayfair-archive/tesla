@@ -369,19 +369,20 @@ namespace TeslaSQL.Agents {
                 long lastCTIDWithChanges = changeTable.CTID.Value;
                 tableCTName[table] = table.ToCTName(lastCTIDWithChanges);
             }
-            Dictionary<TableConf, IList<string>> allColumnsByTable = sourceDataUtils.GetAllFields(dbName, tableCTName);
+            Dictionary<TableConf, IList<TColumn>> allColumnsByTable = sourceDataUtils.GetAllFields(dbName, tableCTName);
+            //even though GetAllFields returns whether it's part of the PK, the PK info will always say false on the relay since the relay
+            //doesn't necessarily define primary keys
             Dictionary<TableConf, IList<string>> primaryKeysByTable = sourceDataUtils.GetAllPrimaryKeys(dbName, tableCTName.Keys, batch);
 
             //tableCTName.Keys instead of tables because we've already filtered this for tables that don't have change tables
             //note: allColumnsByTable.Keys or primaryKeysByTable.Keys should work just as well
             foreach (var table in tableCTName.Keys) {
-                var columns = allColumnsByTable[table].ToDictionary(c => c, c => false);
                 //this is a hacky solution but we will have these columns in CT tables but actually are not interested in them here.
-                columns.Remove("SYS_CHANGE_VERSION");
-                columns.Remove("SYS_CHANGE_OPERATION");
+                var columns = allColumnsByTable[table].Where(c => (c.name != "SYS_CHANGE_VERSION" && c.name != "SYS_CHANGE_OPERATION"));
+
                 var pks = primaryKeysByTable[table];
                 foreach (var pk in pks) {
-                    columns[pk] = true;
+                    columns.First((c => c.name == pk)).isPk = true;
                 }
                 SetFieldList(table, columns);
             }

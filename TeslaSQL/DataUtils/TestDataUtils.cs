@@ -281,21 +281,21 @@ namespace TeslaSQL.DataUtils {
             return false;
         }
 
-        public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
-            Dictionary<string, bool> dict = new Dictionary<string, bool>();
+        public List<TColumn> GetFieldList(string dbName, string table, string schema) {
+            var columns = new List<TColumn>();
 
             if (!testData.Tables.Contains(schema + "." + table, GetTableSpace(dbName))) {
-                return dict;
+                return columns;
             }
 
             DataTable dataTable = testData.Tables[schema + "." + table, GetTableSpace(dbName)];
 
             //loop through columns and add them to the dictionary along with whether they are part of the primary key
             foreach (DataColumn c in dataTable.Columns) {
-                dict.Add(c.ColumnName, dataTable.PrimaryKey.Contains(c));
+                columns.Add(new TColumn(c.ColumnName, dataTable.PrimaryKey.Contains(c), c.DataType.ToString()));
             }
 
-            return dict;
+            return columns;
         }
 
         public void WriteBitWise(string dbName, Int64 CTID, int value, AgentType agentType) {
@@ -618,7 +618,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
+        public Dictionary<TableConf, IList<TColumn>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
             throw new NotImplementedException();
         }
 

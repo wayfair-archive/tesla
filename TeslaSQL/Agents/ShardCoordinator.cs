@@ -95,7 +95,7 @@ namespace TeslaSQL.Agents {
                     logger.Log("GetFieldList for db " + sd, LogLevel.Debug);
                     //only add the columns if we get results. it's perfectly legitimate for a changetable to not exist for a given shard
                     //if it had no changes, and we don't want that to cause the schemas to be considered out of sync
-                    var columns = sourceDataUtils.GetFieldList(sd, table.ToCTName(CTID), table.SchemaName).Select(kvp => new TColumn(kvp.Key, kvp.Value)).ToList();
+                    var columns = sourceDataUtils.GetFieldList(sd, table.ToCTName(CTID), table.SchemaName);
                     if (columns.Count > 0) {
                         tDict[sd] = columns;
                     }
@@ -184,7 +184,7 @@ namespace TeslaSQL.Agents {
             var cols = sourceDataUtils.GetFieldList(database, table.ToCTName(batch.CTID), table.SchemaName);
             var pks = sourceDataUtils.GetPrimaryKeysFromInfoTable(table, batch.CTID, database);
             foreach (var pk in pks) {
-                cols[pk] = true;
+                cols.First((c => c.name == pk)).isPk = true;
             }
             SetFieldList(table, cols);
         }

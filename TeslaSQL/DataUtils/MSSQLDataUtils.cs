@@ -498,47 +498,68 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
-            Dictionary<string, bool> dict = new Dictionary<string, bool>();
-            Table t_smo;
-
-            //attempt to get smo table object
-            try {
-                t_smo = GetSmoTable(dbName, table, schema);
-            } catch (DoesNotExistException) {
+        public List<TColumn> GetFieldList(string dbName, string table, string schema) {
+            string sql = @"SELECT c.COLUMN_NAME, DATA_TYPE,
+                CASE WHEN EXISTS (
+	                SELECT 1 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu
+	                WHERE cu.COLUMN_NAME = c.COLUMN_NAME AND cu.TABLE_NAME = c.TABLE_NAME
+	                AND EXISTS (
+		                SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+		                WHERE tc.TABLE_NAME = c.TABLE_NAME
+		                AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+                        AND tc.CONSTRAINT_NAME = cu.CONSTRAINT_NAME
+                        )
+                    ) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS InPrimaryKey
+                FROM INFORMATION_SCHEMA.COLUMNS c
+                WHERE c.TABLE_NAME = @table AND c.TABLE_SCHEMA = @schema";
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@table", SqlDbType.VarChar, 500).Value = table;
+            cmd.Parameters.Add("@schema", SqlDbType.VarChar, 500).Value = schema;
+            var res = SqlQuery(dbName, cmd);
+            var columns = new List<TColumn>();
+            if (res.Rows.Count == 0) {
                 logger.Log("Unable to get field list for " + dbName + "." + schema + "." + table + " because it does not exist", LogLevel.Debug);
-                return dict;
+                return columns;
             }
-
-            //loop through columns and add them to the dictionary along with whether they are part of the primary key
-            foreach (Column c in t_smo.Columns) {
-                dict.Add(c.Name, c.InPrimaryKey);
+            foreach (DataRow row in res.Rows) {
+                columns.Add(new TColumn(row.Field<string>("COLUMN_NAME"), row.Field<bool>("InPrimaryKey"), row.Field<string>("DATA_TYPE")));
             }
-
-            return dict;
+            return columns;
         }
 
-        public Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
+        public Dictionary<TableConf, IList<TColumn>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
             if (t.Count == 0) {
-                return new Dictionary<TableConf, IList<string>>();
+                return new Dictionary<TableConf, IList<TColumn>>();
             }
             var placeHolders = t.Select((_, i) => "@table" + i);
-            string sql = string.Format("SELECT COLUMN_NAME, TABLE_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME IN ( {0} );",
+            string sql = string.Format(@"SELECT c.COLUMN_NAME, c.TABLE_NAME, DATA_TYPE,
+                CASE WHEN EXISTS (
+	                SELECT 1 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu
+	                WHERE cu.COLUMN_NAME = c.COLUMN_NAME AND cu.TABLE_NAME = c.TABLE_NAME
+	                AND EXISTS (
+		                SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+		                WHERE tc.TABLE_NAME = c.TABLE_NAME
+		                AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+                        AND tc.CONSTRAINT_NAME = cu.CONSTRAINT_NAME
+                        )
+                    ) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS InPrimaryKey
+                FROM INFORMATION_SCHEMA.COLUMNS c
+                WHERE c.TABLE_NAME IN ( {0} );",
                                        string.Join(",", placeHolders));
             var cmd = new SqlCommand(sql);
             foreach (var ph in placeHolders.Zip(t.Values, (ph, tn) => Tuple.Create(ph, tn))) {
                 cmd.Parameters.Add(ph.Item1, SqlDbType.VarChar, 500).Value = ph.Item2;
             }
             var res = SqlQuery(dbName, cmd);
-            var fields = new Dictionary<TableConf, IList<string>>();
+            var fields = new Dictionary<TableConf, IList<TColumn>>();
             foreach (DataRow row in res.Rows) {
                 var tableName = row.Field<string>("TABLE_NAME");
                 var tc = t.Keys.FirstOrDefault(table => t[table].Equals(tableName, StringComparison.OrdinalIgnoreCase));
                 if (tc == null) { continue; }
                 if (!fields.ContainsKey(tc)) {
-                    fields[tc] = new List<string>();
+                    fields[tc] = new List<TColumn>();
                 }
-                fields[tc].Add(row.Field<string>("COLUMN_NAME"));
+                fields[tc].Add(new TColumn(row.Field<string>("COLUMN_NAME"), row.Field<bool>("InPrimaryKey"), row.Field<string>("DATA_TYPE")));
             }
             return fields;
         }

@@ -104,15 +104,15 @@ namespace TeslaSQL.DataUtils {
             return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass + ";Provider=NZOLEDB;Connect Timeout=60;";
         }
 
-        public Dictionary<string, bool> GetFieldList(string dbName, string table, string schema) {
-            var cols = new Dictionary<string, bool>();
+        public List<TColumn> GetFieldList(string dbName, string table, string schema) {
+            var cols = new List<TColumn>();
             using (var con = new OleDbConnection(buildConnString(dbName))) {
                 con.Open();
                 //this dark magic is (sort of) documented here 
                 //http://msdn.microsoft.com/en-us/library/system.data.oledb.oledbschemaguid.tables.aspx
                 var t = con.GetOleDbSchemaTable(OleDbSchemaGuid.Columns, new object[] { null, null, table, null });
                 foreach (DataRow row in t.Rows) {
-                    cols[row.Field<string>("COLUMN_NAME")] = false;
+                    cols.Add(new TColumn(row.Field<string>("COLUMN_NAME"), false, null));
                 }
             }
             return cols;
@@ -534,7 +534,7 @@ namespace TeslaSQL.DataUtils {
         #endregion
 
 
-        public Dictionary<TableConf, IList<string>> GetAllFields(string dbName, Dictionary<TableConf, string> tableConfCTTableName) {
+        public Dictionary<TableConf, IList<TColumn>> GetAllFields(string dbName, Dictionary<TableConf, string> tableConfCTTableName) {
             throw new NotImplementedException();
         }
 

@@ -418,17 +418,9 @@ namespace TeslaSQL.Agents {
 
         public override void SetFieldLists(string database, IEnumerable<TableConf> tableConfs, IDataUtils dataUtils) {
             var allFieldLists = dataUtils.GetAllFields(database, tableConfs.ToDictionary(t => t, t => t.Name));
-            Dictionary<TableConf, IEnumerable<string>> primaryKeys = dataUtils.GetAllPrimaryKeysMaster(database, tableConfs);
 
-            //tableCTName.Keys instead of tables because we've already filtered this for tables that don't have change tables
-            //note: allColumnsByTable.Keys or primaryKeysByTable.Keys should work just as well
             foreach (var table in tableConfs) {
-                var columns = allFieldLists[table].ToDictionary(c => c, c => false);
-                var pks = primaryKeys[table];
-                foreach (var pk in pks) {
-                    columns[pk] = true;
-                }
-                SetFieldList(table, columns);
+                SetFieldList(table, allFieldLists[table]);
             }
         }
 
