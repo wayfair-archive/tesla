@@ -46,6 +46,7 @@ namespace TeslaSQL.Agents {
                 CreateNewVersionsForShards(batch);
                 return;
             }
+            logger.Log("Working on CTID " + batch.CTID, LogLevel.Info);
 
             tableDBFieldLists = GetFieldListsByDB(batch.CTID);
             if (SchemasOutOfSync(tableDBFieldLists.Values)) {
@@ -91,6 +92,7 @@ namespace TeslaSQL.Agents {
             foreach (var table in Config.Tables) {
                 var tDict = new Dictionary<string, List<TColumn>>();
                 foreach (var sd in shardDatabases) {
+                    logger.Log("GetFieldList for db " + sd, LogLevel.Debug);
                     //only add the columns if we get results. it's perfectly legitimate for a changetable to not exist for a given shard
                     //if it had no changes, and we don't want that to cause the schemas to be considered out of sync
                     var columns = sourceDataUtils.GetFieldList(sd, table.ToCTName(CTID), table.SchemaName).Select(kvp => new TColumn(kvp.Key, kvp.Value)).ToList();
@@ -147,7 +149,7 @@ namespace TeslaSQL.Agents {
                 Action act = () => MergeTable(batch, tableDb.Value, table, firstDB);
                 actions.Add(act);
             }
-            logger.Log("Parallel invocation of " + actions.Count + " table merges", LogLevel.Trace);
+            logger.Log("Parallel invocation of " + actions.Count + " table merges", LogLevel.Info);
             //interestingly, Parallel.Invoke does in fact bubble up exceptions, but not until after all threads have completed.
             //actually it looks like what it does is wrap its exceptions in an AggregateException. We don't ever catch those
             //though because if any exceptions happen inside of MergeTable it would generally be due to things like the server

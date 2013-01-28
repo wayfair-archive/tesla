@@ -50,7 +50,7 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             DateTime start = DateTime.Now;
-            logger.Log("Initializing CT batch", LogLevel.Trace);
+            logger.Log("Initializing CT batch", LogLevel.Info);
             if (HasMagicHour()) {
                 var batches = GetIncompleteBatches();
                 ApplyBatchedSchemaChanges(batches);
@@ -98,12 +98,12 @@ namespace TeslaSQL.Agents {
             if (Config.BatchConsolidationThreshold == 0 || batches.Count < Config.BatchConsolidationThreshold) {
                 foreach (var batch in batches) {
                     Logger.SetProperty("CTID", batch.CTID);
-                    logger.Log("Running single batch " + batch.CTID, LogLevel.Debug);
+                    logger.Log("Running single batch " + batch.CTID, LogLevel.Info);
                     RunSingleBatch(batch);
                 }
                 logger.Timing("db.mssql_changetracking_counters.DataAppliedAsOf." + Config.SlaveDB, DateTime.Now.Hour + DateTime.Now.Minute / 60);
             } else {
-                logger.Log("Running multi batch", LogLevel.Debug);
+                logger.Log("Running multi batch", LogLevel.Info);
                 RunMultiBatch(batches);
             }
         }
@@ -146,10 +146,10 @@ namespace TeslaSQL.Agents {
             }
 
             if ((lastBatch.Field<Int32>("syncBitWise") & bitwise) == bitwise) {
-                logger.Log("Last batch was successful, checking for new batches.", LogLevel.Debug);
+                logger.Log("Last batch was successful, checking for new batches.", LogLevel.Info);
 
                 DataTable pendingVersions = sourceDataUtils.GetPendingCTVersions(Config.RelayDB, lastBatch.Field<Int64>("CTID"), Convert.ToInt32(SyncBitWise.UploadChanges));
-                logger.Log("Retrieved " + pendingVersions.Rows.Count + " pending CT version(s) to work on.", LogLevel.Debug);
+                logger.Log("Retrieved " + pendingVersions.Rows.Count + " pending CT version(s) to work on.", LogLevel.Info);
 
                 foreach (DataRow row in pendingVersions.Rows) {
                     ctb = new ChangeTrackingBatch(row);
@@ -182,11 +182,12 @@ namespace TeslaSQL.Agents {
         /// <param name="CTID">Change tracking batch object to work on</param>
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
             Stopwatch sw;
+            logger.Log("Applying schema changes ", LogLevel.Info);
             ApplySchemaChangesAndWrite(ctb);
             //marking this field so that all completed slave batches will have the same values
             sourceDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
-                logger.Log("Downloading changes", LogLevel.Debug);
+                logger.Log("Downloading changes", LogLevel.Info);
                 sw = Stopwatch.StartNew();
                 CopyChangeTables(Config.Tables, Config.RelayDB, Config.SlaveCTDB, ctb.CTID);
                 logger.Log("CopyChangeTables: " + sw.Elapsed, LogLevel.Trace);
@@ -194,11 +195,11 @@ namespace TeslaSQL.Agents {
                 logger.Timing(StepTimingKey("DownloadChanges"), (int)sw.ElapsedMilliseconds);
             }
 
-            logger.Log("Populating table list", LogLevel.Debug);
+            logger.Log("Populating table list", LogLevel.Info);
             List<ChangeTable> existingCTTables = PopulateTableList(Config.Tables, Config.RelayDB, new List<ChangeTrackingBatch>() { ctb });
 
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
-                logger.Log("Applying changes", LogLevel.Debug);
+                logger.Log("Applying changes", LogLevel.Info);
                 sw = Stopwatch.StartNew();
                 SetFieldListsSlave(Config.RelayDB, Config.Tables, ctb, existingCTTables);
                 RowCounts total = ApplyChanges(existingCTTables, ctb.CTID);
@@ -207,7 +208,7 @@ namespace TeslaSQL.Agents {
                 sourceDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
                 logger.Timing(StepTimingKey("ApplyChanges"), (int)sw.ElapsedMilliseconds);
             }
-            logger.Log("Syncing history tables", LogLevel.Debug);
+            logger.Log("Syncing history tables", LogLevel.Info);
             sw = Stopwatch.StartNew();
             SyncHistoryTables(Config.SlaveCTDB, existingCTTables);
             logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
@@ -249,11 +250,13 @@ namespace TeslaSQL.Agents {
         private void RunMultiBatch(IList<ChangeTrackingBatch> batches) {
             ChangeTrackingBatch endBatch = batches.OrderBy(item => item.CTID).Last();
             Logger.SetProperty("CTID", endBatch.CTID);
-            //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
+            logger.Log(string.Format("Running consolidated batches from CTID {0} to {1}",
+                batches.OrderBy(item => item.CTID).First().CTID, endBatch.CTID), LogLevel.Info);
 
-            logger.Log("Populating changetable list for all CTIDs", LogLevel.Debug);
+            //from here forward all operations will use the bitwise value for the last CTID since they are operating on this whole set of batches
+            logger.Log("Populating changetable list for all CTIDs", LogLevel.Info);
             List<ChangeTable> existingCTTables = PopulateTableList(Config.Tables, Config.RelayDB, batches);
-            logger.Log("Capturing field lists", LogLevel.Debug);
+            logger.Log("Capturing field lists", LogLevel.Info);
             SetFieldListsSlave(Config.RelayDB, Config.Tables, endBatch, existingCTTables);
 
             foreach (ChangeTrackingBatch batch in batches) {
@@ -266,7 +269,7 @@ namespace TeslaSQL.Agents {
 
             if ((endBatch.SyncBitWise & Convert.ToInt32(SyncBitWise.ConsolidateBatches)) == 0) {
                 var sw = Stopwatch.StartNew();
-                logger.Log("Consolidating batches", LogLevel.Trace);
+                logger.Log("Consolidating batches", LogLevel.Info);
                 ConsolidateBatches(existingCTTables);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
                 logger.Timing(StepTimingKey("ConsolidateBatches"), (int)sw.ElapsedMilliseconds);
@@ -274,7 +277,7 @@ namespace TeslaSQL.Agents {
 
             if ((endBatch.SyncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 var sw = Stopwatch.StartNew();
-                logger.Log("Downloading consolidated changetables", LogLevel.Debug);
+                logger.Log("Downloading consolidated changetables", LogLevel.Info);
                 CopyChangeTables(Config.Tables, Config.RelayDB, Config.SlaveCTDB, endBatch.CTID, isConsolidated: true);
                 logger.Log("Changes downloaded successfully", LogLevel.Debug);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
@@ -284,6 +287,7 @@ namespace TeslaSQL.Agents {
             RowCounts total;
             if ((endBatch.SyncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 var sw = Stopwatch.StartNew();
+                logger.Log("Applying changes", LogLevel.Info);
                 total = ApplyChanges(existingCTTables, endBatch.CTID);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
                 //Expected rowcounts across multiple batches are not currently calculated, it's unclear
@@ -292,13 +296,17 @@ namespace TeslaSQL.Agents {
                 //RecordRowCounts(total, endBatch);
                 logger.Timing(StepTimingKey("ApplyChanges"), (int)sw.ElapsedMilliseconds);
             }
+
+            logger.Log("Figuring out the last batch for each changetable", LogLevel.Debug);
             var lastChangedTables = new List<ChangeTable>();
             foreach (var group in existingCTTables.GroupBy(c => c.name)) {
                 var table = group.First();
                 lastChangedTables.Add(new ChangeTable(table.name, endBatch.CTID, table.schemaName, table.slaveName));
             }
+
             if ((endBatch.SyncBitWise & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) == 0) {
                 var sw = Stopwatch.StartNew();
+                logger.Log("Syncing history tables", LogLevel.Info);
                 SyncHistoryTables(Config.SlaveCTDB, lastChangedTables);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), AgentType.Slave);
                 logger.Timing(StepTimingKey("SyncHistoryTables"), (int)sw.ElapsedMilliseconds);

@@ -52,7 +52,7 @@ namespace TeslaSQL.Agents {
             logger.Log("Getting CHANGE_TRACKING_CURRENT_VERSION from master", LogLevel.Trace);
             Int64 currentVersion = sourceDataUtils.GetCurrentCTVersion(Config.MasterDB);
 
-            logger.Log("Initializing CT batch", LogLevel.Debug);
+            logger.Log("Initializing CT batch", LogLevel.Info);
             //set up the variables and CT version info for this run
             ctb = InitializeBatch(currentVersion);
             if (Config.Sharding && ctb == null) {
@@ -62,21 +62,21 @@ namespace TeslaSQL.Agents {
             Logger.SetProperty("CTID", ctb.CTID);
             logger.Log(ctb, LogLevel.Debug);
 
-            logger.Log("Working on CTID " + ctb.CTID, LogLevel.Debug);
+            logger.Log("Working on CTID " + ctb.CTID, LogLevel.Info);
             IDictionary<string, Int64> changesCaptured;
 
             //capture changes/publish schema changes is now one unit, so we can just check either.
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
-                logger.Log("Calculating field lists for configured tables", LogLevel.Trace);
+                logger.Log("Calculating field lists for configured tables", LogLevel.Info);
                 SetFieldLists(Config.MasterDB, Config.Tables, sourceDataUtils);
                 changesCaptured = CaptureChanges(currentVersion);
                 PublishSchemaChanges();
                 destDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);
                 destDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.CaptureChanges), AgentType.Master);
             } else {
-                logger.Log("CreateChangeTables succeeded on the previous run, running GetRowCounts instead to populate changesCaptured object", LogLevel.Debug);
+                logger.Log("CreateChangeTables succeeded on the previous run, running GetRowCounts instead to populate changesCaptured object", LogLevel.Info);
                 changesCaptured = GetRowCounts(Config.Tables, Config.MasterCTDB, ctb.CTID);
-                logger.Log("Successfully populated changesCaptured with a list of rowcounts for each changetable", LogLevel.Trace);
+                logger.Log("Successfully populated changesCaptured with a list of rowcounts for each changetable", LogLevel.Debug);
             }
 
             var sw = Stopwatch.StartNew();
@@ -130,7 +130,7 @@ namespace TeslaSQL.Agents {
 
             if (resizedStopVersion != ctb.SyncStopVersion) {
                 logger.Log("Resized batch due to threshold. Stop version changed from " + ctb.SyncStopVersion +
-                    " to " + resizedStopVersion, LogLevel.Debug);
+                    " to " + resizedStopVersion, LogLevel.Info);
                 ctb.SyncStopVersion = resizedStopVersion;
 
                 logger.Log("Writing new stopVersion back to tblCTVersion", LogLevel.Trace);
@@ -139,7 +139,7 @@ namespace TeslaSQL.Agents {
 
             logger.Log("Beginning creation of CT tables", LogLevel.Debug);
             var changesCaptured = CreateChangeTables(Config.MasterDB, Config.MasterCTDB, ctb);
-            logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Debug);
+            logger.Log("Changes captured successfully, persisting bitwise value to tblCTVersion", LogLevel.Info);
 
             RecordRowCounts(changesCaptured);
 

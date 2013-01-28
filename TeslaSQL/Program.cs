@@ -106,6 +106,7 @@ namespace TeslaSQL {
             try {
                 Agent a = CreateAgent(Config.AgentType, logger);
                 logger.Log("Running agent of type " + Config.AgentType, LogLevel.Info);
+                a.ValidateConfig();
                 a.Run();
                 logger.Log("Agent completed successfully", LogLevel.Info);
             } catch (AggregateException ae) {
