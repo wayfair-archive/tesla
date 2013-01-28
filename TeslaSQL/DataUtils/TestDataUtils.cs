@@ -513,7 +513,7 @@ namespace TeslaSQL.DataUtils {
         }
 
 
-        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName) {
+        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long ctid, string CTDBName, bool isConsolidated) {
             throw new NotImplementedException();
         }
 
@@ -522,7 +522,7 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
 
-        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
+        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB, bool isConsolidated) {
             throw new NotImplementedException();
         }
 

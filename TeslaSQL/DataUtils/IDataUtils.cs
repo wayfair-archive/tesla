@@ -291,7 +291,7 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         /// <param name="table">Table to apply changes to</param>
         /// <param name="archiveTable">Archive table - if null, no archiving is done</param>
-        RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName);
+        RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName, bool isConsolidated);
 
         /// <summary>
         /// Consolidates batches. Used when a slave has too many batches to process one at a time.
@@ -308,7 +308,7 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// copies data from the table t into the appropriate History table, creating it if it does not exist.
         /// </summary>
-        void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB);
+        void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB, bool isConsolidated);
 
         /// <summary>
         /// Gets the change track batch associated with the given CTID.

@@ -202,7 +202,7 @@ namespace TeslaSQL.Agents {
                 logger.Log("Applying changes", LogLevel.Info);
                 sw = Stopwatch.StartNew();
                 SetFieldListsSlave(Config.RelayDB, Config.Tables, ctb, existingCTTables);
-                RowCounts total = ApplyChanges(existingCTTables, ctb.CTID);
+                RowCounts total = ApplyChanges(existingCTTables, ctb.CTID, isConsolidated: false);
                 RecordRowCounts(total, ctb);
                 logger.Log("ApplyChanges: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
@@ -210,7 +210,7 @@ namespace TeslaSQL.Agents {
             }
             logger.Log("Syncing history tables", LogLevel.Info);
             sw = Stopwatch.StartNew();
-            SyncHistoryTables(Config.SlaveCTDB, existingCTTables);
+            SyncHistoryTables(Config.SlaveCTDB, existingCTTables, isConsolidated: false);
             logger.Log("SyncHistoryTables: " + sw.Elapsed, LogLevel.Trace);
             var syncStopTime = DateTime.Now;
             sourceDataUtils.MarkBatchComplete(Config.RelayDB, ctb.CTID, syncStopTime, Config.Slave);
@@ -288,7 +288,7 @@ namespace TeslaSQL.Agents {
             if ((endBatch.SyncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 var sw = Stopwatch.StartNew();
                 logger.Log("Applying changes", LogLevel.Info);
-                total = ApplyChanges(existingCTTables, endBatch.CTID);
+                total = ApplyChanges(existingCTTables, endBatch.CTID, isConsolidated: true);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.ApplyChanges), AgentType.Slave);
                 //Expected rowcounts across multiple batches are not currently calculated, it's unclear
                 //how we would actually want to calculate them since by the nature of consolidation duplicate inserts/updates are eliminated.
@@ -307,7 +307,7 @@ namespace TeslaSQL.Agents {
             if ((endBatch.SyncBitWise & Convert.ToInt32(SyncBitWise.SyncHistoryTables)) == 0) {
                 var sw = Stopwatch.StartNew();
                 logger.Log("Syncing history tables", LogLevel.Info);
-                SyncHistoryTables(Config.SlaveCTDB, lastChangedTables);
+                SyncHistoryTables(Config.SlaveCTDB, lastChangedTables, isConsolidated: true);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.SyncHistoryTables), AgentType.Slave);
                 logger.Timing(StepTimingKey("SyncHistoryTables"), (int)sw.ElapsedMilliseconds);
             }
@@ -401,7 +401,7 @@ namespace TeslaSQL.Agents {
             }
         }
 
-        private void SyncHistoryTables(string slaveCTDB, List<ChangeTable> existingCTTables) {
+        private void SyncHistoryTables(string slaveCTDB, List<ChangeTable> existingCTTables, bool isConsolidated) {
             var actions = new List<Action>();
             foreach (var t in existingCTTables) {
                 var s = Config.Tables.First(tc => tc.Name.Equals(t.name, StringComparison.InvariantCultureIgnoreCase));
@@ -413,7 +413,7 @@ namespace TeslaSQL.Agents {
                 Action act = () => {
                     logger.Log(new { message = "Writing history table", table = tLocal.name }, LogLevel.Debug);
                     try {
-                        destDataUtils.CopyIntoHistoryTable(tLocal, slaveCTDB);
+                        destDataUtils.CopyIntoHistoryTable(tLocal, slaveCTDB, isConsolidated);
                         logger.Log(new { message = "Successfully wrote history", Table = tLocal.name }, LogLevel.Debug);
                     } catch (Exception e) {
                         HandleException(e, s);
@@ -428,7 +428,7 @@ namespace TeslaSQL.Agents {
             Parallel.Invoke(options, actions.ToArray());
         }
 
-        private RowCounts ApplyChanges(List<ChangeTable> tables, Int64 CTID) {
+        private RowCounts ApplyChanges(List<ChangeTable> tables, Int64 CTID, bool isConsolidated) {
             var hasArchive = ValidTablesAndArchives(tables, CTID);
             var actions = new List<Action>();
             var counts = new ConcurrentDictionary<string, RowCounts>();
@@ -438,7 +438,7 @@ namespace TeslaSQL.Agents {
                     try {
                         logger.Log(new { message = "Applying changes", Table = tLocal.Key.Name + (tLocal.Value == null ? "" : " (and archive)") }, LogLevel.Debug);
                         var sw = Stopwatch.StartNew();
-                        var rc = destDataUtils.ApplyTableChanges(tLocal.Key, tLocal.Value, Config.SlaveDB, CTID, Config.SlaveCTDB);
+                        var rc = destDataUtils.ApplyTableChanges(tLocal.Key, tLocal.Value, Config.SlaveDB, CTID, Config.SlaveCTDB, isConsolidated);
                         counts[tLocal.Key.Name] = rc;
                         logger.Log(new { message = "ApplyTableChanges : " + sw.Elapsed, Table = tLocal.Key.Name }, LogLevel.Trace);
                     } catch (Exception e) {

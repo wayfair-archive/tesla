@@ -806,11 +806,11 @@ namespace TeslaSQL.DataUtils {
             bulkCopy.WriteToServer(reader);
         }
 
-        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName) {
+        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName, bool isConsolidated) {
             var tableSql = new List<SqlCommand>();
-            tableSql.Add(BuildMergeQuery(table, dbName, CTID, CTDBName));
+            tableSql.Add(BuildMergeQuery(table, dbName, CTID, CTDBName, isConsolidated));
             if (archiveTable != null) {
-                tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName));
+                tableSql.Add(BuildMergeQuery(archiveTable, dbName, CTID, CTDBName, isConsolidated));
             }
             var s = TransactionQuery(tableSql, dbName, Config.QueryTimeout);
             int inserted = s[0].Rows[0].Field<int>("insertcount");
@@ -826,7 +826,14 @@ namespace TeslaSQL.DataUtils {
             return rowCounts;
         }
 
-        private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 CTID, string CTDBName) {
+        private SqlCommand BuildMergeQuery(TableConf table, string dbName, Int64 CTID, string CTDBName, bool isConsolidated) {
+            string CtTableName;
+            if (isConsolidated && Config.Slave == Config.RelayServer && CTDBName == Config.RelayDB) {
+                //special case - consolidated batch where Relay == Slave
+                CtTableName = "[" + table.SchemaName + "].[tblCT" + table.Name + "_" + Config.Slave + "]";
+            } else {
+                CtTableName = table.ToFullCTName(CTID);
+            }
             string sql = string.Format(
                 @"DECLARE @rowcounts TABLE (mergeaction nvarchar(10));
                   DECLARE @insertcount int, @deletecount int;
@@ -844,7 +851,7 @@ namespace TeslaSQL.DataUtils {
                   SELECT @deletecount = COUNT(*) FROM @rowcounts WHERE mergeaction IN ('DELETE', 'UPDATE');",
                           dbName,
                           table.Name,
-                          table.ToFullCTName(CTID),
+                          CtTableName,
                           table.PkList,
                           table.MergeUpdateList.Length > 2 ? table.MergeUpdateList : table.PkList.Replace("AND", ","),
                           table.SimpleColumnList,
@@ -947,15 +954,22 @@ namespace TeslaSQL.DataUtils {
             return SqlQuery(dbName, cmd);
         }
 
-        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB) {
+        public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB, bool isConsolidated) {
             string sql;
+            string sourceTable;
+
+            if (isConsolidated && Config.Slave == Config.RelayServer && slaveCTDB == Config.RelayDB) {
+                sourceTable = "[" + t.schemaName + "].[" + t.consolidatedName + "]";
+            } else {
+                sourceTable = t.ctName;
+            }
             if (CheckTableExists(slaveCTDB, t.historyName, t.schemaName)) {
                 logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
-                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.CTID, t.ctName);
+                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.CTID, sourceTable);
                 logger.Log(sql, LogLevel.Debug);
             } else {
                 logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
-                sql = string.Format("SELECT {0} AS CTHistID, * INTO {1} FROM {2}", t.CTID, t.historyName, t.ctName);
+                sql = string.Format("SELECT {0} AS CTHistID, * INTO {1} FROM {2}", t.CTID, t.historyName, sourceTable);
                 logger.Log(sql, LogLevel.Debug);
             }
             var cmd = new SqlCommand(sql);

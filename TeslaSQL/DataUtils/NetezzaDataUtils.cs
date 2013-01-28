@@ -135,7 +135,7 @@ namespace TeslaSQL.DataUtils {
             var res = SqlQuery(dbName, cmd);
             return res.Rows.Count > 0;
         }
-        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long CTID, string CTDBName) {
+        public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long CTID, string CTDBName, bool isConsolidated) {
             var cmds = new List<InsertDelete>();
             cmds.Add(BuildApplyCommand(table, dbName, CTDBName, CTID));
             if (archiveTable != null) {
@@ -187,7 +187,7 @@ namespace TeslaSQL.DataUtils {
             return new InsertDelete(insertCmd, deleteCmd);
         }
 
-        public void CopyIntoHistoryTable(ChangeTable t, string dbName) {
+        public void CopyIntoHistoryTable(ChangeTable t, string dbName, bool isConsolidated) {
             string sql;
             if (CheckTableExists(dbName, t.historyName, t.schemaName)) {
                 logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
