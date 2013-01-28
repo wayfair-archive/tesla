@@ -436,7 +436,7 @@ namespace TeslaSQL.Agents {
                 KeyValuePair<TableConf, TableConf> tLocal = tableArchive;
                 Action act = () => {
                     try {
-                        logger.Log(new { message = "Applying changes", Table = tLocal.Key.Name + (hasArchive == null ? "" : " (and archive)") }, LogLevel.Debug);
+                        logger.Log(new { message = "Applying changes", Table = tLocal.Key.Name + (tLocal.Value == null ? "" : " (and archive)") }, LogLevel.Debug);
                         var sw = Stopwatch.StartNew();
                         var rc = destDataUtils.ApplyTableChanges(tLocal.Key, tLocal.Value, Config.SlaveDB, CTID, Config.SlaveCTDB);
                         counts[tLocal.Key.Name] = rc;
@@ -467,7 +467,7 @@ namespace TeslaSQL.Agents {
                 }
                 if (confTable.Name.EndsWith("Archive")) {
                     //if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
-                    string nonArchiveTableName = confTable.Name.Substring(0, confTable.Name.Length - confTable.Name.LastIndexOf("Archive"));
+                    string nonArchiveTableName = confTable.Name.Substring(0, confTable.Name.Length - confTable.Name.LastIndexOf("Archive") + 1);
                     if (changeTables.Any(s => s.name == nonArchiveTableName)) {
                         //if the non-archive table has any changes, we grab the associated table configuration and pair them
                         var nonArchiveTable = Config.Tables.First(t => t.Name == nonArchiveTableName);
