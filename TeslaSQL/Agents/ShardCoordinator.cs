@@ -138,6 +138,7 @@ namespace TeslaSQL.Agents {
             var actions = new List<Action>();
             foreach (var tableDb in tableDBFieldLists) {
                 var table = tableDb.Key;
+                var dbColumns = tableDb.Value;
                 var firstDB = tableDb.Value.FirstOrDefault(t => t.Value.Count > 0).Key;
                 if (firstDB == null) {
                     logger.Log("No shard has CT changes for table " + table.Name, LogLevel.Debug);
@@ -146,7 +147,7 @@ namespace TeslaSQL.Agents {
                 tablesWithChanges.Add(table);
                 SetFieldList(table, firstDB, batch);
 
-                Action act = () => MergeTable(batch, tableDb.Value, table, firstDB);
+                Action act = () => MergeTable(batch, dbColumns, table, firstDB);
                 actions.Add(act);
             }
             logger.Log("Parallel invocation of " + actions.Count + " table merges", LogLevel.Info);

@@ -1025,9 +1025,9 @@ namespace TeslaSQL.DataUtils {
 	               USING (SELECT * FROM {1}.dbo.{0}) AS CT
 	               ON ({2})
 	               WHEN MATCHED AND P.SYS_CHANGE_OPERATION = 'D' AND CT.SYS_CHANGE_OPERATION IN ('I', 'U')
-	                 THEN UPDATE SET {3}, P.SYS_CHANGE_OPERATION = CT.SYS_CHANGE_OPERATION, P.SYS_CHANGE_VERSION = CT.SYS_CHANGE_VERSION
+	                 THEN UPDATE SET {3}
 	               WHEN NOT MATCHED
-	                 THEN INSERT ({4},SYS_CHANGE_VERSION, SYS_CHANGE_OPERATION) VALUES ({5}, CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION);",
+	                 THEN INSERT ({4}) VALUES ({5});",
                    table.ToCTName(CTID), sourceDB, table.PkList, mergeList, columnList, insertList);
             SqlCommand cmd = new SqlCommand(sql);
             SqlNonQuery(destDB, cmd);
