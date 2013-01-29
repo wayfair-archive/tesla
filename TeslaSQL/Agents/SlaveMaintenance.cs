@@ -27,8 +27,12 @@ namespace TeslaSQL.Agents {
             var chopDate = DateTime.Now - new TimeSpan(Config.ChangeRetentionHours, 0, 0);
             IEnumerable<long> CTIDs = relayDataUtils.GetOldCTIDsSlave(Config.RelayDB, chopDate, Config.Slave);
             var tables = slaveDataUtils.GetTables(Config.SlaveCTDB);
-            logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Info);
-            MaintenanceHelper.DeleteOldTables(CTIDs, tables, slaveDataUtils, Config.SlaveCTDB);
+            if (tables.Count() > 0) {
+                logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Info);
+                MaintenanceHelper.DeleteOldTables(CTIDs, tables, slaveDataUtils, Config.SlaveCTDB);
+            } else {
+                logger.Log("No tables to delete", LogLevel.Info);
+            }
             if (Config.BcpPath.Length > 0) {
                 DeleteOldFiles(CTIDs, Config.SlaveCTDB, Config.BcpPath);
             }

@@ -62,11 +62,7 @@ namespace TeslaSQL.Agents {
             Stopwatch st = new Stopwatch();
             st.Start();
             t.columns.Clear();
-            foreach (TColumn c in fields) {
-                if (t.ColumnList == null || t.ColumnList.Contains(c.name, StringComparer.OrdinalIgnoreCase)) {
-                    t.columns.Add(c);
-                }
-            }
+            t.columns = fields.Where(c => t.ColumnList == null || t.ColumnList.Contains(c.name, StringComparer.OrdinalIgnoreCase)).ToList();
             st.Stop();
             logger.Log(new { message = "SetFieldList Elapsed time : " + st.ElapsedMilliseconds, Table = t.FullName }, LogLevel.Trace);
         }

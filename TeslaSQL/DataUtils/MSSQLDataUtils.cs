@@ -764,7 +764,7 @@ namespace TeslaSQL.DataUtils {
             [CtiSchemaName] [varchar](100) NOT NULL,
             [CtiPKList] [varchar](500) NOT NULL,
             [CtiExpectedRows] [int] NOT NULL,
-            [CtiInsertCount] [int] NOT NULL,
+            [CtiInsertCount] [int] NOT NULL
             )";
 
             SqlCommand cmd = new SqlCommand(query);
