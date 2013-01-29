@@ -33,7 +33,7 @@ namespace TeslaSQL.Agents {
             } else {
                 logger.Log("No tables to delete", LogLevel.Info);
             }
-            if (Config.BcpPath.Length > 0) {
+            if (Config.BcpPath != null && Config.BcpPath.Length > 0) {
                 DeleteOldFiles(CTIDs, Config.SlaveCTDB, Config.BcpPath);
             }
         }
