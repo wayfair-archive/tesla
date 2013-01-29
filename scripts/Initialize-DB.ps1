@@ -58,7 +58,7 @@ flag only if you're sure the database names in your config file are correct. Als
 that confirms the intentions of this script at the beginning.
 .PARAMETER maxthreads
 When initializing more than one table, table initialization happens in parallel. This parameter configures
-the maximum number of threads to use. The default is 4.
+the maximum number of threads to use. The default is 2.
 .INPUTS
 You cannot pipe objects to Initialize-DB.
 .OUTPUTS
