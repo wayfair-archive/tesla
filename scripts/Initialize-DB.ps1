@@ -104,7 +104,7 @@ Param(
  [switch]$notfirstshard,
  [switch]$reinitialize,
  [switch]$yes,
- [Parameter(Mandatory=$false)][int]$maxthreads=4
+ [Parameter(Mandatory=$false)][int]$maxthreads=2
 )
 Push-Location (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)
 Import-Module .\Modules\DB
