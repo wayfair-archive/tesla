@@ -376,11 +376,26 @@ namespace TeslaSQL.Agents {
 
             //tableCTName.Keys instead of tables because we've already filtered this for tables that don't have change tables
             //note: allColumnsByTable.Keys or primaryKeysByTable.Keys should work just as well
-            foreach (var table in tableCTName.Keys) {
-                //this is a hacky solution but we will have these columns in CT tables but actually are not interested in them here.
-                var columns = allColumnsByTable[table].Where(c => (c.name != "SYS_CHANGE_VERSION" && c.name != "SYS_CHANGE_OPERATION"));
-
-                var pks = primaryKeysByTable[table];
+            foreach (var table in tableCTName.Keys) { 
+                IEnumerable<TColumn> columns;
+                try {
+                    //this is a hacky solution but we will have these columns in CT tables but actually are not interested in them here.
+                    columns = allColumnsByTable[table].Where(c => (c.name != "SYS_CHANGE_VERSION" && c.name != "SYS_CHANGE_OPERATION"));
+                } catch (KeyNotFoundException) {
+                    var e = new Exception("Column list for table " + tableCTName[table] + " not found in " + dbName);
+                    HandleException(e, table);
+                    //if we handled the exception by just logging an error, this table is still broken so we need to continue
+                    continue;
+                }
+                IList<string> pks;
+                try {
+                    pks = primaryKeysByTable[table];                    
+                } catch (KeyNotFoundException) {
+                    var e = new Exception("Primary keys for table " + table.FullName + " not found in " + dbName + ".dbo.tblCTTableInfo_" + batch.CTID);
+                    HandleException(e, table);
+                    //if we handled the exception by just logging an error, this table is still broken so we need to continue
+                    continue;
+                }
                 foreach (var pk in pks) {
                     columns.First((c => c.name == pk)).isPk = true;
                 }

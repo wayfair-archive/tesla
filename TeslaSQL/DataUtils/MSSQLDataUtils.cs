@@ -64,7 +64,14 @@ namespace TeslaSQL.DataUtils {
         private T SqlQueryToScalar<T>(string dbName, SqlCommand cmd, int? timeout = null) {
             DataTable result = SqlQuery(dbName, cmd, timeout);
             //return result in first column and first row as specified type
-            return (T)result.Rows[0][0];
+            T toRet;
+            try {
+                toRet = (T)result.Rows[0][0];
+            } catch (InvalidCastException) {
+                throw new Exception("Unable to cast value " + result.Rows[0][0].ToString() + " to type " + typeof(T) +
+                    " when running query: " + ParseCommand(cmd));
+            }
+            return toRet;
         }
 
         /// <summary>
@@ -100,13 +107,20 @@ namespace TeslaSQL.DataUtils {
         /// </summary>
         /// <param name="cmd">SqlCommand to be run</param>
         private void LogCommand(SqlCommand cmd) {
+            logger.Log("Executing query: " + ParseCommand(cmd), LogLevel.Debug);
+        }
+
+        /// <summary>
+        /// Parse a SQL query, substituting parameters for their values.
+        /// </summary>
+        private string ParseCommand(SqlCommand cmd) {
             string query = cmd.CommandText;
 
             foreach (SqlParameter p in cmd.Parameters) {
                 query = query.Replace(p.ParameterName, "'" + p.Value.ToString() + "'");
             }
 
-            logger.Log("Executing query: " + query, LogLevel.Debug);
+            return query;
         }
 
 
@@ -203,7 +217,7 @@ namespace TeslaSQL.DataUtils {
 
 
         public Int64 GetMinValidVersion(string dbName, string table, string schema) {
-            SqlCommand cmd = new SqlCommand("SELECT CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID(@tablename))");
+            SqlCommand cmd = new SqlCommand("SELECT ISNULL(CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID(@tablename)), 0)");
             cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = schema + "." + table;
             return SqlQueryToScalar<Int64>(dbName, cmd);
         }
@@ -1210,6 +1224,22 @@ namespace TeslaSQL.DataUtils {
             }
             var cmd = new SqlCommand(query);
             return SqlQuery(dbName, cmd);
+        }
+
+        public void MergeInfoTable(string shardDB, string consolidatedDB, long CTID) {
+            //merge rows into the consolidated info table. this is used for sharded agents.
+            //the shardcoordinator will only publish the rows for tables that actually had changes
+            //but then we pull in the others so that slaves get the PK list, which ends up getting used
+            //for consolidated batches on the slaves.
+            string sql = string.Format(@"INSERT INTO [dbo].[tblCTtableInfo_{1}] (CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows, CtiInsertCount)
+            SELECT CtiTableName, CtiSchemaName, CtiPKList, CtiExpectedRows, CtiInsertCount
+            FROM [{0}].[dbo].[tblCTtableInfo_{1}] i
+            WHERE NOT EXISTS
+	            (SELECT 1 FROM [dbo].[tblCTtableInfo_{1}]
+	            WHERE CtiTableName = i.CtiTableName AND CtiSchemaName = i.CtiSchemaName)",
+               shardDB, CTID);
+            var cmd = new SqlCommand(sql);
+            SqlNonQuery(consolidatedDB, cmd);
         }
 
     }

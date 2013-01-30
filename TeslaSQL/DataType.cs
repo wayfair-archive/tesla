@@ -43,6 +43,12 @@ namespace TeslaSQL {
         }
         public static string MapDataType(SqlFlavor source, SqlFlavor dest, string datatype) {
             datatype = datatype.ToLower();
+            if (dataMappings.Count == 0) {
+                throw new Exception("Data mappings file not loaded, unable to map data types! Please specify a data mappings file using the -p argument of Tesla.");
+            }
+            if (!dataMappings.ContainsKey(source) || !dataMappings.ContainsKey(dest)) {
+                throw new Exception("The data mappings file seems to be incorrect, please specify a data type mappings file that maps from " + source + " to " + dest);
+            }
             int idx = dataMappings[source].IndexOf(datatype);
             if (idx == -1) {
                 return datatype;
