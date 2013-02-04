@@ -68,6 +68,7 @@ namespace TeslaSQL.Agents {
         }
 
         protected void HandleException(Exception e, TableConf table, string message = "") {
+            message = "Table: " + table.FullName + "; StopOnError: " + table.StopOnError + (message.Length > 0 ? "\r\n" + message : "");
             logger.Log(e, message);
             if (table.StopOnError) {
                 throw e;
