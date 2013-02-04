@@ -964,15 +964,24 @@ namespace TeslaSQL.DataUtils {
             var zipped = pks.Zip(pks, (a, b) => "a." + a + " = b." + b);
             string whereCondition = string.Join(" AND ", zipped);
 
+            //it's possible we would get two rows with the same SYS_CHANGE_VERSION in two separate CTIDs, so we add this
+            //identity column to guarantee they won't stick around
+            string alter = string.Format("ALTER TABLE [{0}] ADD [Tesla_Unique_ID] BIGINT IDENTITY(1,1) NOT NULL", consolidatedTableName);
+            SqlNonQuery(dbName, new SqlCommand(alter));
+
+            //dedupe
             string delete = string.Format(
                             @"DELETE a FROM [{0}] a 
                               WHERE EXISTS (
-                                SELECT 1 FROM [{0}] b WHERE {1} AND a.sys_change_version < b.sys_change_version
+                                SELECT 1 FROM [{0}] b WHERE {1} AND (a.sys_change_version < b.sys_change_version
+                                OR (a.sys_change_version = b.sys_change_version AND a.[Tesla_Unique_ID] < b.[Tesla_Unique_ID]))
                               ) ",
                               consolidatedTableName, whereCondition);
-            logger.Log(delete, LogLevel.Trace);
-            SqlCommand cmd = new SqlCommand(delete);
-            SqlNonQuery(dbName, cmd);
+            SqlNonQuery(dbName, new SqlCommand(delete));
+
+            //now remove the column so it doesn't end up on slaves
+            alter = string.Format("ALTER TABLE [{0}] DROP COLUMN [Tesla_Unique_ID]", consolidatedTableName);
+            SqlNonQuery(dbName, new SqlCommand(alter));
         }
 
 
