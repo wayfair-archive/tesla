@@ -974,7 +974,7 @@ namespace TeslaSQL.DataUtils {
                             @"DELETE a FROM [{0}] a 
                               WHERE EXISTS (
                                 SELECT 1 FROM [{0}] b WHERE {1} AND (a.sys_change_version < b.sys_change_version
-                                OR (a.sys_change_version = b.sys_change_version AND a.[Tesla_Unique_ID] < b.[Tesla_Unique_ID]))
+                                OR (a.sys_change_version = b.sys_change_version AND a.[Tesla_Unique_ID] < b.[Tesla_Unique_ID]))                                
                               ) ",
                               consolidatedTableName, whereCondition);
             SqlNonQuery(dbName, new SqlCommand(delete));

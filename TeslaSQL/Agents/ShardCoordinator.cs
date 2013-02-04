@@ -178,7 +178,14 @@ namespace TeslaSQL.Agents {
         private void ConsolidateInfoTables(ChangeTrackingBatch batch) {
             logger.Log("Consolidating info tables", LogLevel.Debug);
             var rowCounts = GetRowCounts(Config.Tables, Config.RelayDB, batch.CTID);
+            //publish table info with actual rowcounts for the tables that had changes
             PublishTableInfo(tablesWithChanges, Config.RelayDB, rowCounts, batch.CTID);
+            //pull in the table info for tables that didn't have changes from the shard databases
+            //start with the master shard database first because it is assumed to have the 
+            //most up to date schema information
+            foreach (var sd in shardDatabases.OrderBy(d => d == Config.MasterShard ? 0 : 1)) {
+                sourceDataUtils.MergeInfoTable(sd, Config.RelayDB, batch.CTID);
+            }
         }
 
         private void SetFieldList(TableConf table, string database, ChangeTrackingBatch batch) {

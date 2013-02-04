@@ -404,7 +404,7 @@ namespace TeslaSQL.DataUtils {
         /// associated with the given slaveIdentifier
         /// </summary>
         void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier);
-        
+
         /// <summary>
         /// Gets a list of all columns for the table confs passed in.
         /// </summary>
@@ -418,6 +418,11 @@ namespace TeslaSQL.DataUtils {
         Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch);
 
         Dictionary<TableConf, IEnumerable<string>> GetAllPrimaryKeysMaster(string database, IEnumerable<TableConf> tableConfss);
+
+        /// <summary>
+        /// Merge rows from a shard's tblCTTableInfo_<CTID> into the consolidated DB (for tables that didn't have changes)
+        /// </summary>
+        void MergeInfoTable(string shardDB, string consolidatedDB, long CTID);
     }
     public struct TTable {
         public readonly string name;

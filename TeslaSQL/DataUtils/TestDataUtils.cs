@@ -398,7 +398,7 @@ namespace TeslaSQL.DataUtils {
             return true;
         }
 
-        public void LogError(string message,string headers) {
+        public void LogError(string message, string headers) {
             return;
         }
 
@@ -628,6 +628,10 @@ namespace TeslaSQL.DataUtils {
 
 
         public Dictionary<TableConf, IEnumerable<string>> GetAllPrimaryKeysMaster(string database, IEnumerable<TableConf> tableConfss) {
+            throw new NotImplementedException();
+        }
+
+        public void MergeInfoTable(string shardDB, string consolidatedDB, long CTID) {
             throw new NotImplementedException();
         }
     }
