@@ -78,10 +78,14 @@ namespace TeslaSQL.DataCopy {
             bcp.StartInfo.RedirectStandardError = true;
             bcp.StartInfo.RedirectStandardOutput = true;
             bcp.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) {
-                outputBuilder.AppendLine(e.Data);
+                lock (outputBuilder) {
+                    outputBuilder.AppendLine(e.Data);
+                }
             };
             bcp.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) {
-                errorBuilder.AppendLine(e.Data);
+                lock (errorBuilder) {
+                    errorBuilder.AppendLine(e.Data);
+                }
             };
             bcp.Start();
             bcp.BeginOutputReadLine();
@@ -114,10 +118,14 @@ namespace TeslaSQL.DataCopy {
             plink.StartInfo.RedirectStandardError = true;
             plink.StartInfo.RedirectStandardOutput = true;
             plink.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) {
-                outputBuilder.AppendLine(e.Data);
+                lock (outputBuilder) {
+                    outputBuilder.AppendLine(e.Data);
+                }
             };
             plink.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) {
-                errorBuilder.AppendLine(e.Data);
+                lock (errorBuilder) {
+                    errorBuilder.AppendLine(e.Data);
+                }
             };
             plink.Start();
             plink.BeginOutputReadLine();
