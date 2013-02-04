@@ -65,10 +65,11 @@ namespace TeslaSQL.Agents {
             logger.Log("Working on CTID " + ctb.CTID, LogLevel.Info);
             IDictionary<string, Int64> changesCaptured;
 
+            logger.Log("Calculating field lists for configured tables", LogLevel.Info);
+            SetFieldLists(Config.MasterDB, Config.Tables, sourceDataUtils);
+
             //capture changes/publish schema changes is now one unit, so we can just check either.
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.CaptureChanges)) == 0) {
-                logger.Log("Calculating field lists for configured tables", LogLevel.Info);
-                SetFieldLists(Config.MasterDB, Config.Tables, sourceDataUtils);
                 changesCaptured = CaptureChanges(currentVersion);
                 PublishSchemaChanges();
                 destDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.PublishSchemaChanges), AgentType.Master);

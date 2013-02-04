@@ -101,7 +101,11 @@ namespace TeslaSQL.Agents {
             destDataUtils.CreateTableInfoTable(relayDB, CTID);
             foreach (var t in tableConf) {
                 logger.Log(new { message = "Publishing info", Table = t.Name }, LogLevel.Trace);
-                destDataUtils.PublishTableInfo(relayDB, t, CTID, changesCaptured[t.FullName]);
+                try {
+                    destDataUtils.PublishTableInfo(relayDB, t, CTID, changesCaptured[t.FullName]);
+                } catch (Exception e) {
+                    HandleException(e, t, "Error publishing TableInfo for table " + t.SchemaName + "." + t.Name + ": " + e.Message + " - Stack Trace:" + e.StackTrace);
+                }
             }
         }
     }
