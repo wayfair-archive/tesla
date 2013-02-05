@@ -120,4 +120,4 @@ If you find that a table gets out of sync for any reason, you can use the $reini
 ## Copyright and license
 Copyright 2013 Wayfair, LLC.
 
-Liensed under the BSD3 license, see LICENSE file.
+Licensed under the BSD3 license, see LICENSE file.
