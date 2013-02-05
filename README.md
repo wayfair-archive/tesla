@@ -120,4 +120,4 @@ If you find that a table gets out of sync for any reason, you can use the $reini
 ## Copyright and license
 Copyright 2013 Wayfair, LLC.
 
-Licensed under the BSD3 license, see LICENSE file.
+Tesla and Moq are Licensed under the BSD3 license, see LICENSE file. For the plink license, see LICENSE.plink. log4net and gelf4net are licensed under the Apache 2.0 license (http://logging.apache.org/log4net/license.html). xunit.net is licensed under the Ms-PL (http://xunit.codeplex.com/license)
