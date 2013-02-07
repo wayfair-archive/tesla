@@ -634,10 +634,10 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
         "mastercolumnmodifiers" = $mastercolumnmodifiers; 
         "netezzastringlength" = $netezzastringlength;
         "mappingsfile" = $mappingsfile;
-        "sshuser" = $sshuser;
-        "pkpath" = $pkpath;
+        "sshuser" = $netezzauser;
+        "pkpath" = $netezzaprivatekeypath;
         "plinkpath" = $plinkpath;
-        "nzloadscript" = $nzloadscript;
+        "nzloadscript" = $nzloadscriptpath;
         "bcppath" = $bcppath;
         "reinitialize" = $reinitialize;
         "notlast" = $notlastslave;
