@@ -39,6 +39,7 @@ If ("MSSQL","Netezza" -NotContains $slavetype) {
 }
 
 [System.Reflection.Assembly]::LoadWithPartialName('Microsoft.SqlServer.SMO') | out-null
+[System.Reflection.Assembly]::LoadWithPartialName("Microsoft.SqlServer.ConnectionInfo") | out-null
 # Load DB module from current directory
 Push-Location (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)
 Import-Module .\Modules\DB
@@ -50,11 +51,11 @@ $error.clear()
 if ($slavetype -eq "Netezza") {
     set-alias plink $plinkpath
 
-    $bcppath = $bcppath.TrimEnd("\") + $slavedb.ToLower()
+    $bcppath = $bcppath.TrimEnd("\") + "\" + $slavedb.ToLower()
     if (!(Test-path $bcppath)) {
         mkdir $bcppath | out-null
     }
-    $bcppath += $table.ToLower() + ".txt"
+    $bcppath += "\" + $table.ToLower() + ".txt"
 }
 
 #set column lists for slave if they are specified
@@ -132,7 +133,7 @@ Function Invoke-Slave($query) {
     if ($slavetype -eq "MSSQL") {
         Invoke-SqlCmd2 -serverinstance $slave -database $slavedb -query $query
     } elseif ($slavetype -eq "Netezza") {
-        Invoke-NetezzaQuery -serverinstance $slave -database $slavedb -query $query -user $username -password $password
+        Invoke-NetezzaQuery -serverinstance $slave -database $slavedb -query $query -user $user -password $password
     }
 }
 
@@ -194,7 +195,7 @@ if ($slavetype -eq "Netezza") {
     $con.Connect()
     $server = new-object ("Microsoft.SqlServer.Management.Smo.Server") $con
     $database = $server.Databases[$masterdb]
-    $smotable = $Database.Tables.Item($table)
+    $smotable = $Database.Tables.Item($table, $schema)
 
     $cols = @()
     $colexpressions = @()
@@ -203,12 +204,13 @@ if ($slavetype -eq "Netezza") {
             $typename = $column.DataType.Name
             $moddatatype = [TeslaSQL.DataType]::MapDataType("MSSQL", "Netezza", $typename)
             if ($typename -ne $moddatatype) {
-                $col = (Map-ReservedWordNetezza $column.Name) + " " + $typename 
+                $col = (Map-ReservedWordNetezza $column.Name) + " " + $moddatatype
                 if ($column.Nullable) {
                     $col += " NULL"
                 } else {
                     $col += " NOT NULL"
                 }
+                $cols += $col
                 $colexpressions += Get-ColExpression (Map-ReservedWordNetezza $column.Name) $column.DataType
                 continue
             }
@@ -435,7 +437,7 @@ if ($slavetype -eq "MSSQL") {
 
 
 #if we are initializing multiple slaves we should only update tblCTInitialize when the last one is done
-if (!$notlast) {
+if (!$notlast -and !$error) {
     $query = "update tblCTInitialize
     set inifinishtime = getdate(), inprogress = 0 
     where tablename = '$table'"

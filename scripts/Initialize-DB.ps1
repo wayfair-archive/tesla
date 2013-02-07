@@ -56,9 +56,6 @@ for this to work.
 Skips prompts for confirmation that occur before dropping all tables on a CT database. Use this
 flag only if you're sure the database names in your config file are correct. Also skips prompt
 that confirms the intentions of this script at the beginning.
-.PARAMETER maxthreads
-When initializing more than one table, table initialization happens in parallel. This parameter configures
-the maximum number of threads to use. The default is 2.
 .INPUTS
 You cannot pipe objects to Initialize-DB.
 .OUTPUTS
@@ -103,8 +100,7 @@ Param(
  [switch]$notlastslave,
  [switch]$notfirstshard,
  [switch]$reinitialize,
- [switch]$yes,
- [Parameter(Mandatory=$false)][int]$maxthreads=2
+ [switch]$yes
 )
 Push-Location (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)
 Import-Module .\Modules\DB
@@ -652,7 +648,7 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
 }
 
 #initialize tables in parallel with a configurable throttle
-$tablestoinitialize | Invoke-Parallel -Throttle $maxthreads {
+$tablestoinitialize | Foreach-Object {
     Write-Host ("Calling .\AddTable-ToCT for table " + $_.table)    
     #switch to directory containing the script. required because this is inside a runspace which
     #doesn't inherit the environment of the parent scope.
