@@ -111,7 +111,7 @@ namespace TeslaSQL {
                 return string.Join(
                     " AND ",
                     columns.Where(c => c.isPk)
-                    .Select(c => c.IsStringType() && Config.IgnoreCase ? String.Format("UPPER(P.{0}) = UPPER(CT.{0})", c.name)
+                    .Select(c => c.dataType.IsStringType() && Config.IgnoreCase ? String.Format("UPPER(P.{0}) = UPPER(CT.{0})", c.name)
                         : String.Format("P.{0} = CT.{0}", c.name)));
             }
         }

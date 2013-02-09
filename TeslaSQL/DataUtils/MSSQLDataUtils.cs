@@ -5,8 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Data.SqlClient;
 using System.Data;
-using Microsoft.SqlServer.Management.Smo;
-using Microsoft.SqlServer.Management.Common;
 using TeslaSQL.Agents;
 using System.Diagnostics;
 
@@ -402,37 +400,6 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-
-        /// <summary>
-        /// Retrieves an SMO table object if the table exists, throws exception if not.
-        /// </summary>
-        /// <param name="dbName">Database name</param>
-        /// <param name="table">Table Name</param>
-        /// <returns>Smo.Table object representing the table</returns>
-        public Table GetSmoTable(string dbName, string table, string schema = "dbo") {
-            logger.Log(string.Format("SmoTable: {3}: {0}.{1}.{2}", dbName, schema, table, server), LogLevel.Trace);
-            var db = GetSmoDatabase(dbName);
-            if (db.Tables.Contains(table)) {
-                return db.Tables[table, schema];
-            } else {
-                throw new DoesNotExistException("Table " + table + " does not exist");
-            }
-        }
-
-        /// <summary>
-        /// Retrieves an SMO table object if the table exists, throws exception if not.
-        /// </summary>
-        /// <param name="dbName">Database name</param>
-        /// <param name="view">Table Name</param>
-        /// <returns>Smo.Table object representing the table</returns>
-        public View GetSmoView(string dbName, string view, string schema = "dbo") {
-            var db = GetSmoDatabase(dbName);
-            if (db.Views.Contains(view)) {
-                return db.Views[view, schema];
-            } else {
-                throw new DoesNotExistException("Table " + view + " does not exist");
-            }
-        }
         public IEnumerable<TTable> GetTables(string dbName) {
             string sql = "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
             var cmd = new SqlCommand(sql);
@@ -444,76 +411,48 @@ namespace TeslaSQL.DataUtils {
             return tables;
         }
 
-        private Database GetSmoDatabase(string dbName) {
-            using (SqlConnection sqlconn = new SqlConnection(buildConnString(dbName))) {
-                ServerConnection serverconn = new ServerConnection(sqlconn);
-                Server svr = new Server(serverconn);
-                Database db = new Database();
-                if (svr.Databases.Contains(dbName) && svr.Databases[dbName].IsAccessible) {
-                    db = svr.Databases[dbName];
-                    return db;
-                } else {
-                    throw new Exception("Database " + dbName + " does not exist or is inaccessible");
-                }
-            }
-        }
-
         public bool CheckTableExists(string dbName, string table, string schema = "dbo") {
-            try {
-                Table t_smo = GetSmoTable(dbName, table, schema);
-                if (t_smo != null) {
-                    return true;
-                }
-                return false;
-            } catch (DoesNotExistException) {
-                return false;
-            }
+            var cmd = new SqlCommand(
+                @"SELECT 1 as TableExists FROM INFORMATION_SCHEMA.TABLES
+                    WHERE TABLE_NAME = @tablename AND TABLE_SCHEMA = @schema AND TABLE_TYPE = 'BASE TABLE'");
+            cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = table;
+            cmd.Parameters.Add("@schema", SqlDbType.VarChar, 500).Value = schema;
+            var result = SqlQuery(dbName, cmd);
+            return result.Rows.Count > 0 && result.Rows[0].Field<int>("TableExists") == 1;
         }
 
 
         public IEnumerable<string> GetIntersectColumnList(string dbName, string tableName1, string schema1, string tableName2, string schema2) {
-            Table table1 = GetSmoTable(dbName, tableName1, schema1);
-            Table table2 = GetSmoTable(dbName, tableName2, schema2);
+            var fields1 = GetFieldList(dbName, tableName1, schema1);
+            var fields2 = GetFieldList(dbName, tableName2, schema2);
             var columns1 = new List<string>();
             var columns2 = new List<string>();
             //create this so that casing changes to columns don't cause problems, just use the lowercase column name
-            foreach (Column c in table1.Columns) {
-                columns1.Add(c.Name.ToLower());
+            foreach (TColumn c in fields1) {
+                columns1.Add(c.name.ToLower());
             }
-            foreach (Column c in table2.Columns) {
-                columns2.Add(c.Name.ToLower());
+            foreach (TColumn c in fields2) {
+                columns2.Add(c.name.ToLower());
             }
             return columns1.Intersect(columns2);
         }
 
-
-        public bool HasPrimaryKey(string dbName, string tableName, string schema) {
-            Table table = GetSmoTable(dbName, tableName, schema);
-            foreach (Index i in table.Indexes) {
-                if (i.IndexKeyType == IndexKeyType.DriPrimaryKey) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-
         public bool DropTableIfExists(string dbName, string table, string schema) {
-            try {
-                Table t_smo = GetSmoTable(dbName, table, schema);
-                if (t_smo != null) {
-                    t_smo.Drop();
-                    return true;
-                }
-                return false;
-            } catch (DoesNotExistException) {
-                return false;
-            }
+            var cmd = new SqlCommand(string.Format(@"
+                IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{0}' AND TABLE_SCHEMA = '{1}' AND TABLE_TYPE = 'BASE TABLE')
+	                BEGIN
+	                DROP TABLE [{1}].[{0}];
+	                SELECT CAST(1 AS BIT) AS Existed
+	                END
+                ELSE
+	                SELECT CAST(0 AS BIT) AS Existed", table, schema));
+            return SqlQueryToScalar<bool>(dbName, cmd);
         }
 
 
         public List<TColumn> GetFieldList(string dbName, string table, string schema) {
             string sql = @"SELECT c.COLUMN_NAME, DATA_TYPE,
+                CHARACTER_MAXIMUM_LENGTH, NUMERIC_SCALE, NUMERIC_PRECISION, IS_NULLABLE,
                 CASE WHEN EXISTS (
 	                SELECT 1 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu
 	                WHERE cu.COLUMN_NAME = c.COLUMN_NAME AND cu.TABLE_NAME = c.TABLE_NAME
@@ -536,7 +475,12 @@ namespace TeslaSQL.DataUtils {
                 return columns;
             }
             foreach (DataRow row in res.Rows) {
-                columns.Add(new TColumn(row.Field<string>("COLUMN_NAME"), row.Field<bool>("InPrimaryKey"), row.Field<string>("DATA_TYPE")));
+                columns.Add(new TColumn(
+                    row.Field<string>("COLUMN_NAME"),
+                    row.Field<bool>("InPrimaryKey"),
+                    DataType.ParseDataType(row),
+                    //for some reason IS_NULLABLE is a varchar(3) rather than a bool or bit
+                    row.Field<string>("IS_NULLABLE") == "YES" ? true : false));
             }
             return columns;
         }
@@ -546,7 +490,8 @@ namespace TeslaSQL.DataUtils {
                 return new Dictionary<TableConf, IList<TColumn>>();
             }
             var placeHolders = t.Select((_, i) => "@table" + i);
-            string sql = string.Format(@"SELECT c.COLUMN_NAME, c.TABLE_NAME, DATA_TYPE,
+            string sql = string.Format(@"SELECT c.COLUMN_NAME, c.TABLE_NAME, DATA_TYPE, 
+                CHARACTER_MAXIMUM_LENGTH, NUMERIC_SCALE, NUMERIC_PRECISION, IS_NULLABLE,
                 CASE WHEN EXISTS (
 	                SELECT 1 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu
 	                WHERE cu.COLUMN_NAME = c.COLUMN_NAME AND cu.TABLE_NAME = c.TABLE_NAME
@@ -573,7 +518,12 @@ namespace TeslaSQL.DataUtils {
                 if (!fields.ContainsKey(tc)) {
                     fields[tc] = new List<TColumn>();
                 }
-                fields[tc].Add(new TColumn(row.Field<string>("COLUMN_NAME"), row.Field<bool>("InPrimaryKey"), row.Field<string>("DATA_TYPE")));
+                fields[tc].Add(new TColumn(
+                    row.Field<string>("COLUMN_NAME"),
+                    row.Field<bool>("InPrimaryKey"),
+                    DataType.ParseDataType(row),
+                    //for some reason IS_NULLABLE is a varchar(3) rather than a bool or bit
+                    row.Field<string>("IS_NULLABLE") == "YES" ? true : false));
             }
             return fields;
         }
@@ -658,13 +608,16 @@ namespace TeslaSQL.DataUtils {
 
 
         public Int64 GetTableRowCount(string dbName, string table, string schema) {
-            Table t_smo = GetSmoTable(dbName, table, schema);
-            return t_smo.RowCount;
+            var cmd = new SqlCommand(string.Format("SELECT COUNT(*) FROM [{0}].[{1}]", schema, table));
+            return SqlQueryToScalar<long>(dbName, cmd);
         }
 
         public bool IsChangeTrackingEnabled(string dbName, string table, string schema) {
-            Table t_smo = GetSmoTable(dbName, table, schema);
-            return t_smo.ChangeTrackingEnabled;
+            var cmd = new SqlCommand(string.Format(@"
+                SELECT 1 as IsEnabled FROM sys.change_tracking_tables WHERE OBJECT_ID = OBJECT_ID('{0}.{1}')",
+                schema, table));
+            var result = SqlQuery(dbName, cmd);
+            return result.Rows.Count > 0 && result.Rows[0].Field<int>("IsEnabled") == 1;
         }
 
         public void LogError(string message, string headers) {
@@ -690,11 +643,14 @@ namespace TeslaSQL.DataUtils {
         }
 
         private bool CheckColumnExists(string dbName, string schema, string table, string column) {
-            Table t_smo = GetSmoTable(dbName, table, schema);
-            if (t_smo.Columns.Contains(column)) {
-                return true;
-            }
-            return false;
+            var cmd = new SqlCommand(@"
+            SELECT 1 as ColumnExists FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_NAME = @table AND TABLE_SCHEMA = @schema AND COLUMN_NAME = @column");
+            cmd.Parameters.Add("@table", SqlDbType.VarChar, 500).Value = table;
+            cmd.Parameters.Add("@schema", SqlDbType.VarChar, 500).Value = schema;
+            cmd.Parameters.Add("@column", SqlDbType.VarChar, 500).Value = column;
+            var result = SqlQuery(dbName, cmd);
+            return result.Rows.Count > 0 && result.Rows[0].Field<int>("ColumnExists") == 1;
         }
 
         public void RenameColumn(TableConf t, string dbName, string schema, string table,
@@ -924,30 +880,20 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// Scripts out a table as CREATE TABLE
         /// </summary>
-        /// <param name="server">Server identifier to connect to</param>
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table name</param>
         /// <param name="schema">Table's schema</param>
         /// <returns>The CREATE TABLE script as a string</returns>
         public string ScriptTable(string dbName, string table, string schema) {
-            //initialize scriptoptions variable
-            ScriptingOptions scriptOptions = new ScriptingOptions();
-            scriptOptions.ScriptBatchTerminator = true;
-            scriptOptions.NoCollation = true;
-            //get smo table object
-            Table t_smo = GetSmoTable(dbName, table, schema);
-
-            //script out the table, it comes back as a StringCollection object with one string per query batch
-            StringCollection scriptResults = t_smo.Script(scriptOptions);
-
-            //ADO.NET does not allow multiple batches in one query, but we don't really need the
-            //SET ANSI_NULLS ON etc. statements, so just find the CREATE TABLE statement and return that
-            foreach (string s in scriptResults) {
-                if (s.StartsWith("CREATE")) {
-                    return s;
-                }
+            var columns = GetFieldList(dbName, table, schema);
+            if (columns.Count == 0) {
+                //table doesn't exist
+                throw new DoesNotExistException();
             }
-            return "";
+            return string.Format(
+                @"CREATE TABLE [{0}].[{1}] (
+                    {2}
+                );", schema, table, string.Join(",", columns.Select(c => c.ToExpression())));
         }
 
         public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName) {
@@ -1119,13 +1065,12 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void RecreateView(string dbName, string viewName, string viewSelect) {
-            try {
-                var view = GetSmoView(dbName, viewName);
-                view.Drop();
-            } catch (DoesNotExistException) {
-
-            }
-            var cmd = new SqlCommand(string.Format("CREATE VIEW {0} AS {1}", viewName, viewSelect));
+            var cmd = new SqlCommand(string.Format(
+                @"IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
+                    WHERE TABLE_NAME = '{0}' AND TABLE_TYPE = 'VIEW')
+	            DROP VIEW {0};", viewName));
+            SqlNonQuery(dbName, cmd);
+            cmd = new SqlCommand(string.Format("CREATE VIEW {0} AS {1}", viewName, viewSelect));
             SqlNonQuery(dbName, cmd);
         }
 

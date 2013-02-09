@@ -5,8 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Data.SqlClient;
 using System.Data;
-using Microsoft.SqlServer.Management.Smo;
-using Microsoft.SqlServer.Management.Common;
 
 namespace TeslaSQL.DataUtils {
     /// <summary>
@@ -250,22 +248,7 @@ namespace TeslaSQL.DataUtils {
 
 
         public IEnumerable<string> GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2) {
-            DataTable dt1 = testData.Tables[schema1 + "." + table1, GetTableSpace(dbName)];
-            DataTable dt2 = testData.Tables[schema2 + "." + table2, GetTableSpace(dbName)];
-            var columns1 = new List<string>();
-            var columns2 = new List<string>();
-            //create this so that casing changes to columns don't cause problems, just use the lowercase column name
-            foreach (Column c in dt1.Columns) {
-                columns1.Add(c.Name.ToLower());
-            }
-            foreach (Column c in dt2.Columns) {
-                columns2.Add(c.Name.ToLower());
-            }
-            return columns1.Intersect(columns2);
-        }
-
-        public bool HasPrimaryKey(string dbName, string table, string schema) {
-            return (testData.Tables[schema + "." + table, GetTableSpace(dbName)].PrimaryKey.Count() > 0);
+            throw new NotImplementedException();
         }
 
         public bool DropTableIfExists(string dbName, string table, string schema) {
@@ -292,7 +275,7 @@ namespace TeslaSQL.DataUtils {
 
             //loop through columns and add them to the dictionary along with whether they are part of the primary key
             foreach (DataColumn c in dataTable.Columns) {
-                columns.Add(new TColumn(c.ColumnName, dataTable.PrimaryKey.Contains(c), c.DataType.ToString()));
+                columns.Add(new TColumn(c.ColumnName, dataTable.PrimaryKey.Contains(c), null, true));
             }
 
             return columns;

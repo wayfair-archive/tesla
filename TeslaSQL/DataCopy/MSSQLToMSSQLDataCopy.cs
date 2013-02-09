@@ -4,7 +4,6 @@ using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
 using System.Data.SqlClient;
-using Microsoft.SqlServer.Management.Smo;
 using TeslaSQL.DataUtils;
 namespace TeslaSQL.DataCopy {
     public class MSSQLToMSSQLDataCopy : IDataCopy {

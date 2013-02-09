@@ -24,10 +24,10 @@ namespace TeslaSQL.Tests.Agents {
             TableConf t = new TableConf();
             t.ColumnList = new string[] { "col1", "col2", "col3", "col4" };
             var fields = new List<TColumn>{
-                {new TColumn("col1", true, null)},
-                {new TColumn("col2", true, null)},
-                {new TColumn("col3", true, null)},
-                {new TColumn("col4", true, null)}
+                {new TColumn("col1", true, null, true)},
+                {new TColumn("col2", true, null, true)},
+                {new TColumn("col3", true, null, true)},
+                {new TColumn("col4", true, null, true)}
             };
             var cm = new ColumnModifier();
             cm.type = "ShortenField";

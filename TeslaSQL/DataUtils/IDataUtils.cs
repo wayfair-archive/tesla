@@ -136,15 +136,6 @@ namespace TeslaSQL.DataUtils {
         IEnumerable<string> GetIntersectColumnList(string dbName, string table1, string schema1, string table2, string schema2);
 
         /// <summary>
-        /// Check whether a table has a primary key
-        /// </summary>
-        /// <param name="dbName">Database name</param>
-        /// <param name="table">First table</param>
-        /// <param name="schema">Schema name</param>
-        /// <returns>True if the table has a primary key, otherwise false</returns>
-        bool HasPrimaryKey(string dbName, string table, string schema);
-
-        /// <summary>
         /// Checks to see if a table exists on the specified server and drops it if so.
         /// </summary>
         /// <param name="dbName">Database name</param>

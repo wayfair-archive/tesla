@@ -123,8 +123,6 @@ namespace TeslaSQL.Tests.Agents {
                        .Returns(minValidVersion).Verifiable();
             sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.Name, It.IsAny<string>()))
                         .Returns(true);
-            sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.Name, table.SchemaName))
-                        .Returns(true);
             sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.Name, table.SchemaName))
                         .Returns(true);
 
@@ -147,8 +145,6 @@ namespace TeslaSQL.Tests.Agents {
             sourceUtils.Setup((ut) => ut.GetMinValidVersion(db, table.Name, table.SchemaName))
                        .Returns(5);
             sourceUtils.Setup((ut) => ut.CheckTableExists(db, table.Name, It.IsAny<string>()))
-                        .Returns(true);
-            sourceUtils.Setup((ut) => ut.HasPrimaryKey(db, table.Name, table.SchemaName))
                         .Returns(true);
             sourceUtils.Setup((ut) => ut.IsChangeTrackingEnabled(db, table.Name, table.SchemaName))
                         .Returns(true);

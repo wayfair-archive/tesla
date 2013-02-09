@@ -5,8 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Data.SqlClient;
 using System.Data;
-using Microsoft.SqlServer.Management.Smo;
-using Microsoft.SqlServer.Management.Common;
 using System.Data.OleDb;
 namespace TeslaSQL.DataUtils {
     public class NetezzaDataUtils : IDataUtils {
@@ -112,7 +110,7 @@ namespace TeslaSQL.DataUtils {
                 //http://msdn.microsoft.com/en-us/library/system.data.oledb.oledbschemaguid.tables.aspx
                 var t = con.GetOleDbSchemaTable(OleDbSchemaGuid.Columns, new object[] { null, null, table, null });
                 foreach (DataRow row in t.Rows) {
-                    cols.Add(new TColumn(row.Field<string>("COLUMN_NAME"), false, null));
+                    cols.Add(new TColumn(row.Field<string>("COLUMN_NAME"), false, null, true));
                 }
             }
             return cols;
@@ -375,12 +373,6 @@ namespace TeslaSQL.DataUtils {
         public void UpdateSyncStopVersion(string dbName, Int64 syncStopVersion, Int64 CTID) {
             throw new NotImplementedException("Netezza is only supported as a slave!");
         }
-
-
-        public bool HasPrimaryKey(string dbName, string tableName, string schema) {
-            throw new NotImplementedException("Netezza is only supported as a slave!");
-        }
-
 
         public void WriteBitWise(string dbName, Int64 CTID, int value, AgentType agentType) {
             throw new NotImplementedException("Netezza is only supported as a slave!");

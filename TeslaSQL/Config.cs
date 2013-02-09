@@ -10,7 +10,6 @@ using System.IO;
 using System.Reflection;
 using System.Xml;
 using System.Xml.Serialization;
-using Microsoft.SqlServer.Management.Smo;
 using Xunit;
 using TeslaSQL.DataUtils;
 #endregion
@@ -534,21 +533,28 @@ namespace TeslaSQL {
     public class TColumn : IEquatable<TColumn> {
         public readonly string name;
         public bool isPk;
-        public readonly string dataType;
-        public TColumn(string name, bool isPk, string dataType) {
+        public readonly DataType dataType;
+        public readonly bool isNullable;
+
+        public TColumn(string name, bool isPk, DataType dataType, bool isNullable) {
             this.name = name;
             this.isPk = isPk;
             this.dataType = dataType;
+            this.isNullable = isNullable;
         }
         public override string ToString() {
             return name;
         }
 
-        public bool IsStringType() {
-            return dataType.ToLower().Contains("text") || dataType.ToLower().Contains("char");
+        /// <summary>
+        /// Returns a string representation of the column for use in CREATE TABLE statements
+        /// </summary>
+        public string ToExpression() {
+            return string.Format("[{0}] {1} {2}", name, dataType.ToString(), isNullable ? "NULL" : "NOT NULL");
         }
+
         public bool Equals(TColumn other) {
-            return name == other.name && isPk == other.isPk;
+            return name == other.name && isPk == other.isPk && DataType.Equals(dataType, other.dataType);
         }
         public override int GetHashCode() {
             return name.GetHashCode() ^ isPk.GetHashCode();

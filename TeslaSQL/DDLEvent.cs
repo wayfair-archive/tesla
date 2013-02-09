@@ -101,7 +101,7 @@ namespace TeslaSQL {
                         columnName = xColumn.InnerText;
                         if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                             try {
-                                dataType = ParseDataType(dataUtils.GetDataType(dbName, tableName, schemaName, columnName));
+                                dataType = DataType.ParseDataType(dataUtils.GetDataType(dbName, tableName, schemaName, columnName));
                                 sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, dataType);
                                 schemaChanges.Add(sc);
                             } catch (DoesNotExistException) {
@@ -123,7 +123,7 @@ namespace TeslaSQL {
                         if (t.ColumnList == null || t.ColumnList.Contains(columnName, StringComparer.OrdinalIgnoreCase)) {
                             try {
                                 var type = dataUtils.GetDataType(dbName, tableName, schemaName, columnName);
-                                dataType = ParseDataType(type);
+                                dataType = DataType.ParseDataType(type);
                                 sc = new SchemaChange(DdeID, changeType, schemaName, tableName, columnName, null, dataType);
                                 schemaChanges.Add(sc);
                             } catch (DoesNotExistException) {
@@ -147,22 +147,6 @@ namespace TeslaSQL {
                     break;
             }
             return schemaChanges;
-        }
-
-        /// <summary>
-        /// Given a datarow from GetDataType, turns it into a data type object
-        /// </summary>
-        /// <param name="row">DataRow containing the appropriate columns from GetDataType</param>
-        /// <returns>A TeslaSQL.DataType object</returns>
-        public DataType ParseDataType(DataRow row) {
-            string dataType = row.Field<string>("DATA_TYPE");
-            var characterMaximumLength = row.Field<int?>("CHARACTER_MAXIMUM_LENGTH");
-            //Nullable<byte> because there is no such thing as "byte?"
-            var numericPrecision = row.Field<Nullable<byte>>("NUMERIC_PRECISION");
-            var numericScale = row.Field<int?>("NUMERIC_SCALE");
-            return new DataType(
-                dataType, characterMaximumLength, numericPrecision, numericScale
-                );
         }
     }
 }

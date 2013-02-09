@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using System.Data;
 
 namespace TeslaSQL {
     /// <summary>
@@ -92,7 +93,7 @@ namespace TeslaSQL {
         /// </summary>
         /// <returns>String expression representing the data type</returns>
         public override string ToString() {
-            var typesUsingMaxLen = new string[4] { "varchar", "nvarchar", "char", "nchar" };
+            var typesUsingMaxLen = new string[6] { "varchar", "nvarchar", "char", "nchar", "varbinary", "binary" };
             var typesUsingScale = new string[2] { "numeric", "decimal" };
 
             string suffix = "";
@@ -104,6 +105,46 @@ namespace TeslaSQL {
             }
 
             return BaseType + suffix;
+        }
+
+        /// <summary>
+        /// Returns true if the column contains text/string data 
+        /// </summary>
+        public bool IsStringType() {
+            return BaseType.ToLower().Contains("text")
+                || BaseType.ToLower().Contains("char");
+        }
+
+        /// <summary>
+        /// Returns true if the column uses the CHARACTER_MAX_LENGTH property
+        /// </summary>
+        public bool UsesMaxLength() {
+            return BaseType.ToLower().Contains("char")
+                || BaseType.ToLower().Contains("binary");
+        }
+
+        /// <summary>
+        /// Returns true if the column uses hte NUMERIC_PRECISION and NUMERIC_SCALE properties
+        /// </summary>
+        public bool UsesPrecisionScale() {
+            return BaseType.ToLower().Contains("decimal")
+                || BaseType.ToLower().Contains("numeric");
+        }
+
+        /// <summary>
+        /// Given a datarow from GetDataType, turns it into a data type object
+        /// </summary>
+        /// <param name="row">DataRow containing the appropriate columns from GetDataType</param>
+        /// <returns>A TeslaSQL.DataType object</returns>
+        public static DataType ParseDataType(DataRow row) {
+            string dataType = row.Field<string>("DATA_TYPE");
+            var characterMaximumLength = row.Field<int?>("CHARACTER_MAXIMUM_LENGTH");
+            //Nullable<byte> because there is no such thing as "byte?"
+            var numericPrecision = row.Field<Nullable<byte>>("NUMERIC_PRECISION");
+            var numericScale = row.Field<int?>("NUMERIC_SCALE");
+            return new DataType(
+                dataType, characterMaximumLength, numericPrecision, numericScale
+                );
         }
     }
 }

@@ -342,7 +342,7 @@ namespace TeslaSQL.Agents {
         }
 
         /// <summary>
-        /// Checks that a table is valid to pull changes from (exists, has a primary key, has change tracking enabled, and has a low enough min_valid_version
+        /// Checks that a table is valid to pull changes from (exists, has change tracking enabled, and has a low enough min_valid_version
         /// </summary>
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table name</param>
@@ -354,11 +354,7 @@ namespace TeslaSQL.Agents {
                 reason = "Table " + table + " does not exist in the source database";
                 logger.Log(reason, LogLevel.Trace);
                 return false;
-            } else if (!sourceDataUtils.HasPrimaryKey(dbName, table, schemaName)) {
-                reason = "Table " + table + " has no primary key in the source database";
-                logger.Log(reason, LogLevel.Trace);
-                return false;
-            } else if (!sourceDataUtils.IsChangeTrackingEnabled(dbName, table, schemaName)) {
+            }  else if (!sourceDataUtils.IsChangeTrackingEnabled(dbName, table, schemaName)) {
                 reason = "Change tracking is not enabled on " + table;
                 logger.Log(reason, LogLevel.Trace);
                 return false;
