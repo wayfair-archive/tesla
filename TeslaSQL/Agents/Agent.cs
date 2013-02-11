@@ -86,10 +86,10 @@ namespace TeslaSQL.Agents {
 
             foreach (TableConf t in tables) {
                 logger.Log(new { message = "Getting rowcount", Table = t.SchemaName + "." + t.ToCTName(CTID) }, LogLevel.Trace);
-                try {
+                if (sourceDataUtils.CheckTableExists(sourceCTDB, t.ToCTName(CTID), t.SchemaName)) {
                     rowCounts.Add(t.FullName, sourceDataUtils.GetTableRowCount(sourceCTDB, t.ToCTName(CTID), t.SchemaName));
                     logger.Log("Successfully retrieved rowcount of " + rowCounts[t.FullName], LogLevel.Trace);
-                } catch (DoesNotExistException) {
+                } else {
                     logger.Log("CT table does not exist, using rowcount of 0", LogLevel.Trace);
                     rowCounts.Add(t.FullName, 0);
                 }
