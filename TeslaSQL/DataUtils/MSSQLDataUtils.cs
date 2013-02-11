@@ -608,7 +608,7 @@ namespace TeslaSQL.DataUtils {
 
 
         public Int64 GetTableRowCount(string dbName, string table, string schema) {
-            var cmd = new SqlCommand(string.Format("SELECT COUNT(*) FROM [{0}].[{1}]", schema, table));
+            var cmd = new SqlCommand(string.Format("SELECT COUNT_BIG(*) FROM [{0}].[{1}]", schema, table));
             return SqlQueryToScalar<long>(dbName, cmd);
         }
 
