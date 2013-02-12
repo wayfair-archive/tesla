@@ -234,6 +234,14 @@ namespace TeslaSQL.DataUtils {
             query += " LEFT OUTER JOIN " + sourceDB + "." + table.SchemaName + "." + table.Name + " P ON " + table.PkList;
             query += " WHERE (SYS_CHANGE_VERSION <= @stopversion OR SYS_CHANGE_CREATION_VERSION <= @stopversion)";
             query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + table.NotNullPKList + ")";
+            /*
+             * This last segment works around a bug in MSSQL. if you have an identity column that is not part of the table's
+             * primary key, and a delete happens on that table, it would break the above with this error:
+             * "Attempting to set a non-NULL-able column's value to NULL."
+             * The workaround is to add this no-op UNION ALL, which prevents SQL from putting the identity column as not-nullable
+             * On the destination table, for some reason.
+             * */
+            query += " UNION ALL SELECT " + table.SimpleColumnList + ", NULL, NULL FROM " + sourceDB + "." + table.SchemaName + "." + table.Name + " WHERE 1 = 0";
 
             SqlCommand cmd = new SqlCommand(query);
 
