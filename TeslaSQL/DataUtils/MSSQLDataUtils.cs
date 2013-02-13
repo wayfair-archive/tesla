@@ -248,7 +248,7 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = (overrideStartVersion.HasValue ? overrideStartVersion.Value : ctb.SyncStartVersion);
             cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = ctb.SyncStopVersion;
 
-            return SqlNonQuery(sourceCTDB, cmd, 1200);
+            return SqlNonQuery(sourceCTDB, cmd, Config.QueryTimeout);
         }
 
 
