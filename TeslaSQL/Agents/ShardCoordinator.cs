@@ -48,16 +48,17 @@ namespace TeslaSQL.Agents {
             }
             logger.Log("Working on CTID " + batch.CTID, LogLevel.Info);
 
-            tableDBFieldLists = GetFieldListsByDB(batch.CTID);
-            if (SchemasOutOfSync(tableDBFieldLists.Values)) {
-                foreach (var sd in shardDatabases) {
-                    sourceDataUtils.RevertCTBatch(sd, batch.CTID);
-                }
-                logger.Log("Schemas out of sync, quitting", LogLevel.Info);
-                return;
-            }
             if (AllShardMastersDone(batch)) {
-                logger.Log("All shard masters are done; consolidating", LogLevel.Info);
+                logger.Log("All shard masters are done, checking field lists", LogLevel.Info);
+                tableDBFieldLists = GetFieldListsByDB(batch.CTID);
+                if (SchemasOutOfSync(tableDBFieldLists.Values)) {
+                    foreach (var sd in shardDatabases) {
+                        sourceDataUtils.RevertCTBatch(sd, batch.CTID);
+                    }
+                    logger.Log("Schemas out of sync, quitting", LogLevel.Info);
+                    return;
+                }
+                logger.Log("Field lists in sync, consolidating", LogLevel.Info);
                 Consolidate(batch);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, batch.CTID,
                     Convert.ToInt32(SyncBitWise.CaptureChanges) | Convert.ToInt32(SyncBitWise.UploadChanges), AgentType.ShardCoordinator);
