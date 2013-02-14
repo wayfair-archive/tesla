@@ -206,23 +206,25 @@ namespace TeslaSQL.DataCopy {
             var cols = new List<Col>();
             foreach (TColumn col in columns) {
                 string typeName = col.dataType.BaseType;
+                ColumnModifier mod = null;
+                //see if there are any column modifiers which override our length defaults
+                IEnumerable<TableConf> tables = Config.Tables.Where(t => t.Name == originalTableName);
+                ColumnModifier[] modifiers = tables.FirstOrDefault().ColumnModifiers;
+                if (modifiers != null) {
+                    IEnumerable<ColumnModifier> mods = modifiers.Where(c => ((c.columnName == col.name) && (c.type == "ShortenField")));
+                    mod = mods.FirstOrDefault();
+                }
 
                 string modDataType = DataType.MapDataType(SqlFlavor.MSSQL, SqlFlavor.Netezza, typeName);
                 if (typeName != modDataType) {
+                    if (mod != null && Regex.IsMatch(modDataType, @".*\(\d+\)$")) {
+                        modDataType = Regex.Replace(modDataType, @"\d+", mod.length.ToString());
+                    }
                     cols.Add(new Col(NetezzaDataUtils.MapReservedWord(col.name), modDataType, col.dataType));
                     continue;
                 }
 
                 if (col.dataType.UsesMaxLength()) {
-                    ColumnModifier mod = null;
-                    //see if there are any column modifiers which override our length defaults
-                    IEnumerable<TableConf> tables = Config.Tables.Where(t => t.Name == originalTableName);
-                    ColumnModifier[] modifiers = tables.FirstOrDefault().ColumnModifiers;
-                    if (modifiers != null) {
-                        IEnumerable<ColumnModifier> mods = modifiers.Where(c => ((c.columnName == col.name) && (c.type == "ShortenField")));
-                        mod = mods.FirstOrDefault();
-                    }
-
                     if (mod != null) {
                         typeName += "(" + mod.length + ")";
                     } else if (Config.NetezzaStringLength > 0) {
