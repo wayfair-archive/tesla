@@ -293,6 +293,9 @@ Function Get-Modifiers([System.Xml.XmlNodeList]$modifiers) {
         }
         $columnmodifiers += [string]$modifier.OuterXML        
     }
+    if ($columnmodifiers -ne $null) {
+        $columnmodifiers += "</root>"
+    }
     return $columnmodifiers
 }
 
@@ -630,8 +633,8 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
         "password" = $slavepassword; 
         "slavecolumnlist" = $slavecolumnlist;
         "mastercolumnlist" = $mastercolumnlist;
-        "slavecolumnmodifiers" = $slavecolumnmodifiers;
-        "mastercolumnmodifiers" = $mastercolumnmodifiers; 
+        "slavecolumnmodifiers" = $slavemodifiers;
+        "mastercolumnmodifiers" = $mastermodifiers; 
         "netezzastringlength" = $netezzastringlength;
         "mappingsfile" = $mappingsfile;
         "sshuser" = $netezzauser;
@@ -649,7 +652,7 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
 
 #initialize tables in parallel with a configurable throttle
 $tablestoinitialize | Foreach-Object {
-    Write-Host ("Calling .\AddTable-ToCT for table " + $_.table)    
+    Write-Host ("Calling .\AddTable-ToCT for table " + $_.table)
     #switch to directory containing the script. required because this is inside a runspace which
     #doesn't inherit the environment of the parent scope.
     cd $_.directory

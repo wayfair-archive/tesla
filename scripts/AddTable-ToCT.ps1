@@ -204,6 +204,9 @@ if ($slavetype -eq "Netezza") {
             $typename = $column.DataType.Name
             $moddatatype = [TeslaSQL.DataType]::MapDataType("MSSQL", "Netezza", $typename)
             if ($typename -ne $moddatatype) {
+                if ($modifiertable.ContainsKey($column.Name) -and [RegEx]::IsMatch($moddatatype, ".*\(\d+\)$")) {
+                    $moddatatype = [RegEx]::Replace($moddatatype, "\d+", $modifiertable[$column.Name].ToString());
+                }
                 $col = (Map-ReservedWordNetezza $column.Name) + " " + $moddatatype
                 if ($column.Nullable) {
                     $col += " NULL"
@@ -220,15 +223,15 @@ if ($slavetype -eq "Netezza") {
                     $typename += "(" + $modifiertable[$column.Name].ToString() + ")"
                 } else {
                     $typename += "("
-                    if (($col.DataType.MaximumLength -gt $netezzastringlength) -or ($col.DataType.MaximumLength -lt 1)) {
+                    if (($column.DataType.MaximumLength -gt $netezzastringlength) -or ($column.DataType.MaximumLength -lt 1)) {
                         $typename += $netezzastringlength.ToString()
                     } else {
-                        $typename += $col.DataType.MaximumLength.ToString()
+                        $typename += $column.DataType.MaximumLength.ToString()
                     }
                     $typename += ")"
                 }
             } elseif ($shortenednumerictypes -Contains($column.DataType.SqlDataType)) {
-                $typename += "(" + $col.DataType.NumericPrecision.ToString() + "," + $col.DataType.NumericScale.ToString() + ")"
+                $typename += "(" + $column.DataType.NumericPrecision.ToString() + "," + $column.DataType.NumericScale.ToString() + ")"
             }    
             $col = (Map-ReservedWordNetezza $column.Name) + " " + $typename 
             if ($column.Nullable) {
@@ -426,7 +429,8 @@ if ($slavetype -eq "MSSQL") {
         invoke-sqlcmd2 -serverinstance $master -database ("CT_" + $masterdb) -query $query
         $query = [string]::Format("CREATE VIEW [CTVWINIT_{0}] 
         AS {1}", $table, $bcpselect)
-        $bcpselect = "SELECT * FROM [CTVWINIT_" + $table + "]"
+        invoke-sqlcmd2 -serverinstance $master -database ("CT_" + $masterdb) -query $query
+        $bcpselect = "SELECT * FROM " + ("CT_" + $masterdb) + "..[CTVWINIT_" + $table + "]"
     }    
     bcp.exe "$bcpselect" queryout $bcppath -c -S $master -T -t "|" -r\n
     if (!$?) {
