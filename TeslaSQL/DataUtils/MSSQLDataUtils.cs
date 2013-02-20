@@ -493,6 +493,28 @@ namespace TeslaSQL.DataUtils {
             return columns;
         }
 
+        /// <summary>
+        /// Overload for GetFieldList which is used by datacopy to copy changetables.
+        /// </summary>
+        public List<TColumn> GetFieldList(string dbName, string table, string schema, string originalTableName, IList<string> includeColumns) {
+            //get actual field list on the source table
+            var columns = GetFieldList(dbName, table, schema);
+
+            if (columns.Count == 0) {
+                //table doesn't exist
+                throw new DoesNotExistException();
+            }
+
+            //get the table config object
+            var t = Config.TableByName(originalTableName ?? table);
+
+            //only include columns in the column list if it is configured, plus the list of includeColumns
+            return columns.Where(c => t.ColumnList == null
+                || includeColumns.Contains(c.name, StringComparer.OrdinalIgnoreCase)
+                || t.ColumnList.Contains(c.name, StringComparer.OrdinalIgnoreCase)
+                ).ToList();
+        }
+
         public Dictionary<TableConf, IList<TColumn>> GetAllFields(string dbName, Dictionary<TableConf, string> t) {
             if (t.Count == 0) {
                 return new Dictionary<TableConf, IList<TColumn>>();
@@ -884,20 +906,19 @@ namespace TeslaSQL.DataUtils {
             return tables;
         }
 
-
         /// <summary>
-        /// Scripts out a table as CREATE TABLE
+        /// Scripts out a table as CREATE TABLE, respecting column lists defined for that table
         /// </summary>
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table name</param>
-        /// <param name="schema">Table's schema</param>
+        /// <param name="schema">Table's schema</param>\
+        /// <param name="originalTableName">Original table to pull TableConf for</param>
         /// <returns>The CREATE TABLE script as a string</returns>
-        public string ScriptTable(string dbName, string table, string schema) {
-            var columns = GetFieldList(dbName, table, schema);
-            if (columns.Count == 0) {
-                //table doesn't exist
-                throw new DoesNotExistException();
-            }
+        public string ScriptTable(string dbName, string table, string schema, string originalTableName) {
+            //get actual field list on the source table
+            var includeColumns = new List<string>() { "SYS_CHANGE_VERSION", "SYS_CHANGE_OPERATION" };
+            var columns = GetFieldList(dbName, table, schema, originalTableName, includeColumns);
+
             return string.Format(
                 @"CREATE TABLE [{0}].[{1}] (
                     {2}

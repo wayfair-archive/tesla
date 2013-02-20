@@ -198,18 +198,19 @@ namespace TeslaSQL.DataCopy {
         }
 
         private List<Col> GetColumns(string sourceDB, string sourceTableName, string schema, string originalTableName) {
-            var columns = sourceDataUtils.GetFieldList(sourceDB, sourceTableName, schema);
-            if (columns.Count == 0) {
-                //table doesn't exist
-                throw new DoesNotExistException();
-            }
+            //get actual field list on the source table
+            var includeColumns = new List<string>() { "SYS_CHANGE_VERSION", "SYS_CHANGE_OPERATION" };
+            var columns = sourceDataUtils.GetFieldList(sourceDB, sourceTableName, schema, originalTableName, includeColumns);
+            //get the table config object
+            var table = Config.TableByName(originalTableName);
+
             var cols = new List<Col>();
             foreach (TColumn col in columns) {
                 string typeName = col.dataType.BaseType;
+
                 ColumnModifier mod = null;
                 //see if there are any column modifiers which override our length defaults
-                IEnumerable<TableConf> tables = Config.Tables.Where(t => t.Name == originalTableName);
-                ColumnModifier[] modifiers = tables.FirstOrDefault().ColumnModifiers;
+                ColumnModifier[] modifiers = table.ColumnModifiers;
                 if (modifiers != null) {
                     IEnumerable<ColumnModifier> mods = modifiers.Where(c => ((c.columnName == col.name) && (c.type == "ShortenField")));
                     mod = mods.FirstOrDefault();

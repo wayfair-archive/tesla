@@ -402,7 +402,7 @@ namespace TeslaSQL.Agents {
             IDataCopy dataCopy = DataCopyFactory.GetInstance((SqlFlavor)Config.MasterType, (SqlFlavor)Config.RelayType, sourceDataUtils, destDataUtils, logger);
             logger.Log("Publishing changes for table " + table.SchemaName + "." + table.Name, LogLevel.Trace);
             try {
-                dataCopy.CopyTable(sourceCTDB, table.ToCTName(CTID), table.SchemaName, destCTDB, Config.DataCopyTimeout);
+                dataCopy.CopyTable(sourceCTDB, table.ToCTName(CTID), table.SchemaName, destCTDB, Config.DataCopyTimeout, originalTableName: table.Name);
                 logger.Log("Publishing changes succeeded for " + table.SchemaName + "." + table.Name, LogLevel.Trace);
             } catch (Exception e) {
                 if (table.StopOnError) {

@@ -34,13 +34,24 @@ namespace TeslaSQL.DataCopy {
 
         public void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null, string originalTableName = null) {
             //by default the dest table will have the same name as the source table
-            destTableName = (destTableName == null) ? sourceTableName : destTableName;
+            destTableName = destTableName ?? sourceTableName;
 
             //drop table at destination and create from source schema
-            CopyTableDefinition(sourceDB, sourceTableName, schema, destDB, destTableName);
+            CopyTableDefinition(sourceDB, sourceTableName, schema, destDB, destTableName, originalTableName);
+
+            //if we are provided an original table name, get the configured fieldlists for it
+            //if not (i.e. in the case of tblCTTableInfo in shardcoordinator) we can just use *
+            string columnList;
+            if (originalTableName == null) {
+                columnList = "*";
+            } else {
+                var includeColumns = new List<string>() { "SYS_CHANGE_VERSION", "SYS_CHANGE_OPERATION" };
+                var columns = sourceDataUtils.GetFieldList(sourceDB, sourceTableName, schema, originalTableName, includeColumns);
+                columnList = string.Join(",", columns.Select(c => c.name));
+            }
 
             //can't parametrize tablename or schema name but they have already been validated against the server so it's safe
-            SqlCommand cmd = new SqlCommand("SELECT * FROM [" + schema + "].[" + sourceTableName + "]");
+            SqlCommand cmd = new SqlCommand(string.Format("SELECT {0} FROM [{1}].[{2}]", columnList, schema, sourceTableName));
             CopyDataFromQuery(sourceDB, destDB, cmd, destTableName, schema, timeout, timeout);
         }
 
@@ -54,7 +65,7 @@ namespace TeslaSQL.DataCopy {
         /// <param name="destDB">Destination database name</param>
         public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, string originalTableName = null) {
             //script out the table at the source
-            string createScript = sourceDataUtils.ScriptTable(sourceDB, sourceTableName, schema);
+            string createScript = sourceDataUtils.ScriptTable(sourceDB, sourceTableName, schema, originalTableName);
             createScript = createScript.Replace(sourceTableName, destTableName);
             SqlCommand cmd = new SqlCommand(createScript);
 

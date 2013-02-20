@@ -431,8 +431,14 @@ namespace TeslaSQL {
 
         #endregion
 
-
-
+        /// <summary>
+        /// string indexer for Tables
+        /// </summary>
+        public static TableConf TableByName(string tablename) {
+            //get the table config object
+            IEnumerable<TableConf> tables = Tables.Where(t => string.Compare(t.Name, tablename, StringComparison.OrdinalIgnoreCase) == 0);
+            return tables.FirstOrDefault();
+        }
 
         /// <summary>
         /// Parses the column modifiers into a list object
@@ -511,6 +517,7 @@ namespace TeslaSQL {
 
         [XmlArray("tables")]
         public List<TableConf> tables { get; set; }
+
 
         [XmlArrayItem("shardDatabase")]
         public string[] shardDatabases { get; set; }

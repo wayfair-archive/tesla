@@ -338,7 +338,7 @@ namespace TeslaSQL.Agents {
                 Action act = () => {
                     try {
                         logger.Log("Copying " + lastChangeTable.ctName, LogLevel.Debug);
-                        dataCopy.CopyTable(Config.RelayDB, lastChangeTable.ctName, tLocal.SchemaName, Config.RelayDB, Config.DataCopyTimeout, lastChangeTable.consolidatedName);
+                        dataCopy.CopyTable(Config.RelayDB, lastChangeTable.ctName, tLocal.SchemaName, Config.RelayDB, Config.DataCopyTimeout, lastChangeTable.consolidatedName, tLocal.Name);
                         //skipping the first one because dataCopy.CopyTable already copied it).
                         foreach (var changeTable in lu[lastChangeTable.name].OrderByDescending(c => c.CTID).Skip(1)) {
                             logger.Log("Consolidating " + changeTable.ctName, LogLevel.Debug);
