@@ -510,8 +510,8 @@ namespace TeslaSQL.Agents {
             DataTable result = sourceDataUtils.GetTablesWithChanges(dbName, batches);
             foreach (DataRow row in result.Rows) {
                 var changeTable = new ChangeTable(row.Field<string>("CtiTableName"), row.Field<long>("CTID"), row.Field<string>("CtiSchemaName"), Config.Slave);
-                //only add the table if it's in our config
-                if (tables.Where(t => t.Name == changeTable.name).Count() == 1) {
+                //only add the table if it's in our config, using case insensitive comparison
+                if (tables.Any(t => String.Compare(t.Name, changeTable.name, StringComparison.OrdinalIgnoreCase) == 0)) {
                     tableList.Add(changeTable);
                 }
             }
