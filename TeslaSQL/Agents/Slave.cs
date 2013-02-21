@@ -328,8 +328,14 @@ namespace TeslaSQL.Agents {
             var consolidatedTables = new List<ChangeTable>();
             foreach (var table in Config.Tables) {
                 if (!lu.ContainsKey(table.Name)) {
-                    logger.Log("No changes captured for " + table.Name, LogLevel.Info);
-                    continue;
+                    //ugly case sensitivity hack
+                    var kvp = lu.FirstOrDefault(l => String.Compare(l.Key, table.Name, StringComparison.OrdinalIgnoreCase) == 0);
+                    if (kvp.Key != null) {
+                        lu[table.Name] = lu[kvp.Key];
+                    } else {
+                        logger.Log("No changes captured for " + table.Name, LogLevel.Info);
+                        continue;
+                    }
                 }
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.CTID).First();
                 consolidatedTables.Add(lastChangeTable);
@@ -478,7 +484,7 @@ namespace TeslaSQL.Agents {
                 if (!changeTables.Any(s => String.Compare(s.name, confTable.Name, StringComparison.OrdinalIgnoreCase) == 0)) {
                     continue;
                 }
-                if (hasArchive.ContainsKey(confTable)) {
+                if (hasArchive.Any(s => String.Compare(s.Key.Name, confTable.Name, StringComparison.OrdinalIgnoreCase) == 0)) {
                     //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
                     continue;
                 }
