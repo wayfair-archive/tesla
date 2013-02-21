@@ -328,8 +328,14 @@ namespace TeslaSQL.Agents {
             var consolidatedTables = new List<ChangeTable>();
             foreach (var table in Config.Tables) {
                 if (!lu.ContainsKey(table.Name)) {
-                    logger.Log("No changes captured for " + table.Name, LogLevel.Info);
-                    continue;
+                    //ugly case sensitivity hack
+                    var kvp = lu.FirstOrDefault(l => String.Compare(l.Key, table.Name, StringComparison.OrdinalIgnoreCase) == 0);
+                    if (kvp.Key != null) {
+                        lu[table.Name] = lu[kvp.Key];
+                    } else {
+                        logger.Log("No changes captured for " + table.Name, LogLevel.Info);
+                        continue;
+                    }
                 }
                 var lastChangeTable = lu[table.Name].OrderByDescending(c => c.CTID).First();
                 consolidatedTables.Add(lastChangeTable);
@@ -362,7 +368,8 @@ namespace TeslaSQL.Agents {
             //map each table to the last appropriate CT table, ditching tableconfs with no corresponding CT tables
             var tableCTName = new Dictionary<TableConf, string>();
             foreach (var table in tables) {
-                ChangeTable changeTable = existingCTTables.Where(ct => ct.name == table.Name).OrderBy(ct => ct.CTID).LastOrDefault();
+                ChangeTable changeTable = existingCTTables.Where(ct => String.Compare(ct.name, table.Name, StringComparison.OrdinalIgnoreCase) == 0).OrderBy(ct => ct.CTID).LastOrDefault();
+
                 if (changeTable == null) {
                     continue;
                 }
@@ -376,7 +383,7 @@ namespace TeslaSQL.Agents {
 
             //tableCTName.Keys instead of tables because we've already filtered this for tables that don't have change tables
             //note: allColumnsByTable.Keys or primaryKeysByTable.Keys should work just as well
-            foreach (var table in tableCTName.Keys) { 
+            foreach (var table in tableCTName.Keys) {
                 IEnumerable<TColumn> columns;
                 try {
                     //this is a hacky solution but we will have these columns in CT tables but actually are not interested in them here.
@@ -389,7 +396,7 @@ namespace TeslaSQL.Agents {
                 }
                 IList<string> pks;
                 try {
-                    pks = primaryKeysByTable[table];                    
+                    pks = primaryKeysByTable[table];
                 } catch (KeyNotFoundException) {
                     var e = new Exception("Primary keys for table " + table.FullName + " not found in " + dbName + ".dbo.tblCTTableInfo_" + batch.CTID);
                     HandleException(e, table);
@@ -474,19 +481,20 @@ namespace TeslaSQL.Agents {
         protected Dictionary<TableConf, TableConf> ValidTablesAndArchives(IEnumerable<ChangeTable> changeTables, Int64 CTID) {
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var confTable in Config.Tables) {
-                if (!changeTables.Any(s => s.name == confTable.Name)) {
+                if (!changeTables.Any(s => String.Compare(s.name, confTable.Name, StringComparison.OrdinalIgnoreCase) == 0)) {
                     continue;
                 }
-                if (hasArchive.ContainsKey(confTable)) {
+                if (hasArchive.Any(s => String.Compare(s.Key.Name, confTable.Name, StringComparison.OrdinalIgnoreCase) == 0)) {
                     //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
                     continue;
                 }
                 if (confTable.Name.EndsWith("Archive")) {
                     //if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
                     string nonArchiveTableName = confTable.Name.Substring(0, confTable.Name.Length - confTable.Name.LastIndexOf("Archive") + 1);
-                    if (changeTables.Any(s => s.name == nonArchiveTableName)) {
+                    if (changeTables.Any(s => String.Compare(s.name, nonArchiveTableName, StringComparison.OrdinalIgnoreCase) == 0)) {
                         //if the non-archive table has any changes, we grab the associated table configuration and pair them
-                        var nonArchiveTable = Config.Tables.First(t => t.Name == nonArchiveTableName);
+                        var nonArchiveTable = Config.Tables.First(t => String.Compare(t.Name, nonArchiveTableName, StringComparison.OrdinalIgnoreCase) == 0);
+
                         hasArchive[nonArchiveTable] = confTable;
                     } else {
                         //otherwise we just go ahead and treat the archive CT table as a normal table
