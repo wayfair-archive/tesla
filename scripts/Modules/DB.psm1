@@ -55,8 +55,6 @@ Function Invoke-NetezzaQuery {
     [Parameter(Position=3, Mandatory=$true)] [string]$Password,
     [Parameter(Position=4, Mandatory=$true)] [string]$Query
     )
-    $ctripledes = new-object cTripleDes
-    $Password = $ctripledes.Decrypt($Password)
     $connstr = "Data Source=$ServerInstance; Initial Catalog=$Database; User ID=$User;Password=$Password;Provider=NZOLEDB;";
     $conn = new-object System.Data.OleDb.OleDbConnection($connstr)
     $conn.Open();

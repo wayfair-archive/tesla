@@ -581,7 +581,7 @@ if ($newdatabase -or $newslave) {
         if ($slavetype -eq "MSSQL") {        
             Drop-AllTables $slave $slavectdb $yes
         } elseif ($slavetype -eq "Netezza") {
-            Drop-AllNetezzaTables $slave $slavectdb $slaveuser $slavepassword $yes
+            Drop-AllNetezzaTables $slave $slavectdb $slaveuser $ctripledes.Decrypt($slavepassword) $yes
         }
     }
     Write-Host "creating $slavedb on server $slave"

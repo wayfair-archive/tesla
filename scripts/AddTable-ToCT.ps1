@@ -132,8 +132,8 @@ if ($mastermodifiers.Count -gt 0 -and $slavemodifiers.Count -gt 0) {
 Function Invoke-Slave($query) {
     if ($slavetype -eq "MSSQL") {
         Invoke-SqlCmd2 -serverinstance $slave -database $slavedb -query $query
-    } elseif ($slavetype -eq "Netezza") {
-        Invoke-NetezzaQuery -serverinstance $slave -database $slavedb -query $query -user $user -password $password
+    } elseif ($slavetype -eq "Netezza") {            
+        Invoke-NetezzaQuery -serverinstance $slave -database $slavedb -query $query -user $user -password $ctripledes.Decrypt($password)
     }
 }
 
