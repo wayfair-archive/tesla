@@ -508,6 +508,12 @@ namespace TeslaSQL.DataUtils {
             //get the table config object
             var t = Config.TableByName(originalTableName ?? table);
 
+            //this will be null when copying a table that isn't in the config,
+            //such as tblCTTableInfo or tblCTSchemaChange
+            if (t == null) {
+                return columns;
+            }
+
             //only include columns in the column list if it is configured, plus the list of includeColumns
             return columns.Where(c => t.ColumnList == null
                 || includeColumns.Contains(c.name, StringComparer.OrdinalIgnoreCase)
