@@ -112,7 +112,8 @@ namespace TeslaSQL {
         /// </summary>
         public bool IsStringType() {
             return BaseType.ToLower().Contains("text")
-                || BaseType.ToLower().Contains("char");
+                || BaseType.ToLower().Contains("char")
+                || BaseType.ToLower() == "xml";
         }
 
         /// <summary>
