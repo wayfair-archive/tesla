@@ -616,9 +616,12 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
     #get XML for master config so that we can get any custom column modifiers/column lists
     [xml]$masterconf = ($mastertableconf.SelectNodes("table") | ? {$_.name -eq $tableconf.name -and $_.schemaname -eq $tableconf.schemaname}).OuterXML
     #parse column modifiers and column lists for master and slave version of this table
-    $mastermodifiers = Get-Modifiers $masterconf.SelectNodes("columnModifier") 
+    #need to prefix master ones with table/ due to some weirdness in the output of the
+    #above expression
+    $mastermodifiers = Get-Modifiers $masterconf.SelectNodes("table/columnModifier") 
     $slavemodifiers = Get-Modifiers $tableconf.SelectNodes("columnModifier") 
-    $mastercolumnlist = Get-Columns $masterconf.SelectSingleNode("columnList")
+    $mastercolumnlist = Get-Columns $masterconf.SelectSingleNode("table/columnList")
+    
     $slavecolumnlist = Get-Columns $tableconf.SelectSingleNode("columnList")
     
     #hashtable of the arguments we will use when calling AddTable-ToCT
