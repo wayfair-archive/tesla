@@ -490,7 +490,7 @@ namespace TeslaSQL.Agents {
                 }
                 if (confTable.Name.EndsWith("Archive")) {
                     //if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
-                    string nonArchiveTableName = confTable.Name.Substring(0, confTable.Name.Length - confTable.Name.LastIndexOf("Archive") + 1);
+                    string nonArchiveTableName = confTable.Name.Substring(0, confTable.Name.LastIndexOf("Archive"));
                     if (changeTables.Any(s => String.Compare(s.name, nonArchiveTableName, StringComparison.OrdinalIgnoreCase) == 0)) {
                         //if the non-archive table has any changes, we grab the associated table configuration and pair them
                         var nonArchiveTable = Config.Tables.First(t => String.Compare(t.Name, nonArchiveTableName, StringComparison.OrdinalIgnoreCase) == 0);
