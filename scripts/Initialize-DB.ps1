@@ -554,6 +554,13 @@ CREATE TABLE [dbo].[tblCTSlaveVersion](
         VALUES ($version, '1/1/1990', $version, 0);"
         $result = invoke-sqlcmd2 -serverinstance $relay -database $relaydb -query $query
     }
+} else {
+    #get $version as the start version of the most recent batch, to make sure
+    #no transactions are skipped after initializing the tables
+    Write-Host "getting latest syncStartVersion from relay"
+    $query = "SELECT TOP 1 syncStartVersion FROM tblCTVersion ORDER BY CTID DESC"
+    $result = invoke-sqlcmd2 -serverinstance $relay -database $relaydb -query $query
+    $version = $result.syncStartVersion
 }
 
 if ($newdatabase -or $newslave) {
@@ -648,7 +655,8 @@ foreach ($tableconf in $tables.SelectNodes("table")) {
         "reinitialize" = $reinitialize;
         "notlast" = $notlastslave;
         "notfirstshard" = $notfirstshard;
-        "directory" = $pwd #$pwd is a magic variable for the current working directory
+        "directory" = $pwd; #$pwd is a magic variable for the current working directory
+        "syncstartversion" = $version;
     }
     $tablestoinitialize += $arguments
 }
@@ -666,7 +674,8 @@ $tablestoinitialize | Foreach-Object {
         -table $_.table -schema $_.schema -user $_.user -password $_.password -slavecolumnlist $_.slavecolumnlist `
         -mastercolumnlist $_.mastercolumnlist -slavecolumnmodifiers $_.slavecolumnmodifiers -mastercolumnmodifiers $_.mastercolumnmodifiers `
         -netezzastringlength $_.netezzastringlength -mappingsfile $_.mappingsfile -sshuser $_.sshuser -pkpath $_.pkpath -plinkpath $_.plinkpath `
-        -nzloadscript $_.nzloadscript -bcppath $_.bcppath -reinitialize:$_.reinitialize -notlast:$_.notlast -notfirstshard:$_.notfirstshard
+        -nzloadscript $_.nzloadscript -bcppath $_.bcppath -reinitialize:$_.reinitialize -notlast:$_.notlast `
+        -notfirstshard:$_.notfirstshard -syncstartversion $_.syncstartversion
    
    $duration = [math]::Round((Get-Date).Subtract($starttime).TotalMinutes, 2)
    Write-Host ("Initialization complete for table " + $_.table + " in " + $duration + " minutes")

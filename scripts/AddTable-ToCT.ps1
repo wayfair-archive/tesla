@@ -29,6 +29,7 @@ Param(
  [Parameter(Mandatory=$false)][string]$plinkpath, #path to plink.exe
  [Parameter(Mandatory=$false)][string]$nzloadscript, #path to netezza load script on the netezza box
  [Parameter(Mandatory=$false)][string]$bcppath, #path to bcp files out to for netezza
+ [Parameter(Mandatory=$false)][long]$syncstartversion, #once the table finishes initializing Tesla will start from this version
  [switch]$reinitialize, #just reinitialize the table, don't drop/recreate it
  [switch]$notlast, #is this the last slave being (re)initialized? we only update tblCTInitialize if this the last one
  [switch]$notfirstshard #for sharding, we only truncate/recreate the slave table for the first shard
@@ -361,7 +362,7 @@ Invoke-SqlCmd2 -serverinstance $master -database $masterdb -query $query
 #insert table name and current change tracking version into tblCTInitialize
 #this will only do anything for the first slave being initialized across multiple slaves
 $query = "insert into CT_" + $masterdb + "..tblctinitialize 
-select '$table', GETDATE(), 1, null, change_tracking_current_version() 
+select '$table', GETDATE(), 1, null, $syncstartversion 
 where not exists (select 1 from CT_" + $masterdb + "..tblctinitialize where tablename = '$table ')"
 Invoke-SqlCmd2 -serverinstance $master -database $masterdb -query $query
 
