@@ -209,7 +209,11 @@ namespace TeslaSQL.DataUtils {
         public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
             columnName = MapReservedWord(columnName);
             if (!CheckColumnExists(dbName, schema, table, columnName)) {
-                dataType = DataType.MapDataType(Config.RelayType, SqlFlavor.Netezza, dataType);
+                //The "max" string doesn't exist on netezza, we can just replace it with the NetezzaStringLength after mapping it.
+                //In practice this only impacts varchar and nvarchar, since other data types would be mapped to something else by the MapDataType
+                //function (i.e. varbinary). This is the only place we do this special string-based handling because we wanted to keep Netezza specific logic
+                //out of the DataType class. Outside of this case, the "max" is handled appropriately in the netezza data copy class.
+                dataType = DataType.MapDataType(Config.RelayType, SqlFlavor.Netezza, dataType).Replace("max", Config.NetezzaStringLength.ToString());
                 string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table, columnName, dataType);
                 var cmd = new OleDbCommand(sql);
                 SqlNonQuery(dbName, cmd);
