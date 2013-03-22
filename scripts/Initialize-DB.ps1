@@ -311,6 +311,9 @@ Function Get-Columns([System.Xml.XmlNode]$columns) {
 ####################
 # Initialize variables based on arguments
 ####################
+if ($newshard) {
+    $notfirstshard = $true
+}
 
 $tablestoinclude = @()
 if ($tablelist.length -gt 0) {
