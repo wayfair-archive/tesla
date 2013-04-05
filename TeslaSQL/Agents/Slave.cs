@@ -609,20 +609,19 @@ namespace TeslaSQL.Agents {
             switch (schemaChange.EventType) {
                 case SchemaChangeType.Rename:
                     logger.Log("Renaming column " + schemaChange.ColumnName + " to " + schemaChange.NewColumnName, LogLevel.Info);
-                    destDataUtils.RenameColumn(table, destDB, schemaChange.SchemaName, schemaChange.TableName,
-                        schemaChange.ColumnName, schemaChange.NewColumnName);
+                    destDataUtils.RenameColumn(table, destDB, schemaChange.ColumnName, schemaChange.NewColumnName, Config.SlaveCTDB);
                     break;
                 case SchemaChangeType.Modify:
                     logger.Log("Changing data type on column " + schemaChange.ColumnName, LogLevel.Info);
-                    destDataUtils.ModifyColumn(table, destDB, schemaChange.SchemaName, schemaChange.TableName, schemaChange.ColumnName, schemaChange.DataType.ToString());
+                    destDataUtils.ModifyColumn(table, destDB, schemaChange.ColumnName, schemaChange.DataType.ToString(), Config.SlaveCTDB);
                     break;
                 case SchemaChangeType.Add:
                     logger.Log("Adding column " + schemaChange.ColumnName, LogLevel.Info);
-                    destDataUtils.AddColumn(table, destDB, schemaChange.SchemaName, schemaChange.TableName, schemaChange.ColumnName, schemaChange.DataType.ToString());
+                    destDataUtils.AddColumn(table, destDB, schemaChange.ColumnName, schemaChange.DataType.ToString(), Config.SlaveCTDB);
                     break;
                 case SchemaChangeType.Drop:
                     logger.Log("Dropping column " + schemaChange.ColumnName, LogLevel.Info);
-                    destDataUtils.DropColumn(table, destDB, schemaChange.SchemaName, schemaChange.TableName, schemaChange.ColumnName);
+                    destDataUtils.DropColumn(table, destDB, schemaChange.ColumnName, Config.SlaveCTDB);
                     break;
             }
         }

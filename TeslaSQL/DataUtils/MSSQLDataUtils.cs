@@ -689,72 +689,71 @@ namespace TeslaSQL.DataUtils {
             return result.Rows.Count > 0 && result.Rows[0].Field<int>("ColumnExists") == 1;
         }
 
-        public void RenameColumn(TableConf t, string dbName, string schema, string table,
-            string columnName, string newColumnName) {
+        public void RenameColumn(TableConf t, string dbName, string columnName, string newColumnName, string historyDB) {
             SqlCommand cmd;
             //rename the column if it exists
-            if (CheckColumnExists(dbName, schema, table, columnName)) {
+            if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
                 cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "." + columnName;
+                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = t.FullName + "." + columnName;
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
             }
             //check for history table, if it is configured and contains the column we need to modify that too
-            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
+            if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName, t.SchemaName) && CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName)) {
                 cmd = new SqlCommand("EXEC sp_rename @objname, @newname, 'COLUMN'");
-                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = schema + "." + table + "_History." + columnName;
+                cmd.Parameters.Add("@objname", SqlDbType.VarChar, 500).Value = t.SchemaName + "." + t.HistoryName + "." + columnName;
                 cmd.Parameters.Add("@newname", SqlDbType.VarChar, 500).Value = newColumnName;
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(dbName, cmd);
+                SqlNonQuery(historyDB, cmd);
             }
         }
 
-        public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
+        public void ModifyColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
             SqlCommand cmd;
             //Modify the column if it exists
-            if (CheckColumnExists(dbName, schema, table, columnName)) {
-                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " ALTER COLUMN " + columnName + " " + dataType);
+            if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
+                cmd = new SqlCommand("ALTER TABLE " + t.FullName + " ALTER COLUMN " + columnName + " " + dataType);
                 logger.Log("Altering table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
             }
             //modify on history table if that exists too
-            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
-                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History ALTER COLUMN " + columnName + " " + dataType);
+            if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName, t.SchemaName) && CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName)) {
+                cmd = new SqlCommand("ALTER TABLE " + t.SchemaName + "." + t.HistoryName + " ALTER COLUMN " + columnName + " " + dataType);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(dbName, cmd);
+                SqlNonQuery(historyDB, cmd);
             }
         }
 
-        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
+        public void AddColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
             SqlCommand cmd;
             //add column if it doesn't exist
-            if (!CheckColumnExists(dbName, schema, table, columnName)) {
-                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " ADD " + columnName + " " + dataType);
+            if (!CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
+                cmd = new SqlCommand("ALTER TABLE " + t.FullName + " ADD " + columnName + " " + dataType);
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
             }
             //add column to history table if the table exists and the column doesn't
-            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
-                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History ADD " + columnName + " " + dataType);
+            if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName, t.SchemaName) && !CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName)) {
+                cmd = new SqlCommand("ALTER TABLE " + t.SchemaName + "." + t.HistoryName + " ADD " + columnName + " " + dataType);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(dbName, cmd);
+                SqlNonQuery(historyDB, cmd);
             }
         }
 
-        public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
+        public void DropColumn(TableConf t, string dbName, string columnName, string historyDB) {
             SqlCommand cmd;
             //drop column if it exists
-            if (CheckColumnExists(dbName, schema, table, columnName)) {
-                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + " DROP COLUMN " + columnName);
+            if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
+                cmd = new SqlCommand("ALTER TABLE " + t.FullName + " DROP COLUMN " + columnName);
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(dbName, cmd);
             }
             //if history table exists and column exists, drop it there too
-            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
-                cmd = new SqlCommand("ALTER TABLE " + schema + "." + table + "_History DROP COLUMN " + columnName);
+            if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName, t.SchemaName) && CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName)) {
+                cmd = new SqlCommand("ALTER TABLE " + t.SchemaName + "." + t.HistoryName + " DROP COLUMN " + columnName);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(dbName, cmd);
+                SqlNonQuery(historyDB, cmd);
             }
         }
 
@@ -982,19 +981,25 @@ namespace TeslaSQL.DataUtils {
         public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB, bool isConsolidated) {
             string sql;
             string sourceTable;
-
+            List<TColumn> fields;
             if (isConsolidated && Config.Slave == Config.RelayServer && slaveCTDB == Config.RelayDB) {
                 sourceTable = "[" + t.schemaName + "].[" + t.consolidatedName + "]";
+                fields = GetFieldList(slaveCTDB, t.consolidatedName, t.schemaName);
             } else {
                 sourceTable = t.ctName;
+                fields = GetFieldList(slaveCTDB, t.ctName, t.schemaName);
             }
+
+            string insertColumns = "CTHistID, " + string.Join(",", fields.Select(col => col.name));
+            string selectColumns = "CAST(" + t.CTID + " AS BIGINT) AS CTHistID, " + string.Join(",", fields.Select(col => col.name));
+
             if (CheckTableExists(slaveCTDB, t.historyName, t.schemaName)) {
                 logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
-                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.CTID, sourceTable);
+                sql = string.Format("INSERT INTO {0} ({1}) SELECT {2} FROM {3}", t.historyName, insertColumns, selectColumns, sourceTable);
                 logger.Log(sql, LogLevel.Debug);
             } else {
                 logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
-                sql = string.Format("SELECT {0} AS CTHistID, * INTO {1} FROM {2}", t.CTID, t.historyName, sourceTable);
+                sql = string.Format("SELECT {0} INTO {1} FROM {2}", selectColumns, t.historyName, sourceTable);
                 logger.Log(sql, LogLevel.Debug);
             }
             var cmd = new SqlCommand(sql);

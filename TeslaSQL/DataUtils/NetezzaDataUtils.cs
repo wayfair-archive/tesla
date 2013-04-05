@@ -133,6 +133,7 @@ namespace TeslaSQL.DataUtils {
             var res = SqlQuery(dbName, cmd);
             return res.Rows.Count > 0;
         }
+
         public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long CTID, string CTDBName, bool isConsolidated) {
             var cmds = new List<InsertDelete>();
             cmds.Add(BuildApplyCommand(table, dbName, CTDBName, CTID));
@@ -187,62 +188,70 @@ namespace TeslaSQL.DataUtils {
 
         public void CopyIntoHistoryTable(ChangeTable t, string dbName, bool isConsolidated) {
             string sql;
+            var fields = GetFieldList(dbName, t.ctName, t.schemaName);
+            string insertColumns = "CTHistID, " + string.Join(",", fields.Select(col => col.name));
+            string selectColumns = "CAST(" + t.CTID + " AS BIGINT) AS CTHistID, " + string.Join(",", fields.Select(col => col.name));
+
             if (CheckTableExists(dbName, t.historyName, t.schemaName)) {
                 logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
-                sql = string.Format("INSERT INTO {0} SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.CTID, t.ctName);
+                sql = string.Format("INSERT INTO {0} ({1}) SELECT {2} FROM {3}", t.historyName, insertColumns, selectColumns, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
             } else {
                 logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
-                sql = string.Format("CREATE TABLE {0} AS SELECT {1} AS CTHistID, * FROM {2}", t.historyName, t.CTID, t.ctName);
+                sql = string.Format("CREATE TABLE {0} AS SELECT {1} FROM {2}", t.historyName, selectColumns, t.ctName);
                 logger.Log(sql, LogLevel.Debug);
             }
             var cmd = new OleDbCommand(sql);
             SqlNonQuery(dbName, cmd);
         }
-        public void RenameColumn(TableConf t, string dbName, string schema, string table, string columnName, string newColumnName) {
-            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + Config.Slave, LogLevel.Error);
-        }
-        public void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
-            logger.Log("Please check pending schema changes to be applied on Netezza for " + dbName + "." + schema + "." + table + " on " + Config.Slave, LogLevel.Error);
+
+        public void RenameColumn(TableConf t, string dbName, string columnName, string newColumnName, string historyDB) {
+            logger.Log("Unable to apply rename of column " + columnName + " to " + newColumnName + " on " 
+                + dbName + "." + t.FullName + " for slave " + Config.Slave, LogLevel.Error);
         }
 
-        public void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType) {
+        public void ModifyColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
+            logger.Log("Unable to apply modify of column " + columnName + " to type " + dataType + " on "
+                + dbName + "." + t.FullName + " for slave " + Config.Slave, LogLevel.Error);
+        }
+
+        public void AddColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
             columnName = MapReservedWord(columnName);
-            if (!CheckColumnExists(dbName, schema, table, columnName)) {
+            if (!CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
                 //The "max" string doesn't exist on netezza, we can just replace it with the NetezzaStringLength after mapping it.
                 //In practice this only impacts varchar and nvarchar, since other data types would be mapped to something else by the MapDataType
                 //function (i.e. varbinary). This is the only place we do this special string-based handling because we wanted to keep Netezza specific logic
                 //out of the DataType class. Outside of this case, the "max" is handled appropriately in the netezza data copy class.
                 dataType = DataType.MapDataType(Config.RelayType, SqlFlavor.Netezza, dataType).Replace("max", Config.NetezzaStringLength.ToString());
-                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table, columnName, dataType);
+                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", t.Name, columnName, dataType);
                 var cmd = new OleDbCommand(sql);
                 SqlNonQuery(dbName, cmd);
-                RefreshViews(dbName, table);
+                RefreshViews(dbName, t.Name);
             }
-            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && !CheckColumnExists(dbName, schema, table + "_History", columnName)) {
-                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", table + "_History", columnName, dataType);
+            if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName, t.SchemaName) && !CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName)) {
+                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", t.HistoryName, columnName, dataType);
                 var cmd = new OleDbCommand(sql);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(dbName, cmd);
-                RefreshViews(dbName, table + "_History");
+                SqlNonQuery(historyDB, cmd);
+                RefreshViews(historyDB, t.HistoryName);
             }
         }
 
-        public void DropColumn(TableConf t, string dbName, string schema, string table, string columnName) {
+        public void DropColumn(TableConf t, string dbName, string columnName, string historyDB) {
             columnName = MapReservedWord(columnName);
-            if (CheckColumnExists(dbName, schema, table, columnName)) {
-                string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", table, columnName);
+            if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
+                string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", t.Name, columnName);
                 var cmd = new OleDbCommand(sql);
-                SqlNonQuery(dbName, cmd);
-                RefreshViews(dbName, table);
+                SqlNonQuery(historyDB, cmd);
+                RefreshViews(historyDB, t.Name);
             }
 
-            if (t.RecordHistoryTable && CheckTableExists(dbName, schema, table + "_History") && CheckColumnExists(dbName, schema, table + "_History", columnName)) {
-                string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", columnName);
+            if (t.RecordHistoryTable && CheckTableExists(dbName, t.HistoryName, t.SchemaName) && CheckColumnExists(dbName, t.SchemaName, t.HistoryName, columnName)) {
+                string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", t.HistoryName, columnName);
                 var cmd = new OleDbCommand(sql);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(dbName, cmd);
-                RefreshViews(dbName, table + "_History");
+                SqlNonQuery(historyDB, cmd);
+                RefreshViews(historyDB, t.HistoryName);
             }
         }
 

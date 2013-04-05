@@ -142,5 +142,12 @@ namespace TeslaSQL {
         public override string ToString() {
             return FullName;
         }
+
+        [XmlIgnore]
+        public string HistoryName {
+            get {
+                return "tblCT" + Name + "_History";
+            }
+        }
     }
 }

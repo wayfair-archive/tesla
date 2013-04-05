@@ -225,45 +225,22 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// Renames a column in a table, and the associated history table if recording history is configured
         /// <summary>
-        /// <param name="t">TableConf object for the table</param>
-        /// <param name="dbName">Database name the table lives in</param>
-        /// <param name="schema">Schema the table is part of</param>
-        /// <param name="table">Table name</param>
-        /// <param name="columnName">Old column name</param>
-        /// <param name="newColumnName">New column name</param>
-        void RenameColumn(TableConf t, string dbName, string schema, string table, string columnName, string newColumnName);
+        void RenameColumn(TableConf t, string dbName, string columnName, string newColumnName, string historyDB);
 
         /// <summary>
         /// Changes a column's data type
         /// </summary>
-        /// <param name="t">TableConf object for the table</param>
-        /// <param name="dbName">Database name the table lives in</param>
-        /// <param name="schema">Schema the table is part of</param>
-        /// <param name="table">Table name</param>
-        /// <param name="columnName">Column name to modify</param>
-        /// <param name="dataType">String representation of the column's new data type</param>
-        void ModifyColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType);
+        void ModifyColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB);
 
         /// <summary>
         /// Adds a column to a table
         /// </summary>
-        /// <param name="t">TableConf object for the table</param>
-        /// <param name="dbName">Database name the table lives in</param>
-        /// <param name="schema">Schema the table is part of</param>
-        /// <param name="table">Table name</param>
-        /// <param name="columnName">Column name to add</param>
-        /// <param name="dataType">String representation of the column's data type</param>
-        void AddColumn(TableConf t, string dbName, string schema, string table, string columnName, string dataType);
+        void AddColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB);
 
         /// <summary>
         /// Drops a column from a table
         /// </summary>
-        /// <param name="t">TableConf object for the table</param>
-        /// <param name="dbName">Database name the table lives in</param>
-        /// <param name="schema">Schema the table is part of</param>
-        /// <param name="table">Table name</param>
-        /// <param name="columnName">Column name to drop</param>
-        void DropColumn(TableConf t, string dbName, string schema, string table, string columnName);
+        void DropColumn(TableConf t, string dbName, string columnName, string historyDB);
 
         /// <summary>
         /// Creates and does not populate TableInfo table for this CT batch in the appropriate DB
