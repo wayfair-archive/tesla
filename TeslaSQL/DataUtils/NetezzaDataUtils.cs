@@ -242,8 +242,8 @@ namespace TeslaSQL.DataUtils {
             if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
                 string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT; GROOM TABLE {0} VERSIONS;", t.Name, columnName);
                 var cmd = new OleDbCommand(sql);
-                SqlNonQuery(historyDB, cmd);
-                RefreshViews(historyDB, t.Name);
+                SqlNonQuery(dbName, cmd);
+                RefreshViews(dbName, t.Name);
             }
 
             if (t.RecordHistoryTable && CheckTableExists(dbName, t.HistoryName, t.SchemaName) && CheckColumnExists(dbName, t.SchemaName, t.HistoryName, columnName)) {
