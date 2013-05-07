@@ -254,7 +254,7 @@ namespace TeslaSQL.DataUtils {
         void PublishTableInfo(string dbName, TableConf table, long CTID, long expectedRows);
 
         /// <summary>
-        /// Applies the actual table changes from the CT table in CTDBName to the table passed in, and, if given, the archive table as well.
+        /// Applies the actual table changes from the CT table in CTDBName to the table (on a slave) passed in, and, if given, the archive table as well.
         /// </summary>
         /// <param name="table">Table to apply changes to</param>
         /// <param name="archiveTable">Archive table - if null, no archiving is done</param>

@@ -7,6 +7,7 @@ using System.Data.SqlClient;
 using System.Data;
 using TeslaSQL.Agents;
 using System.Diagnostics;
+using MySql.Data.MySqlClient;
 
 namespace TeslaSQL.DataUtils {
     public class MSSQLDataUtils : IDataUtils {
@@ -817,12 +818,12 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// Writes data from the given stream reader to a destination database
         /// </summary>
-        /// <param name="reader">SqlDataReader object to stream input from</param>
+        /// <param name="reader">DataReader object to stream input from</param>
         /// <param name="dbName">Database name</param>
         /// <param name="schema">Schema of the table to write to</param>
         /// <param name="table">Table name to write to</param>
         /// <param name="timeout">Timeout</param>
-        public void BulkCopy(SqlDataReader reader, string dbName, string schema, string table, int timeout) {
+        public void BulkCopy(IDataReader reader, string dbName, string schema, string table, int timeout) {
             SqlBulkCopy bulkCopy = new SqlBulkCopy(buildConnString(dbName), SqlBulkCopyOptions.KeepIdentity);
             bulkCopy.BulkCopyTimeout = timeout;
             bulkCopy.DestinationTableName = schema + ".[" + table + "]";
