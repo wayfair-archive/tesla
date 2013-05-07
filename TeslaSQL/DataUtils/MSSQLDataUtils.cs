@@ -240,7 +240,7 @@ namespace TeslaSQL.DataUtils {
              * "Attempting to set a non-NULL-able column's value to NULL."
              * The workaround is to add this no-op UNION ALL, which prevents SQL from putting the identity column as not-nullable
              * On the destination table, for some reason.
-             * */
+             */
             query += " UNION ALL SELECT " + table.SimpleColumnList + ", NULL, NULL FROM " + sourceDB + "." + table.SchemaName + "." + table.Name + " WHERE 1 = 0";
 
             SqlCommand cmd = new SqlCommand(query);
@@ -272,7 +272,7 @@ namespace TeslaSQL.DataUtils {
                 );
         }
 
-        public void CreateShardCTVersion(string dbName, long CTID, long startVersion) {
+        public void CreateShardCTVersion(string dbName, Int64 CTID, long startVersion) {
             string query = "INSERT INTO dbo.tblCTVersion (ctid, syncStartVersion, syncStartTime, syncBitWise)";
             query += " VALUES (@ctid,@syncStartVersion, GETDATE(), 0)";
 
@@ -408,7 +408,7 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-        public IEnumerable<TTable> GetTables(string dbName) {
+        public List<TTable> GetTables(string dbName) {
             string sql = "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
             var cmd = new SqlCommand(sql);
             var res = SqlQuery(dbName, cmd);
