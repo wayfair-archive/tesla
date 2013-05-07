@@ -56,6 +56,7 @@ namespace TeslaSQL.DataUtils {
 
         public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier, int bitwise)
         {
+            //not yet (slave)
             throw new NotImplementedException();
         }
 
@@ -155,6 +156,7 @@ namespace TeslaSQL.DataUtils {
 
         public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier)
         {
+            //not yet (slave)
             throw new NotImplementedException();
         }
 
@@ -242,7 +244,6 @@ namespace TeslaSQL.DataUtils {
 
         public DataRow GetDataType(string dbName, string table, string schema, string column)
         {
-            throw new NotImplementedException();
             var cmd = new MySqlCommand("SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE " +
                                     "FROM INFORMATION_SCHEMA.COLUMNS WITH(NOLOCK) WHERE AND TABLE_CATALOG = @db " +
                                     "AND TABLE_NAME = @table AND COLUMN_NAME = @column");
@@ -376,6 +377,7 @@ namespace TeslaSQL.DataUtils {
 
         public int ReadBitWise(string dbName, Int64 CTID, AgentType agentType)
         {
+            //does this get called?
             throw new NotImplementedException();
             string query;
             MySqlCommand cmd;
@@ -427,12 +429,7 @@ namespace TeslaSQL.DataUtils {
 
         public bool IsChangeTrackingEnabled(string dbName, string table, string schema)
         {
-            throw new NotImplementedException();
-            var cmd = new MySqlCommand(string.Format(@"
-                SELECT 1 as IsEnabled FROM sys.change_tracking_tables WHERE OBJECT_ID = OBJECT_ID('{0}.{1}')",
-                schema, table));
-            var result = MySqlQuery(dbName, cmd);
-            return result.Rows.Count > 0 && result.Rows[0].Field<int>("IsEnabled") == 1;
+            return CheckTableExists(dbName, "ct_" + table);
         }
 
         public void LogError(string message, string headers)
@@ -526,62 +523,54 @@ namespace TeslaSQL.DataUtils {
 
         public void CreateTableInfoTable(string dbName, Int64 CTID)
         {
+            //We're not writing to a MySQL relay at this time
             throw new NotImplementedException();
-            //drop the table on the relay server if it exists
-            DropTableIfExists(dbName, "tblCTTableInfo_" + CTID, "dbo");
-
-            //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
-            string query = "CREATE TABLE [dbo].[tblCTTableInfo_" + CTID + "] (";
-            query += @"
-            [CtiID] [int] NOT NULL IDENTITY(1,1) PRIMARY KEY,
-	        [CtiTableName] [varchar](500) NOT NULL,
-            [CtiSchemaName] [varchar](100) NOT NULL,
-            [CtiPKList] [varchar](500) NOT NULL,
-            [CtiExpectedRows] [int] NOT NULL,
-            [CtiInsertCount] [int] NOT NULL
-            )";
-
-            SqlCommand cmd = new SqlCommand(query);
-
-            SqlNonQuery(dbName, cmd);
         }
 
         public void PublishTableInfo(string dbName, TableConf table, long CTID, long expectedRows)
         {
+            //We're not writing to a MySQL relay at this time
             throw new NotImplementedException();
         }
 
         public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName, bool isConsolidated)
         {
+            //We're not writing to MySQL slaves at this time
             throw new NotImplementedException();
         }
 
         public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public void RemoveDuplicatePrimaryKeyChangeRows(TableConf table, string consolidatedTableName, string dbName){
+            //not yet
             throw new NotImplementedException();
         }
 
         public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB, bool isConsolidated)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public void RevertCTBatch(string dbName, Int64 ctid)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public void MergeCTTable(TableConf table, string destDB, string sourceDB, Int64 CTID)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
@@ -592,8 +581,7 @@ namespace TeslaSQL.DataUtils {
 
             MySqlCommand cmd = new MySqlCommand(query);
 
-            //Ostensibly we'll get rid of the convert to Int32 when MySql starts using 64 bit timestamps
-            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = Convert.ToInt32(CTID);
+            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = CTID;
             cmd.Parameters.Add("@syncStartVersion", MySqlDbType.Timestamp).Value = Convert.ToInt32(startVersion);
 
             MySqlNonQuery(dbName, cmd);
@@ -601,87 +589,218 @@ namespace TeslaSQL.DataUtils {
 
         public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long CTID, string database)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public int GetExpectedRowCounts(string ctDbName, long ctid)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public IEnumerable<TTable> GetTables(string dbName)
         {
-            throw new NotImplementedException();
+            string sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+            var cmd = new MySqlCommand(sql);
+            var res = MySqlQuery(dbName, cmd);
+            var tables = new List<TTable>();
+            foreach (DataRow row in res.Rows)
+            {
+                tables.Add(new TTable(row.Field<string>("TABLE_NAME"), ""));
+            }
+            return tables;
         }
 
         public IEnumerable<long> GetOldCTIDsMaster(string dbName, DateTime chopDate)
         {
-            throw new NotImplementedException();
+            string sql = "SELECT ctid FROM tblCTVersion WHERE syncStartTime < @chopDate";
+            var cmd = new MySqlCommand(sql);
+            cmd.Parameters.Add("@chopDate", MySqlDbType.DateTime).Value = chopDate;
+            DataTable res = MySqlQuery(dbName, cmd);
+            var CTIDs = new List<long>();
+            foreach (DataRow row in res.Rows)
+            {
+                CTIDs.Add(row.Field<long>("ctid"));
+            }
+            return CTIDs;
         }
 
         public IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public IEnumerable<long> GetOldCTIDsSlave(string dbName, DateTime chopDate, string slaveIdentifier)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public void DeleteOldCTVersions(string dbName, DateTime chopDate)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public void DeleteOldCTSlaveVersions(string dbName, DateTime chopDate)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public bool IsBeingInitialized(string sourceCTDB, TableConf table)
         {
-            throw new NotImplementedException();
+            string sql = string.Format(@"SELECT 1 FROM tblCTInitialize WHERE tableName = @tableName AND inProgress = 1",
+                           sourceCTDB);
+            var cmd = new MySqlCommand(sql);
+            cmd.Parameters.Add("@tableName", MySqlDbType.VarChar, 500).Value = table.Name;
+            var res = MySqlQuery(sourceCTDB, cmd);
+            return res.Rows.Count > 0;
         }
 
-        public long? GetInitializeStartVersion(string sourceCTDB, TableConf table)
+        public Int64? GetInitializeStartVersion(string sourceCTDB, TableConf table)
         {
-            throw new NotImplementedException();
+            string sql = @"SELECT nextSynchVersion FROM tblCTInitialize WHERE tableName = @tableName";
+            var cmd = new MySqlCommand(sql);
+            cmd.Parameters.Add("@tableName", MySqlDbType.VarChar, 500).Value = table.Name;
+            DataTable res = MySqlQuery(sourceCTDB, cmd);
+            if (res.Rows.Count == 0)
+            {
+                return null;
+            }
+            else
+            {
+                return res.Rows[0].Field<long>("nextSynchVersion");
+            }
         }
 
         public void CleanUpInitializeTable(string dbName, DateTime syncStartTime)
         {
-            throw new NotImplementedException();
+            string sql = @"DELETE FROM tblCTInitialize
+                           WHERE inProgress = 0
+                           AND iniFinishTime < @syncStartTime";
+            var cmd = new MySqlCommand(sql);
+            cmd.Parameters.Add("@syncStartTime", MySqlDbType.DateTime).Value = syncStartTime;
+            MySqlNonQuery(dbName, cmd);
         }
 
         public DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches)
         {
+            //not yet
             throw new NotImplementedException();
         }
 
         public void MarkBatchesComplete(string dbName, IEnumerable<long> ctids, DateTime syncStopTime, string slaveIdentifier)
         {
+            //not yet (slave)
             throw new NotImplementedException();
         }
 
-        public Dictionary<TableConf, IList<TColumn>> GetAllFields(string dbName, Dictionary<TableConf, string> tableConfCTTableName)
+        public Dictionary<TableConf, IList<TColumn>> GetAllFields(string dbName, Dictionary<TableConf, string> t)
         {
             throw new NotImplementedException();
+            if (t.Count == 0)
+            {
+                return new Dictionary<TableConf, IList<TColumn>>();
+            }
+            var placeHolders = t.Select((_, i) => "@table" + i);
+            string sql = string.Format(@"SELECT c.COLUMN_NAME, c.TABLE_NAME, DATA_TYPE, 
+                CHARACTER_MAXIMUM_LENGTH, NUMERIC_SCALE, NUMERIC_PRECISION, IS_NULLABLE,
+                CASE WHEN EXISTS (
+	                SELECT 1 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu
+	                WHERE cu.COLUMN_NAME = c.COLUMN_NAME AND cu.TABLE_NAME = c.TABLE_NAME
+	                AND EXISTS (
+		                SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+		                WHERE tc.TABLE_NAME = c.TABLE_NAME
+		                AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+                        AND tc.CONSTRAINT_NAME = cu.CONSTRAINT_NAME
+                        )
+                    ) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS InPrimaryKey
+                FROM INFORMATION_SCHEMA.COLUMNS c
+                WHERE c.TABLE_NAME IN ( {0} );",
+                                       string.Join(",", placeHolders));
+            var cmd = new MySqlCommand(sql);
+            foreach (var ph in placeHolders.Zip(t.Values, (ph, tn) => Tuple.Create(ph, tn)))
+            {
+                cmd.Parameters.Add(ph.Item1, MySqlDbType.VarChar, 500).Value = ph.Item2;
+            }
+            var res = MySqlQuery(dbName, cmd);
+            var fields = new Dictionary<TableConf, IList<TColumn>>();
+            foreach (DataRow row in res.Rows)
+            {
+                var tableName = row.Field<string>("TABLE_NAME");
+                var tc = t.Keys.FirstOrDefault(table => t[table].Equals(tableName, StringComparison.OrdinalIgnoreCase));
+                if (tc == null) { continue; }
+                if (!fields.ContainsKey(tc))
+                {
+                    fields[tc] = new List<TColumn>();
+                }
+                fields[tc].Add(new TColumn(
+                    row.Field<string>("COLUMN_NAME"),
+                    row.Field<bool>("InPrimaryKey"),
+                    DataType.ParseDataType(row),
+                    //for some reason IS_NULLABLE is a varchar(3) rather than a bool or bit
+                    row.Field<string>("IS_NULLABLE") == "YES" ? true : false));
+            }
+            return fields;
         }
 
         public Dictionary<TableConf, IList<string>> GetAllPrimaryKeys(string dbName, IEnumerable<TableConf> tables, ChangeTrackingBatch batch)
         {
+            //not yet (slave)
             throw new NotImplementedException();
         }
 
         public Dictionary<TableConf, IEnumerable<string>> GetAllPrimaryKeysMaster(string database, IEnumerable<TableConf> tableConfss)
         {
+            //this is never called?
             throw new NotImplementedException();
         }
 
         public void MergeInfoTable(string shardDB, string consolidatedDB, long CTID)
         {
+            //not yet (shard)
             throw new NotImplementedException();
+        }
+
+        public List<TColumn> GetFieldList(string dbName, string table, string schema, string originalTableName, IList<string> includeColumns)
+        {
+            //get actual field list on the source table
+            var columns = GetFieldList(dbName, table);
+
+            if (columns.Count == 0)
+            {
+                //table doesn't exist
+                throw new DoesNotExistException();
+            }
+
+            //get the table config object
+            var t = Config.TableByName(originalTableName ?? table);
+
+            //this will be null when copying a table that isn't in the config,
+            //such as tblCTTableInfo or tblCTSchemaChange
+            if (t == null)
+            {
+                return columns;
+            }
+
+            //only include columns in the column list if it is configured, plus the list of includeColumns
+            return columns.Where(c => t.ColumnList == null
+                || includeColumns.Contains(c.name, StringComparer.OrdinalIgnoreCase)
+                || t.ColumnList.Contains(c.name, StringComparer.OrdinalIgnoreCase)
+                ).ToList();
+        }
+
+        public MySqlDataReader ExecuteReader(string dbName, MySqlCommand cmd, int timeout = 1200)
+        {
+            var sourceConn = new MySqlConnection(buildConnString(dbName));
+            sourceConn.Open();
+            cmd.Connection = sourceConn;
+            cmd.CommandTimeout = timeout;
+            MySqlDataReader reader = cmd.ExecuteReader();
+            return reader;
         }
 
         private DataTable MySqlQuery(string dbName, MySqlCommand cmd, int? timeout = null)
@@ -830,6 +949,30 @@ namespace TeslaSQL.DataUtils {
                 numrows = cmd.ExecuteNonQuery();
             }
             return numrows;
+        }
+
+        private IList<DataTable> TransactionQuery(IList<MySqlCommand> commands, string dbName, int timeout)
+        {
+            var connStr = buildConnString(dbName);
+            var tables = new List<DataTable>();
+            using (var conn = new MySqlConnection(connStr))
+            {
+                conn.Open();
+                var trans = conn.BeginTransaction();
+                foreach (var cmd in commands)
+                {
+                    logger.Log(cmd.CommandText, LogLevel.Trace);
+                    cmd.Transaction = trans;
+                    cmd.CommandTimeout = timeout;
+                    cmd.Connection = conn;
+                    var ds = new DataSet();
+                    var da = new MySqlDataAdapter(cmd);
+                    da.Fill(ds);
+                    tables.Add(ds.Tables[0]);
+                }
+                trans.Commit();
+            }
+            return tables;
         }
     }
 }

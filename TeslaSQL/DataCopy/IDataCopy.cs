@@ -16,7 +16,7 @@ namespace TeslaSQL.DataCopy {
         void CopyTable(string sourceDB, string sourceTableName, string schema, string destDB, int timeout, string destTableName = null, string originalTableName = null);
 
         /// <summary>
-        /// Copies the table form sourceDB.sourceTableName over to destDB.destTableName. Deletes the existing destination table first if it exists
+        /// Copies the table from sourceDB.sourceTableName over to destDB.destTableName. Deletes the existing destination table first if it exists
         /// </summary>
         void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, string originalTableName = null);
     }
