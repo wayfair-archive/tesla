@@ -1,5 +1,4 @@
-﻿#region Using Statements
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,7 +12,6 @@ using TeslaSQL.DataCopy;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
-#endregion
 
 namespace TeslaSQL.Agents {
     public class Master : Agent {
@@ -24,7 +22,7 @@ namespace TeslaSQL.Agents {
         }
 
         public Master() {
-            //this constructor is only used by for running unit tests
+            //this constructor is only used for running unit tests
             this.logger = new Logger(null, null, null, "");
         }
 

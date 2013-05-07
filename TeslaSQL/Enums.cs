@@ -70,7 +70,8 @@ namespace TeslaSQL {
     public enum SqlFlavor {
         None,
         MSSQL,
-        Netezza
+        Netezza,
+        MySQL
     }
 
     /// <summary>
