@@ -47,7 +47,7 @@ namespace TeslaSQL.DataUtils {
                                 " FROM tblCTVersion WITH(NOLOCK) WHERE CTID > @ctid AND syncBitWise & @syncbitwise > 0" +
                                 " ORDER BY CTID ASC");
             MySqlCommand cmd = new MySqlCommand(query);
-            cmd.Parameters.Add("@ctid", MySqlDbType.DateTime).Value = CTID;
+            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
 
             //get query results as a datatable since there can be multiple rows
@@ -69,7 +69,7 @@ namespace TeslaSQL.DataUtils {
                 "select MAX(syncStartTime) as maxStart FROM dbo.tblCTSlaveVersion WITH(NOLOCK)"
                 + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID and slaveIdentifier = @slaveidentifier");
                 cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
-                cmd.Parameters.Add("@CTID", MySqlDbType.Int64).Value = CTID;
+                cmd.Parameters.Add("@CTID", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
                 cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 500).Value = slaveIdentifier;
             }
             else
@@ -78,7 +78,7 @@ namespace TeslaSQL.DataUtils {
                 "select MAX(syncStartTime) as maxStart FROM dbo.tblCTVersion WITH(NOLOCK)"
                 + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID");
                 cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
-                cmd.Parameters.Add("@CTID", MySqlDbType.Int64).Value = CTID;
+                cmd.Parameters.Add("@CTID", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
 
             DateTime? lastStartTime = MySqlQueryToScalar<DateTime?>(dbName, cmd);
@@ -108,9 +108,8 @@ namespace TeslaSQL.DataUtils {
 
             MySqlCommand cmd = new MySqlCommand(query);
 
-            //Ostensibly at some point we'll take out the convert to Int32 when MySql starts using 64 bit timestamps
-            cmd.Parameters.Add("@startVersion", MySqlDbType.Timestamp).Value = Convert.ToInt32(syncStartVersion);
-            cmd.Parameters.Add("@stopVersion", MySqlDbType.Timestamp).Value = Convert.ToInt32(syncStopVersion);
+            cmd.Parameters.Add("@startVersion", MySqlDbType.Timestamp).Value = new DateTime(syncStartVersion).ToUniversalTime();
+            cmd.Parameters.Add("@stopVersion", MySqlDbType.Timestamp).Value = new DateTime(syncStopVersion).ToUniversalTime();
             var res = MySqlQuery(dbName, cmd);
             return new ChangeTrackingBatch(
                 res.Rows[0].Field<Int64>("CTID"),
@@ -125,33 +124,24 @@ namespace TeslaSQL.DataUtils {
         {
             throw new NotImplementedException();
 
-            /*
-            * There is no way to have column lists or table names be parametrized/dynamic in sqlcommands other than building the string
-            * manually like this. However, the table name and column list fields are trustworthy because they have already been compared to
-            * actual database objects at this point. The database names are also validated to be legal database identifiers.
-            * Only the start and stop versions are actually parametrizable.
-            */
-            string query = "SELECT " + table.ModifiedMasterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
-            query += " INTO " + table.SchemaName + "." + table.ToCTName(batch.CTID);
-            query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.SchemaName + "." + table.Name + ", @startversion) CT";
-            query += " LEFT OUTER JOIN " + sourceDB + "." + table.SchemaName + "." + table.Name + " P ON " + table.PkList;
-            query += " WHERE (SYS_CHANGE_VERSION <= @stopversion OR SYS_CHANGE_CREATION_VERSION <= @stopversion)";
-            query += " AND (SYS_CHANGE_OPERATION = 'D' OR " + table.NotNullPKList + ")";
-            /*
-             * This last segment works around a bug in MSSQL. if you have an identity column that is not part of the table's
-             * primary key, and a delete happens on that table, it would break the above with this error:
-             * "Attempting to set a non-NULL-able column's value to NULL."
-             * The workaround is to add this no-op UNION ALL, which prevents SQL from putting the identity column as not-nullable
-             * On the destination table, for some reason.
-             */
-            query += " UNION ALL SELECT " + table.SimpleColumnList + ", NULL, NULL FROM " + sourceDB + "." + table.SchemaName + "." + table.Name + " WHERE 1 = 0";
+            String tableToInsert = table.ToCTName(batch.CTID);
+            StringBuilder query = new StringBuilder();
 
-            MySqlCommand cmd = new MySqlCommand(query);
+            query.Append("SELECT @@SESSION.BINLOG_FORMAT");
+            String binlogFormat = MySqlQueryToScalar<String>(sourceDB, new MySqlCommand(query.ToString()));
+            query.Clear();
+            query.Append("SELECT @@SESSION.TX_ISOLATION");
+            String isolationLevel = MySqlQueryToScalar<String>(sourceDB, new MySqlCommand(query.ToString()));
+            query.Clear();
 
-            cmd.Parameters.Add("@startversion", MySqlDbType.Int64).Value = (startVersionOverride.HasValue ? startVersionOverride.Value : batch.SyncStartVersion);
-            cmd.Parameters.Add("@stopversion", MySqlDbType.Int64).Value = batch.SyncStopVersion;
+            query.Append("INSERT INTO ");
+            query.AppendLine(tableToInsert);
 
-            return MySqlNonQuery(sourceCTDB, cmd, Config.QueryTimeout);
+
+
+            DropTableIfExists(tableToInsert, table.Name, table.SchemaName);
+
+
         }
 
         public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier)
@@ -193,7 +183,7 @@ namespace TeslaSQL.DataUtils {
                 throw new Exception("tblDDLEvent does not exist on the source database, unable to check for schema changes. Please create the table and the trigger that populates it!");
             }
 
-            string query = "SELECT DdeID, DdeEventData FROM dbo.tblDDLEvent WHERE DdeTime > @afterdate";
+            string query = "SELECT DdeID, DdeEventData FROM tblDDLEvent WHERE DdeTime > @afterdate";
 
             MySqlCommand cmd = new MySqlCommand(query);
             cmd.Parameters.Add("@afterdate", MySqlDbType.DateTime).Value = afterDate;
@@ -266,8 +256,8 @@ namespace TeslaSQL.DataUtils {
             string query = "UPDATE tblCTVersion set syncStopVersion = @stopversion WHERE CTID = @ctid";
             var cmd = new MySqlCommand(query);
 
-            cmd.Parameters.Add("@stopversion", MySqlDbType.Timestamp).Value = syncStopVersion;
-            cmd.Parameters.Add("@ctid", MySqlDbType.Int64).Value = CTID;
+            cmd.Parameters.Add("@stopversion", MySqlDbType.DateTime).Value = syncStopVersion;
+            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
 
             MySqlNonQuery(dbName, cmd);
         }
@@ -314,22 +304,20 @@ namespace TeslaSQL.DataUtils {
 
         public List<TColumn> GetFieldList(string dbName, string table, string schema="")
         {
-            throw new NotImplementedException();
-
-            String sql = @"SELECT c.COLUMN_NAME, DATA_TYPE,
-                CHARACTER_MAXIMUM_LENGTH, NUMERIC_SCALE, NUMERIC_PRECISION, IS_NULLABLE,
-                CASE WHEN EXISTS (
-	                SELECT 1 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu
-	                WHERE cu.COLUMN_NAME = c.COLUMN_NAME AND cu.TABLE_NAME = c.TABLE_NAME
-	                AND EXISTS (
-		                SELECT * FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
-		                WHERE tc.TABLE_NAME = c.TABLE_NAME
-                        AND tc.CONSTRAINT_NAME = 'PRIMARY'
-                        LIMIT 0,1
-                        )
-                    ) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS InPrimaryKey
-                FROM INFORMATION_SCHEMA.COLUMNS c
-                WHERE c.TABLE_NAME = @table";
+            String sql = @"SELECT  c.COLUMN_NAME,
+                                    DATA_TYPE,
+                                    CHARACTER_MAXIMUM_LENGTH,
+                                    NUMERIC_SCALE,
+                                    NUMERIC_PRECISION,
+                                    IS_NULLABLE,
+                                    IF(s.INDEX_NAME IS NOT NULL, 1, 0) InPrimaryKey
+                            FROM    INFORMATION_SCHEMA.COLUMNS c
+                            LEFT JOIN    INFORMATION_SCHEMA.STATISTICS s
+                            ON      c.COLUMN_NAME = s.COLUMN_NAME AND
+                                    c.TABLE_NAME = s.TABLE_NAME AND
+                                    c.TABLE_SCHEMA = s.TABLE_SCHEMA AND
+                                    s.INDEX_NAME = 'PRIMARY'
+                            WHERE   c.TABLE_NAME = @table";
             var cmd = new MySqlCommand(sql);
             cmd.Parameters.Add("@table", MySqlDbType.VarChar, 500).Value = table;
             DataTable res = MySqlQuery(dbName, cmd);
@@ -362,7 +350,7 @@ namespace TeslaSQL.DataUtils {
                 cmd = new MySqlCommand(query);
                 cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = value;
                 cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 100).Value = Config.Slave;
-                cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = CTID;
+                cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
             else
             {
@@ -370,7 +358,7 @@ namespace TeslaSQL.DataUtils {
                 query += " WHERE CTID = @ctid AND SyncBitWise & @syncbitwise = 0";
                 cmd = new MySqlCommand(query);
                 cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = value;
-                cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = CTID;
+                cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
             MySqlNonQuery(dbName, cmd);
         }
@@ -387,14 +375,14 @@ namespace TeslaSQL.DataUtils {
                 query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
                 cmd = new MySqlCommand(query);
                 cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 100).Value = Config.Slave;
-                cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = CTID;
+                cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
             else
             {
                 query = "SELECT syncBitWise from tblCTVersion WITH(NOLOCK)";
                 query += " WHERE CTID = @ctid";
                 cmd = new MySqlCommand(query);
-                cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = CTID;
+                cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
             return MySqlQueryToScalar<Int32>(dbName, cmd);
         }
@@ -407,9 +395,9 @@ namespace TeslaSQL.DataUtils {
             query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
             cmd = new MySqlCommand(query);
             cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = Enum.GetValues(typeof(SyncBitWise)).Cast<int>().Sum();
-            cmd.Parameters.Add("@syncstoptime", MySqlDbType.DateTime).Value = syncStopTime;
+            cmd.Parameters.Add("@syncstoptime", MySqlDbType.Timestamp).Value = syncStopTime.ToUniversalTime();
             cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 100).Value = slaveIdentifier;
-            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = CTID;
+            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             MySqlNonQuery(dbName, cmd);
         }
 
@@ -581,8 +569,8 @@ namespace TeslaSQL.DataUtils {
 
             MySqlCommand cmd = new MySqlCommand(query);
 
-            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = CTID;
-            cmd.Parameters.Add("@syncStartVersion", MySqlDbType.Timestamp).Value = Convert.ToInt32(startVersion);
+            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
+            cmd.Parameters.Add("@syncStartVersion", MySqlDbType.Timestamp).Value = new DateTime(startVersion).ToUniversalTime();
 
             MySqlNonQuery(dbName, cmd);
         }
@@ -616,7 +604,7 @@ namespace TeslaSQL.DataUtils {
         {
             string sql = "SELECT ctid FROM tblCTVersion WHERE syncStartTime < @chopDate";
             var cmd = new MySqlCommand(sql);
-            cmd.Parameters.Add("@chopDate", MySqlDbType.DateTime).Value = chopDate;
+            cmd.Parameters.Add("@chopDate", MySqlDbType.Timestamp).Value = chopDate.ToUniversalTime();
             DataTable res = MySqlQuery(dbName, cmd);
             var CTIDs = new List<long>();
             foreach (DataRow row in res.Rows)
@@ -682,7 +670,7 @@ namespace TeslaSQL.DataUtils {
                            WHERE inProgress = 0
                            AND iniFinishTime < @syncStartTime";
             var cmd = new MySqlCommand(sql);
-            cmd.Parameters.Add("@syncStartTime", MySqlDbType.DateTime).Value = syncStartTime;
+            cmd.Parameters.Add("@syncStartTime", MySqlDbType.Timestamp).Value = syncStartTime.ToUniversalTime();
             MySqlNonQuery(dbName, cmd);
         }
 
@@ -700,26 +688,25 @@ namespace TeslaSQL.DataUtils {
 
         public Dictionary<TableConf, IList<TColumn>> GetAllFields(string dbName, Dictionary<TableConf, string> t)
         {
-            throw new NotImplementedException();
             if (t.Count == 0)
             {
                 return new Dictionary<TableConf, IList<TColumn>>();
             }
             var placeHolders = t.Select((_, i) => "@table" + i);
-            string sql = string.Format(@"SELECT c.COLUMN_NAME, c.TABLE_NAME, DATA_TYPE, 
-                CHARACTER_MAXIMUM_LENGTH, NUMERIC_SCALE, NUMERIC_PRECISION, IS_NULLABLE,
-                CASE WHEN EXISTS (
-	                SELECT 1 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE cu
-	                WHERE cu.COLUMN_NAME = c.COLUMN_NAME AND cu.TABLE_NAME = c.TABLE_NAME
-	                AND EXISTS (
-		                SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
-		                WHERE tc.TABLE_NAME = c.TABLE_NAME
-		                AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
-                        AND tc.CONSTRAINT_NAME = cu.CONSTRAINT_NAME
-                        )
-                    ) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS InPrimaryKey
-                FROM INFORMATION_SCHEMA.COLUMNS c
-                WHERE c.TABLE_NAME IN ( {0} );",
+            string sql = string.Format(@"SELECT c.COLUMN_NAME,
+                                                DATA_TYPE,
+                                                CHARACTER_MAXIMUM_LENGTH,
+                                                NUMERIC_SCALE,
+                                                NUMERIC_PRECISION,
+                                                IS_NULLABLE,
+                                                IF(s.INDEX_NAME IS NOT NULL, 1, 0) InPrimaryKey
+                                        FROM    INFORMATION_SCHEMA.COLUMNS c
+                                        LEFT JOIN    INFORMATION_SCHEMA.STATISTICS s
+                                        ON      c.COLUMN_NAME = s.COLUMN_NAME AND
+                                                c.TABLE_NAME = s.TABLE_NAME AND
+                                                c.TABLE_SCHEMA = s.TABLE_SCHEMA AND
+                                                s.INDEX_NAME = 'PRIMARY'
+                                        WHERE   c.TABLE_NAME IN ( {0} );",
                                        string.Join(",", placeHolders));
             var cmd = new MySqlCommand(sql);
             foreach (var ph in placeHolders.Zip(t.Values, (ph, tn) => Tuple.Create(ph, tn)))
@@ -918,29 +905,6 @@ namespace TeslaSQL.DataUtils {
             int numrows;
             //using block to avoid resource leaks
             using (MySqlConnection conn = new MySqlConnection(connStr))
-            {
-                conn.Open();
-                cmd.Connection = conn;
-                cmd.CommandTimeout = commandTimeout;
-                LogCommand(cmd);
-                numrows = cmd.ExecuteNonQuery();
-            }
-            return numrows;
-        }
-
-        internal int SqlNonQuery(string dbName, SqlCommand cmd, int? timeout = null)
-        {
-            int commandTimeout = timeout ?? Config.QueryTimeout;
-            foreach (IDataParameter p in cmd.Parameters)
-            {
-                if (p.Value == null)
-                    p.Value = DBNull.Value;
-            }
-            //build connection string based on server/db info passed in
-            string connStr = buildConnString(dbName);
-            int numrows;
-            //using block to avoid resource leaks
-            using (SqlConnection conn = new SqlConnection(connStr))
             {
                 conn.Open();
                 cmd.Connection = conn;

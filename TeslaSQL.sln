@@ -3,6 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual C# Express 2010
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TeslaSQL", "TeslaSQL\TeslaSQL.csproj", "{858CC875-5606-42B5-A5A4-5802AD800328}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "integrationtesting", "integrationtesting\integrationtesting.csproj", "{AD885AD9-315B-4084-8788-AE22F9C611EA}"
+	ProjectSection(ProjectDependencies) = postProject
+		{858CC875-5606-42B5-A5A4-5802AD800328} = {858CC875-5606-42B5-A5A4-5802AD800328}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -13,6 +18,10 @@ Global
 		{858CC875-5606-42B5-A5A4-5802AD800328}.Debug|x86.Build.0 = Debug|x86
 		{858CC875-5606-42B5-A5A4-5802AD800328}.Release|x86.ActiveCfg = Release|x86
 		{858CC875-5606-42B5-A5A4-5802AD800328}.Release|x86.Build.0 = Release|x86
+		{AD885AD9-315B-4084-8788-AE22F9C611EA}.Debug|x86.ActiveCfg = Debug|x86
+		{AD885AD9-315B-4084-8788-AE22F9C611EA}.Debug|x86.Build.0 = Debug|x86
+		{AD885AD9-315B-4084-8788-AE22F9C611EA}.Release|x86.ActiveCfg = Release|x86
+		{AD885AD9-315B-4084-8788-AE22F9C611EA}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
