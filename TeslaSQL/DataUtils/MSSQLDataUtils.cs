@@ -409,7 +409,7 @@ namespace TeslaSQL.DataUtils {
             SqlNonQuery(dbName, cmd);
         }
 
-        public List<TTable> GetTables(string dbName) {
+        public IEnumerable<TTable> GetTables(string dbName) {
             string sql = "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
             var cmd = new SqlCommand(sql);
             var res = SqlQuery(dbName, cmd);
@@ -923,7 +923,7 @@ namespace TeslaSQL.DataUtils {
         public string ScriptTable(string dbName, string table, string schema, string originalTableName) {
             //get actual field list on the source table
             var includeColumns = new List<string>() { "SYS_CHANGE_VERSION", "SYS_CHANGE_OPERATION" };
-            var columns = GetFieldList(dbName, table, schema, originalTableName, includeColumns);
+            List<TColumn> columns = GetFieldList(dbName, table, schema, originalTableName, includeColumns);
 
             return string.Format(
                 @"CREATE TABLE [{0}].[{1}] (
