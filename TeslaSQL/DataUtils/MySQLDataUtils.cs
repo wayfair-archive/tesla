@@ -147,9 +147,9 @@ namespace TeslaSQL.DataUtils {
             query.AppendLine(" ctType, ctTimeStamp");
             query.Append("FROM ct_");
             query.Append(table.Name);
-            query.Append(" LEFT OUTER JOIN ");
+            query.Append(" AS P LEFT OUTER JOIN ");
             query.Append(table.Name);
-            query.Append(" ON ");
+            query.Append(" AS CT ON ");
             query.AppendLine(table.PkList);
             query.Append("WHERE ctTimeStamp >= '");
             query.Append(batch.CTID);
