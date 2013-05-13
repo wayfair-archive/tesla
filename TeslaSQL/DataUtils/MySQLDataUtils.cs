@@ -122,26 +122,53 @@ namespace TeslaSQL.DataUtils {
 
         public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout, Int64? startVersionOverride = null)
         {
-            throw new NotImplementedException();
 
             String tableToInsert = table.ToCTName(batch.CTID);
             StringBuilder query = new StringBuilder();
 
-            query.Append("SELECT @@SESSION.BINLOG_FORMAT");
+            query.Append("SELECT @@SESSION.BINLOG_FORMAT;");
             String binlogFormat = MySqlQueryToScalar<String>(sourceDB, new MySqlCommand(query.ToString()));
+            Boolean wasAlreadyRow = String.Compare(binlogFormat, "row", true) == 0;
             query.Clear();
-            query.Append("SELECT @@SESSION.TX_ISOLATION");
-            String isolationLevel = MySqlQueryToScalar<String>(sourceDB, new MySqlCommand(query.ToString()));
+            if (!wasAlreadyRow)
+            {
+                query.Append("SET @@SESSION.BINLOG_FORMAT = 'ROW';");
+                MySqlNonQuery(sourceDB, new MySqlCommand(query.ToString()));
+                query.Clear();
+            }
+            query.Append("SET TRANSACTION ISOLATION LEVEL READ COMMITTED;");
+            MySqlNonQuery(sourceDB, new MySqlCommand(query.ToString()));
             query.Clear();
 
             query.Append("INSERT INTO ");
             query.AppendLine(tableToInsert);
+            query.Append("SELECT ");
+            query.Append(table.ModifiedMasterColumnList);
+            query.AppendLine(" ctType, ctTimeStamp");
+            query.Append("FROM ct_");
+            query.Append(table.Name);
+            query.Append(" LEFT OUTER JOIN ");
+            query.Append(table.Name);
+            query.Append(" ON ");
+            query.AppendLine(table.PkList);
+            query.Append("WHERE ctTimeStamp >= '");
+            query.Append(batch.CTID);
+            query.AppendLine("';");
 
+            int result = MySqlNonQuery(sourceDB, new MySqlCommand(query.ToString()));
 
+            query.Clear();
 
-            DropTableIfExists(tableToInsert, table.Name, table.SchemaName);
+            if (!wasAlreadyRow)
+            {
+                query.Append("SET @@SESSION.BINLOG_FORMAT = '");
+                query.Append(binlogFormat);
+                query.Append("';");
+                MySqlNonQuery(sourceDB, new MySqlCommand(query.ToString()));
+                query.Clear();
+            }
 
-
+            return result;
         }
 
         public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier)
