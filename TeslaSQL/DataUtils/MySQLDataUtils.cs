@@ -29,7 +29,7 @@ namespace TeslaSQL.DataUtils {
             if (agentType.Equals(AgentType.Slave))
             {
                 cmd = new MySqlCommand("SELECT CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime" +
-                    " FROM tblCTSlaveVersion WITH(NOLOCK) WHERE slaveIdentifier = @slave ORDER BY CTID DESC LIMIT 0,1");
+                    " FROM tblCTSlaveVersion WITH(NOLOCK) WHERE slaveIdentifier = @slave ORDER BY cttimestamp DESC LIMIT 0,1");
                 cmd.Parameters.Add("@slave", MySqlDbType.VarChar, 100).Value = slaveIdentifier;
             }
             else
@@ -66,8 +66,8 @@ namespace TeslaSQL.DataUtils {
             if (slaveIdentifier != null)
             {
                 cmd = new MySqlCommand(
-                "select MAX(syncStartTime) as maxStart FROM dbo.tblCTSlaveVersion WITH(NOLOCK)"
-                + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID and slaveIdentifier = @slaveidentifier");
+                "select MAX(syncStartTime) as maxStart FROM tblCTSlaveVersion"
+                + " WHERE syncBitWise & @syncbitwise > 0 AND cttimestamp < @CTID and slaveIdentifier = @slaveidentifier");
                 cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
                 cmd.Parameters.Add("@CTID", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
                 cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 500).Value = slaveIdentifier;
@@ -75,8 +75,8 @@ namespace TeslaSQL.DataUtils {
             else
             {
                 cmd = new MySqlCommand(
-                "select MAX(syncStartTime) as maxStart FROM dbo.tblCTVersion WITH(NOLOCK)"
-                + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID");
+                "select MAX(syncStartTime) as maxStart FROM tblCTVersion"
+                + " WHERE syncBitWise & @syncbitwise > 0 AND cttimestamp < @CTID");
                 cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
                 cmd.Parameters.Add("@CTID", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
@@ -103,7 +103,7 @@ namespace TeslaSQL.DataUtils {
         {
             //create new row in tblCTVersion, output the CTID
             string query = "INSERT INTO tblCTVersion (syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
-            query += " OUTPUT inserted.CTID, inserted.syncStartTime";
+            query += " OUTPUT inserted.cttimestamp, inserted.syncStartTime";
             query += " VALUES (@startVersion, @stopVersion, CURDATE(), 0)";
 
             MySqlCommand cmd = new MySqlCommand(query);
