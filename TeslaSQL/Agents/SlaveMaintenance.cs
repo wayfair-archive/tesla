@@ -28,7 +28,7 @@ namespace TeslaSQL.Agents {
             IEnumerable<long> CTIDs = relayDataUtils.GetOldCTIDsSlave(Config.RelayDB, chopDate, Config.Slave);
             var tables = slaveDataUtils.GetTables(Config.SlaveCTDB);
             if (tables.Count() > 0) {
-                logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Info);
+                logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
                 MaintenanceHelper.DeleteOldTables(CTIDs, tables, slaveDataUtils, Config.SlaveCTDB);
             } else {
                 logger.Log("No tables to delete", LogLevel.Info);
@@ -40,7 +40,7 @@ namespace TeslaSQL.Agents {
         
         private void DeleteOldFiles(IEnumerable<long> CTIDs, string dbName, string BcpPath) {
             string path = BcpPath.TrimEnd('\\') + @"\" + dbName.ToLower();
-            logger.Log("Deleting files in " + path + " for old CTIDs", LogLevel.Info);
+            logger.Log("Deleting files in " + path + " for old CTIDs", LogLevel.Debug);
             var dir = new DirectoryInfo(path);  
             if (dir.Exists) {
                 foreach(long CTID in CTIDs) {

@@ -44,7 +44,7 @@ namespace TeslaSQL.Agents {
             foreach (string db in allDbs) {
                 var tables = relayDataUtils.GetTables(db);
                 if (tables.Count() > 0) {
-                    logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Info);
+                    logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);
                     MaintenanceHelper.DeleteOldTables(CTIDs, tables, relayDataUtils, db);
                 } else {
                     logger.Log("No tables to delete for database " + db, LogLevel.Info);
