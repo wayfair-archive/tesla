@@ -16,6 +16,9 @@ namespace TeslaSQL.DataUtils {
 
         public Logger logger;
         public TServer server;
+        private Int64 CTID;
+        private const string CTIDtoTimestampTable = "tblCTIDTimestamp";
+        private const string CTTimestampColumnName = "CTTimestamp";
 
         public MySQLDataUtils(Logger logger, TServer server)
         {
@@ -89,9 +92,65 @@ namespace TeslaSQL.DataUtils {
             return (DateTime)lastStartTime;
         }
 
+        private void CreateCTIDTimestampTable(string dbName)
+        {
+            //creates the CTID to Timestamp table on the Master mysql database and sets the current ID to the current time
+            StringBuilder query = new StringBuilder();
+            query.Append("CREATE TABLE ");
+            query.Append(CTIDtoTimestampTable);
+            query.AppendLine("(");
+            query.AppendLine("CTID bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,");
+            query.Append(CTTimestampColumnName);
+            query.AppendLine(" timestamp NOT NULL);");
+            MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+            query.Clear();
+            query.Append("INSERT INTO ");
+            query.AppendLine(CTIDtoTimestampTable);
+            query.Append("SET ");
+            query.Append(CTTimestampColumnName);
+            query.AppendLine(" = NOW();");
+            MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+        }
+
         public Int64 GetCurrentCTVersion(string dbName)
         {
-            throw new NotImplementedException();
+            if (!CheckTableExists(dbName, CTIDtoTimestampTable))
+            {
+                CreateCTIDTimestampTable(dbName);
+                return 1;
+            }
+            StringBuilder query = new StringBuilder();
+            DateTime mysqlTimestamp, maxTimestamp = DateTime.MinValue;
+
+            //get the max timestamp from all of the tables that Tesla is watching
+            foreach (TableConf table in Config.Tables)
+            {
+                query.Append("SELECT MAX(");
+                query.Append(CTTimestampColumnName);
+                query.Append(") FROM ");
+                query.Append(table.Name);
+                query.AppendLine(";");
+                mysqlTimestamp = DateTime.Parse(MySqlQueryToScalar<String>(dbName, new MySqlCommand(query.ToString())));
+                maxTimestamp = maxTimestamp > mysqlTimestamp ? maxTimestamp : mysqlTimestamp;
+                query.Clear();
+            }
+           
+            //write that timestamp into our version<->timestamp table as the latest "version" number, then select that
+            query.Append("INSERT INTO ");
+            query.AppendLine(CTIDtoTimestampTable);
+            query.Append("SET ");
+            query.Append(CTTimestampColumnName);
+            query.Append(" = ");
+            query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
+            query.AppendLine(";");
+            MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+            query.Clear();
+            query.Append("SELECT MAX(CTID) FROM ");
+            query.Append(CTIDtoTimestampTable);
+            query.AppendLine(";");
+            MySqlCommand cmd = new MySqlCommand(query.ToString());
+            this.CTID = MySqlQueryToScalar<Int64>(dbName, cmd);
+            return this.CTID;
         }
 
         public Int64 GetMinValidVersion(string dbName, string table, string schema)
@@ -101,15 +160,23 @@ namespace TeslaSQL.DataUtils {
 
         public ChangeTrackingBatch CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion)
         {
-            //create new row in tblCTVersion, output the CTID
-            string query = "INSERT INTO tblCTVersion (syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
-            query += " OUTPUT inserted.cttimestamp, inserted.syncStartTime";
-            query += " VALUES (@startVersion, @stopVersion, CURDATE(), 0)";
+            StringBuilder query = new StringBuilder();
+            query.AppendLine("INSERT INTO tblCTVersion (syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)");
+            query.AppendLine("VALUES (@startVersion, @stopVersion, CURDATE(), 0)");
 
-            MySqlCommand cmd = new MySqlCommand(query);
+            MySqlCommand cmd = new MySqlCommand(query.ToString());
 
             cmd.Parameters.Add("@startVersion", MySqlDbType.Timestamp).Value = new DateTime(syncStartVersion).ToUniversalTime();
             cmd.Parameters.Add("@stopVersion", MySqlDbType.Timestamp).Value = new DateTime(syncStopVersion).ToUniversalTime();
+            MySqlNonQuery(dbName, cmd);
+
+            query.Clear();
+            query.AppendLine("SELECT cttimestamp, syncStartTime");
+            query.AppendLine("FROM tblCTVersion");
+            query.AppendLine("WHERE PK = last_insert_id();");
+
+            cmd = new MySqlCommand(query.ToString());
+
             var res = MySqlQuery(dbName, cmd);
             return new ChangeTrackingBatch(
                 res.Rows[0].Field<Int64>("CTID"),
@@ -140,6 +207,7 @@ namespace TeslaSQL.DataUtils {
             MySqlNonQuery(sourceDB, new MySqlCommand(query.ToString()));
             query.Clear();
 
+            query.AppendLine("BEGIN;");
             query.Append("INSERT INTO ");
             query.AppendLine(tableToInsert);
             query.Append("SELECT ");
@@ -154,6 +222,7 @@ namespace TeslaSQL.DataUtils {
             query.Append("WHERE ctTimeStamp >= '");
             query.Append(batch.CTID);
             query.AppendLine("';");
+            query.AppendLine("COMMIT;");
 
             int result = MySqlNonQuery(sourceDB, new MySqlCommand(query.ToString()));
 
@@ -203,19 +272,77 @@ namespace TeslaSQL.DataUtils {
             MySqlNonQuery(dbName, cmd);
         }
 
-        public DataTable GetDDLEvents(string dbName, DateTime afterDate)
+        private bool CompareTableSchema(string currentTableName, string compareTableName)
         {
-            if (!CheckTableExists(dbName, "tblDDLEvent"))
+        }
+
+        private void CreateDDLEvents(string dbName)
+        {
+            DataTable currentSchemaTable, compareSchemaTable = new DataTable();
+            String currentSchemaTableName, compareSchemaTableName = "";
+            var tables = GetTables(dbName); //returns IEnumerable
+
+            using(MySqlConnection connection = new MySqlConnection(buildConnString(dbName)))
             {
-                throw new Exception("tblDDLEvent does not exist on the source database, unable to check for schema changes. Please create the table and the trigger that populates it!");
+                //this is crap and hard to read, but it's M$'s fault
+                //for more info please visit http://msdn.microsoft.com/en-us/library/ms254934(v=vs.80).aspx
+                //section "Specifying the Restriction Values"
+                //in short: rescrictions[TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE]
+                //in mysql, catalog is just included to meet the sql spec and isn't used, schema is the db
+                string[] restrictions = new string[4];
+                restrictions[1] = dbName;
+                StringBuilder query = new StringBuilder();
+
+                connection.Open();
+                foreach (TableConf table in Config.Tables)
+                {
+                    currentSchemaTableName = table.Name + "_schema_" + this.CTID.ToString();
+                    compareSchemaTableName = table.Name + "_schema_" + (this.CTID - 1).ToString();
+                    query.Append("CREATE TABLE ");
+                    query.Append(currentSchemaTableName);
+                    query.Append(" LIKE ");
+                    query.Append(table.Name);
+                    query.AppendLine(";");
+                    MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+                    restrictions[2] = currentSchemaTableName;
+                    currentSchemaTable = connection.GetSchema("columns", restrictions);
+                    restrictions[2] = compareSchemaTableName;
+                    compareSchemaTable = connection.GetSchema("columns", restrictions);
+                    foreach (String colName in new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA" })
+                    {
+
+                    }
+                    
+                }
             }
 
-            string query = "SELECT DdeID, DdeEventData FROM tblDDLEvent WHERE DdeTime > @afterdate";
+        }
 
-            MySqlCommand cmd = new MySqlCommand(query);
-            cmd.Parameters.Add("@afterdate", MySqlDbType.DateTime).Value = afterDate;
+        public DataTable GetDDLEvents(string dbName, DateTime afterDate)
+        {
+            //get the information schema snapshot, compare it to old one, generate datatable with the following columns
+            //ddeid (some unique int)
+            //ddeeventdata
+            //<EVENT_INSTANCE>
+            //<EventType>ALTER_TABLE</EventType>
+            //<PostTime>datetime</PostTime>
+            //<SPID>random int<SPID>
+            //<ServerName>server name</ServerName>
+            //<LoginName>unknown</LoginName>
+            //<UserName>unknown</UserName>
+            //<DatabaseName>database name</DatabaseName>
+            //<SchemaName>N/A</SchemaName>
+            //<ObjectName>table name</ObjectName>
+            //<ObjectType>TABLE</ObjectType>
+            //<TSQLCommand>
+            //<SetOptions />
+            //<CommandText>command</CommandText>
+            //</TSQLCommand>
+            //</EVENT_INSTANCE>
 
-            return MySqlQuery(dbName, cmd);
+            CreateDDLEvents(dbName);
+            DataTable result = new DataTable();
+            return result;
         }
 
         public void WriteSchemaChange(string dbName, Int64 CTID, SchemaChange schemaChange)
@@ -284,7 +411,7 @@ namespace TeslaSQL.DataUtils {
             var cmd = new MySqlCommand(query);
 
             cmd.Parameters.Add("@stopversion", MySqlDbType.DateTime).Value = syncStopVersion;
-            cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
+            cmd.Parameters.Add("@ctid", MySqlDbType.Int64).Value = CTID;
 
             MySqlNonQuery(dbName, cmd);
         }
@@ -292,7 +419,7 @@ namespace TeslaSQL.DataUtils {
         public bool CheckTableExists(string dbName, string table, string schema = "")
         {
             var cmd = new MySqlCommand(
-                    @"SELECT COUNT(*) as TableExists FROM INFORMATION_SCHEMA.TABLES
+                    @"SELECT 1 as TableExists FROM INFORMATION_SCHEMA.TABLES
                     WHERE TABLE_NAME = @tablename AND TABLE_TYPE = 'BASE TABLE'");
             cmd.Parameters.Add("@tablename", MySqlDbType.VarChar, 500).Value = table;
             var result = MySqlQuery(dbName, cmd);
