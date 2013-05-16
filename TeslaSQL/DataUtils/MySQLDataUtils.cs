@@ -1,13 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
-using System.Data.SqlClient;
 using System.Data;
-using TeslaSQL.Agents;
-using System.Diagnostics;
-using MySql.Data;
 using MySql.Data.MySqlClient;
 
 namespace TeslaSQL.DataUtils {
@@ -272,27 +267,21 @@ namespace TeslaSQL.DataUtils {
             MySqlNonQuery(dbName, cmd);
         }
 
-        private bool CompareTableSchema(string currentTableName, string compareTableName)
-        {
-        }
-
         private void CreateDDLEvents(string dbName)
         {
-            DataTable currentSchemaTable, compareSchemaTable = new DataTable();
             String currentSchemaTableName, compareSchemaTableName = "";
             var tables = GetTables(dbName); //returns IEnumerable
 
             using(MySqlConnection connection = new MySqlConnection(buildConnString(dbName)))
             {
-                //this is crap and hard to read, but it's M$'s fault
                 //for more info please visit http://msdn.microsoft.com/en-us/library/ms254934(v=vs.80).aspx
                 //section "Specifying the Restriction Values"
                 //in short: rescrictions[TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE]
                 //in mysql, catalog is just included to meet the sql spec and isn't used, schema is the db
-                string[] restrictions = new string[4];
-                restrictions[1] = dbName;
-                StringBuilder query = new StringBuilder();
 
+                StringBuilder query = new StringBuilder();
+                DataTable currentSchemaTable, compareSchemaTable, result = new DataTable();
+                String[] columnNames = new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA"};
                 connection.Open();
                 foreach (TableConf table in Config.Tables)
                 {
@@ -304,15 +293,13 @@ namespace TeslaSQL.DataUtils {
                     query.Append(table.Name);
                     query.AppendLine(";");
                     MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-                    restrictions[2] = currentSchemaTableName;
-                    currentSchemaTable = connection.GetSchema("columns", restrictions);
-                    restrictions[2] = compareSchemaTableName;
-                    compareSchemaTable = connection.GetSchema("columns", restrictions);
-                    foreach (String colName in new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA" })
+                    currentSchemaTable = GetColumnInformationFromInformationSchema(dbName, currentSchemaTableName, columnNames);
+                    compareSchemaTable = GetColumnInformationFromInformationSchema(dbName, compareSchemaTableName, columnNames);
+                    for(int index = 0; index < currentSchemaTable.Rows.Count; index++)
                     {
 
                     }
-                    
+
                 }
             }
 
@@ -1091,6 +1078,32 @@ namespace TeslaSQL.DataUtils {
                 trans.Commit();
             }
             return tables;
+        }
+
+        private DataTable GetColumnInformationFromInformationSchema(string dbName, string tableName, string[] columns = null)
+        {
+            StringBuilder query = new StringBuilder("SELECT ");
+
+            if (columns == null || columns.Count() < 1)
+            {
+                query.Append("*");
+            }
+            else
+            {
+                foreach(string col in columns)
+                {
+                    query.Append(" ");
+                    query.Append(col);
+                }
+            }
+
+            query.Append(" FROM information_schema.columns WHERE TABLE_SCHEMA = ");
+            query.Append(dbName);
+            query.Append(" AND TABLE_NAME = ");
+            query.Append(tableName);
+            query.AppendLine(" ORDER BY ORDINAL_POSITION;");
+
+            return MySqlQuery(dbName, new MySqlCommand(query.ToString()));
         }
     }
 }
