@@ -272,26 +272,22 @@ namespace TeslaSQL.DataUtils {
             MySqlNonQuery(dbName, cmd);
         }
 
-        private bool CompareTableSchema(string currentTableName, string compareTableName)
-        {
-        }
-
         private void CreateDDLEvents(string dbName)
         {
-            DataTable currentSchemaTable, compareSchemaTable = new DataTable();
             String currentSchemaTableName, compareSchemaTableName = "";
             var tables = GetTables(dbName); //returns IEnumerable
 
             using(MySqlConnection connection = new MySqlConnection(buildConnString(dbName)))
             {
-                //this is crap and hard to read, but it's M$'s fault
                 //for more info please visit http://msdn.microsoft.com/en-us/library/ms254934(v=vs.80).aspx
                 //section "Specifying the Restriction Values"
                 //in short: rescrictions[TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE]
                 //in mysql, catalog is just included to meet the sql spec and isn't used, schema is the db
+
+                StringBuilder query = new StringBuilder();
                 string[] restrictions = new string[4];
                 restrictions[1] = dbName;
-                StringBuilder query = new StringBuilder();
+                DataTable currentSchemaTable, compareSchemaTable, result = new DataTable();
 
                 connection.Open();
                 foreach (TableConf table in Config.Tables)
@@ -310,8 +306,18 @@ namespace TeslaSQL.DataUtils {
                     compareSchemaTable = connection.GetSchema("columns", restrictions);
                     foreach (String colName in new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA" })
                     {
-
+                        foreach (DataRow row in currentSchemaTable.Rows)
+                        {
+                            if (row[colName] != compareSchemaTable.Rows[currentSchemaTable.Rows.IndexOf(row)][colName]) { goto changed; }
+                        }
                     }
+                    continue;
+                changed:
+                    //go through the data rows by the column name and check all of the values
+                    //any ones that are in current and not compare are adds
+                    //any ones that are in compare and not current are drops
+                    //otherwise describe the data type change or the column move
+                    //one row per
                     
                 }
             }
