@@ -267,42 +267,32 @@ namespace TeslaSQL.DataUtils {
             MySqlNonQuery(dbName, cmd);
         }
 
-        private void CreateDDLEvents(string dbName)
+        private String FakeDDLEvent(string dbName, string tableName, string command)
         {
-            String currentSchemaTableName, compareSchemaTableName = "";
-            var tables = GetTables(dbName); //returns IEnumerable
-
-            using(MySqlConnection connection = new MySqlConnection(buildConnString(dbName)))
-            {
-                //for more info please visit http://msdn.microsoft.com/en-us/library/ms254934(v=vs.80).aspx
-                //section "Specifying the Restriction Values"
-                //in short: rescrictions[TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE]
-                //in mysql, catalog is just included to meet the sql spec and isn't used, schema is the db
-
-                StringBuilder query = new StringBuilder();
-                DataTable currentSchemaTable, compareSchemaTable, result = new DataTable();
-                String[] columnNames = new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA"};
-                connection.Open();
-                foreach (TableConf table in Config.Tables)
-                {
-                    currentSchemaTableName = table.Name + "_schema_" + this.CTID.ToString();
-                    compareSchemaTableName = table.Name + "_schema_" + (this.CTID - 1).ToString();
-                    query.Append("CREATE TABLE ");
-                    query.Append(currentSchemaTableName);
-                    query.Append(" LIKE ");
-                    query.Append(table.Name);
-                    query.AppendLine(";");
-                    MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-                    currentSchemaTable = GetColumnInformationFromInformationSchema(dbName, currentSchemaTableName, columnNames);
-                    compareSchemaTable = GetColumnInformationFromInformationSchema(dbName, compareSchemaTableName, columnNames);
-                    for(int index = 0; index < currentSchemaTable.Rows.Count; index++)
-                    {
-
-                    }
-
-                }
-            }
-
+            StringBuilder eventInstance = new StringBuilder();
+            eventInstance.Append("<EVENT_INSTANCE>");
+            eventInstance.Append("<EventType>ALTER_TABLE</EventType>");
+            eventInstance.Append("<PostTime>");
+            eventInstance.Append(DateTime.UtcNow.ToString());
+            eventInstance.Append("</PostTime>");
+            eventInstance.Append("<SPID>00000000</SPID>");
+            eventInstance.Append("<ServerName>MySQL Cluster</ServerName>");
+            eventInstance.Append("<LoginName>unknown</LoginName>");
+            eventInstance.Append("<UserName>unknown</UserName>");
+            eventInstance.Append("<DatabaseName>");
+            eventInstance.Append(dbName);
+            eventInstance.Append("</DatabaseName>");
+            eventInstance.Append("<SchemaName>N/A</SchemaName>");
+            eventInstance.Append("<ObjectName>");
+            eventInstance.Append(tableName);
+            eventInstance.Append("</ObjectName>");
+            eventInstance.Append("<ObjectType>TABLE</ObjectType>");
+            eventInstance.Append("<TSQLCommand>");
+            eventInstance.Append("<SetOptions />");
+            eventInstance.Append("<CommandText>");
+            eventInstance.Append(command);
+            eventInstance.Append("</CommandText></TSQLCommand></EVENT_INSTANCE>");
+            return eventInstance.ToString();
         }
 
         public DataTable GetDDLEvents(string dbName, DateTime afterDate)
@@ -327,9 +317,121 @@ namespace TeslaSQL.DataUtils {
             //</TSQLCommand>
             //</EVENT_INSTANCE>
 
-            CreateDDLEvents(dbName);
-            DataTable result = new DataTable();
-            return result;
+            String currentSchemaTableName, compareSchemaTableName = "";
+            //start initialization of events table to mimic MSSQL output
+            DataTable events = new DataTable();
+            DataColumn ddlid = new DataColumn("DdeId");
+            events.Columns.Add(ddlid);
+            DataColumn eventdata = new DataColumn("DdeEventData");
+            events.Columns.Add(eventdata);
+            //done
+
+            using (MySqlConnection connection = new MySqlConnection(buildConnString(dbName)))
+            {
+                //for more info please visit http://msdn.microsoft.com/en-us/library/ms254934(v=vs.80).aspx
+                //section "Specifying the Restriction Values"
+                //in short: rescrictions[TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE]
+                //in mysql, catalog is just included to meet the sql spec and isn't used, schema is the db
+
+                StringBuilder query = new StringBuilder();
+                DataTable currentSchemaTable, compareSchemaTable, result = new DataTable();
+                //all of the columns that we care about
+                String[] columnNames = new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA" };
+                connection.Open();
+                foreach (TableConf table in Config.Tables)
+                {
+                    currentSchemaTableName = table.Name + "_schema_" + this.CTID.ToString();
+                    compareSchemaTableName = table.Name + "_schema_" + (this.CTID - 1).ToString();
+                    //make a snapshot of the current schema to work off of
+                    query.Clear();
+                    query.Append("CREATE TABLE ");
+                    query.Append(currentSchemaTableName);
+                    query.Append(" LIKE ");
+                    query.Append(table.Name);
+                    query.AppendLine(";");
+                    MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+                    //if this is the first time running, just return an empty event set
+                    if (!CheckTableExists(dbName, compareSchemaTableName))
+                    {
+                        return events;
+                    }
+                    currentSchemaTable = GetColumnInformationFromInformationSchema(dbName, currentSchemaTableName, columnNames);
+                    compareSchemaTable = GetColumnInformationFromInformationSchema(dbName, compareSchemaTableName, columnNames);
+                    List<string> currentSchemaColumnNames, compareSchemaColumnNames = new List<string>();
+                    foreach (DataRow row in currentSchemaTable.Rows)
+                    {
+                        currentSchemaColumnNames.Add(row["COLUMN_NAME"].ToString());
+                    }
+                    foreach (DataRow row in compareSchemaTable.Rows)
+                    {
+                        compareSchemaColumnNames.Add(row["COLUMN_NAME"].ToString());
+                    }
+                    //check for dropped columns
+                    foreach (string columnName in compareSchemaColumnNames)
+                    {
+                        if (!currentSchemaColumnNames.Contains(columnName))
+                        {
+                            DataRow toAdd = new DataRow();
+                            toAdd["DdeId"] = 2;
+                            query.Clear();
+                            query.Append("ALTER TABLE ");
+                            query.Append(table.Name);
+                            query.Append("DROP COLUMN ");
+                            query.Append(columnName);
+                            query.AppendLine(";");
+                            toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
+                            events.Rows.Add(toAdd);
+                        }
+                    }
+                    //looking for data type changes or ordinal position changes
+                    for (int index = 0; index < currentSchemaTable.Rows.Count; index++)
+                    {
+                        foreach (String columnName in new String[] {"COLUMN_NAME", "COLUMN_TYPE", "IS_NULLABLE", "COLUMN_KEY"})
+                        {
+                            if (currentSchemaTable.Rows[index][columnName] != compareSchemaTable.Rows[index][columnName])
+                            {
+                                DataRow toAdd = new DataRow();
+                                toAdd["DdeId"] = index + 1;
+                                query.Clear();
+                                query.Append("ALTER TABLE ");
+                                query.Append(table.Name);
+                                switch (columnName)
+                                {
+                                    case "COLUMN_TYPE":
+                                    case "IS_NULLABLE":
+                                    case "COLUMN_KEY":
+                                        query.Append("MODIFY ");
+                                        query.Append(currentSchemaTable.Rows[index]["COLUMN_NAME"]);
+                                        query.Append(" ");
+                                        query.Append(currentSchemaTable.Rows[index]["COLUMN_TYPE"]);
+                                        query.Append(" ");
+                                        query.Append(currentSchemaTable.Rows[index]["COLUMN_TYPE"] == "YES" ? "NULL" : "NOT NULL");
+                                        query.Append(" ");
+                                        if (currentSchemaTable.Rows[index]["COLUMN_KEY"] == "PRI")
+                                        {
+                                            query.Append("PRIMARY KEY");
+                                        }
+                                        if (currentSchemaTable.Rows[index]["EXTRA"] == "auto_increment")
+                                        {
+                                            query.Append("AUTO_INCREMENT");
+                                        }
+                                        break;
+                                    case "COLUMN_NAME":
+                                        break;
+                                    default:
+                                }
+                                query.AppendLine(";");
+                                toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
+
+
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            return events;
         }
 
         public void WriteSchemaChange(string dbName, Int64 CTID, SchemaChange schemaChange)
