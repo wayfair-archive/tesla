@@ -1,13 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
-using System.Data.SqlClient;
 using System.Data;
-using TeslaSQL.Agents;
-using System.Diagnostics;
-using MySql.Data;
 using MySql.Data.MySqlClient;
 
 namespace TeslaSQL.DataUtils {
@@ -285,10 +280,8 @@ namespace TeslaSQL.DataUtils {
                 //in mysql, catalog is just included to meet the sql spec and isn't used, schema is the db
 
                 StringBuilder query = new StringBuilder();
-                string[] restrictions = new string[4];
-                restrictions[1] = dbName;
                 DataTable currentSchemaTable, compareSchemaTable, result = new DataTable();
-
+                String[] columnNames = new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA"};
                 connection.Open();
                 foreach (TableConf table in Config.Tables)
                 {
@@ -300,25 +293,13 @@ namespace TeslaSQL.DataUtils {
                     query.Append(table.Name);
                     query.AppendLine(";");
                     MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-                    restrictions[2] = currentSchemaTableName;
-                    currentSchemaTable = connection.GetSchema("columns", restrictions);
-                    restrictions[2] = compareSchemaTableName;
-                    compareSchemaTable = connection.GetSchema("columns", restrictions);
-                    foreach (String colName in new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA" })
+                    currentSchemaTable = GetColumnInformationFromInformationSchema(dbName, currentSchemaTableName, columnNames);
+                    compareSchemaTable = GetColumnInformationFromInformationSchema(dbName, compareSchemaTableName, columnNames);
+                    for(int index = 0; index < currentSchemaTable.Rows.Count; index++)
                     {
-                        foreach (DataRow row in currentSchemaTable.Rows)
-                        {
-                            if (row[colName] != compareSchemaTable.Rows[currentSchemaTable.Rows.IndexOf(row)][colName]) { goto changed; }
-                        }
+
                     }
-                    continue;
-                changed:
-                    //go through the data rows by the column name and check all of the values
-                    //any ones that are in current and not compare are adds
-                    //any ones that are in compare and not current are drops
-                    //otherwise describe the data type change or the column move
-                    //one row per
-                    
+
                 }
             }
 
@@ -1097,6 +1078,32 @@ namespace TeslaSQL.DataUtils {
                 trans.Commit();
             }
             return tables;
+        }
+
+        private DataTable GetColumnInformationFromInformationSchema(string dbName, string tableName, string[] columns = null)
+        {
+            StringBuilder query = new StringBuilder("SELECT ");
+
+            if (columns == null || columns.Count() < 1)
+            {
+                query.Append("*");
+            }
+            else
+            {
+                foreach(string col in columns)
+                {
+                    query.Append(" ");
+                    query.Append(col);
+                }
+            }
+
+            query.Append(" FROM information_schema.columns WHERE TABLE_SCHEMA = ");
+            query.Append(dbName);
+            query.Append(" AND TABLE_NAME = ");
+            query.Append(tableName);
+            query.AppendLine(" ORDER BY ORDINAL_POSITION;");
+
+            return MySqlQuery(dbName, new MySqlCommand(query.ToString()));
         }
     }
 }
