@@ -336,7 +336,7 @@ namespace TeslaSQL.DataUtils {
                 StringBuilder query = new StringBuilder();
                 DataTable currentSchemaTable, compareSchemaTable, result = new DataTable();
                 //all of the columns that we care about
-                String[] columnNames = new String[] { "COLUMN_NAME", "ORDINAL_POSITION", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA" };
+                String[] columnNames = new String[] { "COLUMN_NAME", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA" };
                 connection.Open();
                 foreach (TableConf table in Config.Tables)
                 {
@@ -357,10 +357,11 @@ namespace TeslaSQL.DataUtils {
                     }
                     currentSchemaTable = GetColumnInformationFromInformationSchema(dbName, currentSchemaTableName, columnNames);
                     compareSchemaTable = GetColumnInformationFromInformationSchema(dbName, compareSchemaTableName, columnNames);
-                    List<string> currentSchemaColumnNames, compareSchemaColumnNames = new List<string>();
+                    List<string> compareSchemaColumnNames, addedOrDroppedColumnNames = new List<string>();
+                    List<Tuple<String, int>> currentSchemaColumnNames = new List<Tuple<string,int>>();
                     foreach (DataRow row in currentSchemaTable.Rows)
                     {
-                        currentSchemaColumnNames.Add(row["COLUMN_NAME"].ToString());
+                        currentSchemaColumnNames.Add(new Tuple<string,int>(row["COLUMN_NAME"].ToString(), currentSchemaTable.Rows.IndexOf(row)));
                     }
                     foreach (DataRow row in compareSchemaTable.Rows)
                     {
@@ -369,65 +370,80 @@ namespace TeslaSQL.DataUtils {
                     //check for dropped columns
                     foreach (string columnName in compareSchemaColumnNames)
                     {
-                        if (!currentSchemaColumnNames.Contains(columnName))
+                        if (!currentSchemaColumnNames.Exists(x => String.Compare(x.Item1, columnName) == 0))
                         {
+                            addedOrDroppedColumnNames.Add(columnName);
                             DataRow toAdd = new DataRow();
                             toAdd["DdeId"] = 2;
                             query.Clear();
                             query.Append("ALTER TABLE ");
                             query.Append(table.Name);
-                            query.Append("DROP COLUMN ");
+                            query.Append(" DROP COLUMN ");
                             query.Append(columnName);
                             query.AppendLine(";");
                             toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
                             events.Rows.Add(toAdd);
                         }
                     }
-                    //looking for data type changes or ordinal position changes
-                    for (int index = 0; index < currentSchemaTable.Rows.Count; index++)
+                    //check for added columns
+                    foreach (Tuple<string, int> columnName in currentSchemaColumnNames)
                     {
-                        foreach (String columnName in new String[] {"COLUMN_NAME", "COLUMN_TYPE", "IS_NULLABLE", "COLUMN_KEY"})
+                        if(!compareSchemaColumnNames.Contains(columnName.Item1))
                         {
-                            if (currentSchemaTable.Rows[index][columnName] != compareSchemaTable.Rows[index][columnName])
+                            addedOrDroppedColumnNames.Add(columnName.Item1);
+                            DataRow toAdd = new DataRow();
+                            toAdd["DdeId"] = 3;
+                            query.Clear();
+                            query.Append("ALTER TABLE ");
+                            query.Append(table.Name);
+                            query.Append(" ADD COLUMN ");
+                            query.Append(columnName.Item1);
+                            query.Append(' ');
+                            query.Append(currentSchemaTable.Rows[columnName.Item2]["COLUMN_TYPE"].ToString());
+                            query.Append(" ");
+                            query.Append(currentSchemaTable.Rows[columnName.Item2]["IS_NULLABLE"] == "YES" ? "NULL" : "NOT NULL");
+                            if (currentSchemaTable.Rows[columnName.Item2]["COLUMN_KEY"] == "PRI")
                             {
-                                DataRow toAdd = new DataRow();
-                                toAdd["DdeId"] = index + 1;
-                                query.Clear();
-                                query.Append("ALTER TABLE ");
-                                query.Append(table.Name);
-                                switch (columnName)
-                                {
-                                    case "COLUMN_TYPE":
-                                    case "IS_NULLABLE":
-                                    case "COLUMN_KEY":
-                                        query.Append("MODIFY ");
-                                        query.Append(currentSchemaTable.Rows[index]["COLUMN_NAME"]);
-                                        query.Append(" ");
-                                        query.Append(currentSchemaTable.Rows[index]["COLUMN_TYPE"]);
-                                        query.Append(" ");
-                                        query.Append(currentSchemaTable.Rows[index]["COLUMN_TYPE"] == "YES" ? "NULL" : "NOT NULL");
-                                        query.Append(" ");
-                                        if (currentSchemaTable.Rows[index]["COLUMN_KEY"] == "PRI")
-                                        {
-                                            query.Append("PRIMARY KEY");
-                                        }
-                                        if (currentSchemaTable.Rows[index]["EXTRA"] == "auto_increment")
-                                        {
-                                            query.Append("AUTO_INCREMENT");
-                                        }
-                                        break;
-                                    case "COLUMN_NAME":
-                                        break;
-                                    default:
-                                }
-                                query.AppendLine(";");
-                                toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
-
-
+                                query.Append(" PRIMARY KEY");
                             }
+                            if (currentSchemaTable.Rows[columnName.Item2]["EXTRA"] == "auto_increment")
+                            {
+                                query.Append(" AUTO_INCREMENT");
+                            }
+                            query.AppendLine(";");
+                            toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
+                            events.Rows.Add(toAdd);
                         }
                     }
-
+                    //look for data type changes
+                    for (int index = 0; index < currentSchemaTable.Rows.Count; index++)
+                    {
+                        if (currentSchemaTable.Rows[index]["COLUMN_TYPE"] != compareSchemaTable.Rows[index]["COLUMN_TYPE"])
+                        {
+                            DataRow toAdd = new DataRow();
+                            toAdd["DdeId"] = 4;
+                            query.Clear();
+                            query.Append("ALTER TABLE ");
+                            query.Append(table.Name);
+                            query.Append("MODIFY ");
+                            query.Append(currentSchemaTable.Rows[index]["COLUMN_NAME"]);
+                            query.Append(" ");
+                            query.Append(currentSchemaTable.Rows[index]["COLUMN_TYPE"]);
+                            query.Append(" ");
+                            query.Append(currentSchemaTable.Rows[index]["IS_NULLABLE"] == "YES" ? "NULL" : "NOT NULL");
+                            if (currentSchemaTable.Rows[index]["COLUMN_KEY"] == "PRI")
+                            {
+                                query.Append(" PRIMARY KEY");
+                            }
+                            if (currentSchemaTable.Rows[index]["EXTRA"] == "auto_increment")
+                            {
+                                query.Append(" AUTO_INCREMENT");
+                            }
+                            query.AppendLine(";");
+                            toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
+                            events.Rows.Add(toAdd);
+                        }
+                    }
                 }
             }
 
