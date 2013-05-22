@@ -20,6 +20,12 @@ namespace TeslaSQL.DataCopy {
                         return new MSSQLToNetezzaDataCopy((MSSQLDataUtils)sourceDataUtils, (NetezzaDataUtils)destDataUtils, logger, Config.Slave, Config.NetezzaUser, Config.NetezzaPrivateKeyPath);
                     }
                     break;
+                case SqlFlavor.MySQL:
+                    if (destSqlFlavor == SqlFlavor.MSSQL)
+                    {
+                        return new MySQLToMSSQLDataCopy((MySQLDataUtils)sourceDataUtils, (MSSQLDataUtils)destDataUtils, logger);
+                    }
+                    break;
             }
             //if we get here without returning it means something was passed in that isn't supported
             throw new NotImplementedException("Specified SQL types not supported for data copying!");

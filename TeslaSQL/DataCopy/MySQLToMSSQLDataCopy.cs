@@ -25,6 +25,9 @@ namespace TeslaSQL.DataCopy
 
         private void CopyDataFromQuery(string sourceDB, string destDB, MySqlCommand cmd, string destinationTable, string destinationSchema = "dbo", int queryTimeout = 36000, int bulkCopyTimeout = 36000)
         {
+            destinationSchema = "dbo";
+            sourceDB = sourceDB.Replace("[","");
+            sourceDB = sourceDB.Replace("]","");
             using (IDataReader reader = sourceDataUtils.ExecuteReader(sourceDB, cmd, 1200))
             {
                 destDataUtils.BulkCopy(reader, destDB, destinationSchema, destinationTable, bulkCopyTimeout);
@@ -68,7 +71,8 @@ namespace TeslaSQL.DataCopy
             StringBuilder script = new StringBuilder();
             String type;
             script.Append("CREATE TABLE [");
-            script.Append(schema);
+            //script.Append(schema);
+            script.Append("dbo");
             script.Append("].[");
             script.Append(destTableName);
             script.AppendLine("](");
@@ -150,11 +154,12 @@ namespace TeslaSQL.DataCopy
                 }
                 script.Append(')');
             }
+            script.Append(')');
             //drop it if it exists at the destination
-            destDataUtils.DropTableIfExists(destDB, destTableName, schema);
+            destDataUtils.DropTableIfExists(destDB, destTableName, "dbo");
 
             //create it at the destination
-            destDataUtils.SqlNonQuery(destDB, new SqlCommand(script.ToString()));
+            destDataUtils.SqlNonQuery(destDB, new SqlCommand(script.ToString() + ";"));
         }
 
     }
