@@ -139,10 +139,22 @@ namespace TeslaSQL {
         /// <returns>A TeslaSQL.DataType object</returns>
         public static DataType ParseDataType(DataRow row) {
             string dataType = row.Field<string>("DATA_TYPE");
-            var characterMaximumLength = row.Field<int?>("CHARACTER_MAXIMUM_LENGTH");
+            Nullable<int> characterMaximumLength;
+            if (row["CHARACTER_MAXIMUM_LENGTH"].GetType() == typeof(System.DBNull))
+            {
+                characterMaximumLength = null;
+            }
+            else
+            {
+                characterMaximumLength = Convert.ToInt32(row["CHARACTER_MAXIMUM_LENGTH"]);
+            }
+
+            //Nullable<int> characterMaximumLength = row["CHARACTER_MAXIMUM_LENGTH"].GetType() == typeof(System.DBNull) ? null : row.Field<int?>("CHARACTER_MAXIMUM_LENGTH");
+            //MySQL for some reason puts the numeric precision in a 64 bit integer, so...
+            Nullable<byte> precision = row["NUMERIC_PRECISION"].GetType() == typeof(UInt64) ? Convert.ToByte(row.Field<UInt64>("NUMERIC_PRECISION")) : row.Field<Nullable<byte>>("NUMERIC_PRECISION");
             //Nullable<byte> because there is no such thing as "byte?"
-            var numericPrecision = row.Field<Nullable<byte>>("NUMERIC_PRECISION");
-            var numericScale = row.Field<int?>("NUMERIC_SCALE");
+            var numericPrecision = precision;
+            Nullable<int> numericScale = row["NUMERIC_SCALE"].GetType() == typeof(UInt64) ? Convert.ToByte(row.Field<UInt64>("NUMERIC_SCALE")) : row.Field<int?>("NUMERIC_SCALE");
             return new DataType(
                 dataType, characterMaximumLength, numericPrecision, numericScale
                 );

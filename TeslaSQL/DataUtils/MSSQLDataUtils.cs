@@ -70,6 +70,7 @@ namespace TeslaSQL.DataUtils {
                 throw new Exception("Unable to cast value " + result.Rows[0][0].ToString() + " to type " + typeof(T) +
                     " when running query: " + ParseCommand(cmd));
             }
+
             return toRet;
         }
 
@@ -200,7 +201,6 @@ namespace TeslaSQL.DataUtils {
                 cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
                 cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
             }
-
             DateTime? lastStartTime = SqlQueryToScalar<DateTime?>(dbName, cmd);
             if (lastStartTime == null) {
                 return DateTime.Now.AddDays(-1);

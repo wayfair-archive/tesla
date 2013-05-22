@@ -65,7 +65,7 @@ namespace TeslaSQL.DataUtils {
             {
                 cmd = new MySqlCommand(
                 "select MAX(syncStartTime) as maxStart FROM tblCTSlaveVersion"
-                + " WHERE syncBitWise & @syncbitwise > 0 AND cttimestamp < @CTID and slaveIdentifier = @slaveidentifier");
+                + " WHERE syncBitWise AND @syncbitwise > 0 AND cttimestamp < @CTID and slaveIdentifier = @slaveidentifier");
                 cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
                 cmd.Parameters.Add("@CTID", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
                 cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 500).Value = slaveIdentifier;
@@ -74,12 +74,12 @@ namespace TeslaSQL.DataUtils {
             {
                 cmd = new MySqlCommand(
                 "select MAX(syncStartTime) as maxStart FROM tblCTVersion"
-                + " WHERE syncBitWise & @syncbitwise > 0 AND cttimestamp < @CTID");
+                + " WHERE syncBitWise AND @syncbitwise > 0 AND cttimestamp < @CTID");
                 cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
                 cmd.Parameters.Add("@CTID", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
 
-            DateTime? lastStartTime = MySqlQueryToScalar<DateTime?>(dbName, cmd);
+            DateTime? lastStartTime = DateTime.Parse(MySqlQueryToScalar<object>(dbName, cmd).ToString());
             if (lastStartTime == null)
             {
                 return DateTime.Now.AddDays(-1);
@@ -115,17 +115,22 @@ namespace TeslaSQL.DataUtils {
                 return 1;
             }
             StringBuilder query = new StringBuilder();
-            DateTime mysqlTimestamp, maxTimestamp = DateTime.MinValue;
+            DateTime mysqlTimestamp = DateTime.Today, maxTimestamp = DateTime.MinValue;
 
             //get the max timestamp from all of the tables that Tesla is watching
             foreach (TableConf table in Config.Tables)
             {
                 query.Append("SELECT MAX(");
                 query.Append(CTTimestampColumnName);
-                query.Append(") FROM ");
+                query.Append(") FROM ct_");
                 query.Append(table.Name);
                 query.AppendLine(";");
-                mysqlTimestamp = DateTime.Parse(MySqlQueryToScalar<String>(dbName, new MySqlCommand(query.ToString())));
+                string dateMaybe = MySqlQuery(dbName, new MySqlCommand(query.ToString())).Rows[0].ItemArray[0].ToString();
+                if (String.IsNullOrEmpty(dateMaybe))
+                {
+                    continue;
+                }
+                mysqlTimestamp = DateTime.Parse(dateMaybe);
                 maxTimestamp = maxTimestamp > mysqlTimestamp ? maxTimestamp : mysqlTimestamp;
                 query.Clear();
             }
@@ -135,9 +140,9 @@ namespace TeslaSQL.DataUtils {
             query.AppendLine(CTIDtoTimestampTable);
             query.Append("SET ");
             query.Append(CTTimestampColumnName);
-            query.Append(" = ");
+            query.Append(" = '");
             query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
-            query.AppendLine(";");
+            query.AppendLine("';");
             MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
             query.Clear();
             query.Append("SELECT MAX(CTID) FROM ");
@@ -150,7 +155,7 @@ namespace TeslaSQL.DataUtils {
 
         public Int64 GetMinValidVersion(string dbName, string table, string schema)
         {
-            throw new NotImplementedException();
+            return 1;
         }
 
         public ChangeTrackingBatch CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion)
@@ -185,8 +190,32 @@ namespace TeslaSQL.DataUtils {
         public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout, Int64? startVersionOverride = null)
         {
 
+            //String tableToInsert = table.ToCTName(batch.CTID);
             String tableToInsert = table.ToCTName(batch.CTID);
+            String originalTableFullName = sourceDB + "." + table.Name;
+            String CTTableFullName = sourceDB + ".ct_" + table.Name;
             StringBuilder query = new StringBuilder();
+
+            if (!CheckTableExists(sourceCTDB, tableToInsert))
+            {
+                query.Append("CREATE TABLE ");
+                query.Append(tableToInsert);
+                query.Append(" LIKE ");
+                query.Append(table.FullName);
+                query.AppendLine(";");
+                MySqlNonQuery(sourceCTDB, new MySqlCommand(query.ToString()));
+                query.Clear();
+                query.Append("ALTER TABLE ");
+                query.Append(tableToInsert);
+                query.Append(" ADD COLUMN ctType char(1);");
+                MySqlNonQuery(sourceCTDB, new MySqlCommand(query.ToString()));
+                query.Clear();
+                query.Append("ALTER TABLE ");
+                query.Append(tableToInsert);
+                query.Append(" ADD COLUMN ctTimeStamp timestamp;");
+                MySqlNonQuery(sourceCTDB, new MySqlCommand(query.ToString()));
+                query.Clear();
+            }
 
             query.Append("SELECT @@SESSION.BINLOG_FORMAT;");
             String binlogFormat = MySqlQueryToScalar<String>(sourceDB, new MySqlCommand(query.ToString()));
@@ -207,11 +236,11 @@ namespace TeslaSQL.DataUtils {
             query.AppendLine(tableToInsert);
             query.Append("SELECT ");
             query.Append(table.ModifiedMasterColumnList);
-            query.AppendLine(" ctType, ctTimeStamp");
-            query.Append("FROM ct_");
-            query.Append(table.Name);
+            query.AppendLine(", ctType, ctTimeStamp");
+            query.Append("FROM ");
+            query.Append(originalTableFullName);
             query.Append(" AS P LEFT OUTER JOIN ");
-            query.Append(table.Name);
+            query.Append(CTTableFullName);
             query.Append(" AS CT ON ");
             query.AppendLine(table.PkList);
             query.Append("WHERE ctTimeStamp >= '");
@@ -219,7 +248,7 @@ namespace TeslaSQL.DataUtils {
             query.AppendLine("';");
             query.AppendLine("COMMIT;");
 
-            int result = MySqlNonQuery(sourceDB, new MySqlCommand(query.ToString()));
+            int result = MySqlNonQuery(sourceCTDB, new MySqlCommand(query.ToString()));
 
             query.Clear();
 
@@ -320,108 +349,90 @@ namespace TeslaSQL.DataUtils {
             String currentSchemaTableName, compareSchemaTableName = "";
             //start initialization of events table to mimic MSSQL output
             DataTable events = new DataTable();
-            DataColumn ddlid = new DataColumn("DdeId");
-            events.Columns.Add(ddlid);
-            DataColumn eventdata = new DataColumn("DdeEventData");
-            events.Columns.Add(eventdata);
+            events.Columns.Add("DdeId", typeof(int));
+            events.Columns.Add("DdeEventData", typeof(string));
             //done
 
-            using (MySqlConnection connection = new MySqlConnection(buildConnString(dbName)))
+            StringBuilder query = new StringBuilder();
+            DataTable currentSchemaTable, compareSchemaTable, result = new DataTable();
+            foreach (TableConf table in Config.Tables)
             {
-                //for more info please visit http://msdn.microsoft.com/en-us/library/ms254934(v=vs.80).aspx
-                //section "Specifying the Restriction Values"
-                //in short: rescrictions[TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE]
-                //in mysql, catalog is just included to meet the sql spec and isn't used, schema is the db
-
-                StringBuilder query = new StringBuilder();
-                DataTable currentSchemaTable, compareSchemaTable, result = new DataTable();
-                //all of the columns that we care about
-                String[] columnNames = new String[] { "COLUMN_NAME", "IS_NULLABLE", "COLUMN_TYPE", "CHARACTER_MAX", "NUMERIC_PRECISION", "NUMERIC_SCALE", "COLUMN_KEY", "EXTRA" };
-                connection.Open();
-                foreach (TableConf table in Config.Tables)
+                currentSchemaTableName = table.Name + "_schema_" + this.CTID.ToString();
+                compareSchemaTableName = table.Name + "_schema_" + (this.CTID - 1).ToString();
+                //make a snapshot of the current schema to work off of
+                query.Clear();
+                query.Append("CREATE TABLE ");
+                query.Append(currentSchemaTableName);
+                query.Append(" LIKE ");
+                query.Append(table.Name);
+                query.AppendLine(";");
+                MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+                //if this is the first time running, just return an empty event set
+                if (!CheckTableExists(dbName, compareSchemaTableName))
                 {
-                    currentSchemaTableName = table.Name + "_schema_" + this.CTID.ToString();
-                    compareSchemaTableName = table.Name + "_schema_" + (this.CTID - 1).ToString();
-                    //make a snapshot of the current schema to work off of
-                    query.Clear();
-                    query.Append("CREATE TABLE ");
-                    query.Append(currentSchemaTableName);
-                    query.Append(" LIKE ");
-                    query.Append(table.Name);
-                    query.AppendLine(";");
-                    MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-                    //if this is the first time running, just return an empty event set
-                    if (!CheckTableExists(dbName, compareSchemaTableName))
+                    return events;
+                }
+                currentSchemaTable = GetColumnInformationFromInformationSchema(dbName, currentSchemaTableName);
+                compareSchemaTable = GetColumnInformationFromInformationSchema(dbName, compareSchemaTableName);
+                List<string> compareSchemaColumnNames = new List<string>(), addedOrDroppedColumnNames = new List<string>();
+                List<Tuple<String, int>> currentSchemaColumnNames = new List<Tuple<string,int>>();
+                foreach (DataRow row in currentSchemaTable.Rows)
+                {
+                    currentSchemaColumnNames.Add(new Tuple<string,int>(row["COLUMN_NAME"].ToString(), currentSchemaTable.Rows.IndexOf(row)));
+                }
+                foreach (DataRow row in compareSchemaTable.Rows)
+                {
+                    compareSchemaColumnNames.Add(row["COLUMN_NAME"].ToString());
+                }
+                //check for dropped columns
+                foreach (string columnName in compareSchemaColumnNames)
+                {
+                    if (!currentSchemaColumnNames.Exists(x => String.Compare(x.Item1, columnName) == 0))
                     {
-                        return events;
+                        addedOrDroppedColumnNames.Add(columnName);
+                        query.Clear();
+                        query.Append("ALTER TABLE ");
+                        query.Append(table.Name);
+                        query.Append(" DROP COLUMN ");
+                        query.Append(columnName);
+                        query.AppendLine(";");
+                        events.Rows.Add(2, FakeDDLEvent(dbName, table.Name, query.ToString()));
                     }
-                    currentSchemaTable = GetColumnInformationFromInformationSchema(dbName, currentSchemaTableName, columnNames);
-                    compareSchemaTable = GetColumnInformationFromInformationSchema(dbName, compareSchemaTableName, columnNames);
-                    List<string> compareSchemaColumnNames, addedOrDroppedColumnNames = new List<string>();
-                    List<Tuple<String, int>> currentSchemaColumnNames = new List<Tuple<string,int>>();
-                    foreach (DataRow row in currentSchemaTable.Rows)
+                }
+                //check for added columns
+                foreach (Tuple<string, int> columnName in currentSchemaColumnNames)
+                {
+                    if(!compareSchemaColumnNames.Contains(columnName.Item1))
                     {
-                        currentSchemaColumnNames.Add(new Tuple<string,int>(row["COLUMN_NAME"].ToString(), currentSchemaTable.Rows.IndexOf(row)));
-                    }
-                    foreach (DataRow row in compareSchemaTable.Rows)
-                    {
-                        compareSchemaColumnNames.Add(row["COLUMN_NAME"].ToString());
-                    }
-                    //check for dropped columns
-                    foreach (string columnName in compareSchemaColumnNames)
-                    {
-                        if (!currentSchemaColumnNames.Exists(x => String.Compare(x.Item1, columnName) == 0))
+                        addedOrDroppedColumnNames.Add(columnName.Item1);
+                        query.Clear();
+                        query.Append("ALTER TABLE ");
+                        query.Append(table.Name);
+                        query.Append(" ADD COLUMN ");
+                        query.Append(columnName.Item1);
+                        query.Append(' ');
+                        query.Append(currentSchemaTable.Rows[columnName.Item2]["COLUMN_TYPE"].ToString());
+                        query.Append(" ");
+                        query.Append(currentSchemaTable.Rows[columnName.Item2]["IS_NULLABLE"].ToString() == "YES" ? "NULL" : "NOT NULL");
+                        if (currentSchemaTable.Rows[columnName.Item2]["COLUMN_KEY"].ToString() == "PRI")
                         {
-                            addedOrDroppedColumnNames.Add(columnName);
-                            DataRow toAdd = new DataRow();
-                            toAdd["DdeId"] = 2;
-                            query.Clear();
-                            query.Append("ALTER TABLE ");
-                            query.Append(table.Name);
-                            query.Append(" DROP COLUMN ");
-                            query.Append(columnName);
-                            query.AppendLine(";");
-                            toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
-                            events.Rows.Add(toAdd);
+                            query.Append(" PRIMARY KEY");
                         }
-                    }
-                    //check for added columns
-                    foreach (Tuple<string, int> columnName in currentSchemaColumnNames)
-                    {
-                        if(!compareSchemaColumnNames.Contains(columnName.Item1))
+                        if (currentSchemaTable.Rows[columnName.Item2]["EXTRA"].ToString() == "auto_increment")
                         {
-                            addedOrDroppedColumnNames.Add(columnName.Item1);
-                            DataRow toAdd = new DataRow();
-                            toAdd["DdeId"] = 3;
-                            query.Clear();
-                            query.Append("ALTER TABLE ");
-                            query.Append(table.Name);
-                            query.Append(" ADD COLUMN ");
-                            query.Append(columnName.Item1);
-                            query.Append(' ');
-                            query.Append(currentSchemaTable.Rows[columnName.Item2]["COLUMN_TYPE"].ToString());
-                            query.Append(" ");
-                            query.Append(currentSchemaTable.Rows[columnName.Item2]["IS_NULLABLE"] == "YES" ? "NULL" : "NOT NULL");
-                            if (currentSchemaTable.Rows[columnName.Item2]["COLUMN_KEY"] == "PRI")
-                            {
-                                query.Append(" PRIMARY KEY");
-                            }
-                            if (currentSchemaTable.Rows[columnName.Item2]["EXTRA"] == "auto_increment")
-                            {
-                                query.Append(" AUTO_INCREMENT");
-                            }
-                            query.AppendLine(";");
-                            toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
-                            events.Rows.Add(toAdd);
+                            query.Append(" AUTO_INCREMENT");
                         }
+                        query.AppendLine(";");
+                        events.Rows.Add(3, FakeDDLEvent(dbName, table.Name, query.ToString()));
                     }
-                    //look for data type changes
-                    for (int index = 0; index < currentSchemaTable.Rows.Count; index++)
+                }
+                //look for data type changes
+                for (int index = 0; index < currentSchemaTable.Rows.Count; index++)
+                {
+                    try
                     {
                         if (currentSchemaTable.Rows[index]["COLUMN_TYPE"] != compareSchemaTable.Rows[index]["COLUMN_TYPE"])
                         {
-                            DataRow toAdd = new DataRow();
-                            toAdd["DdeId"] = 4;
                             query.Clear();
                             query.Append("ALTER TABLE ");
                             query.Append(table.Name);
@@ -430,21 +441,25 @@ namespace TeslaSQL.DataUtils {
                             query.Append(" ");
                             query.Append(currentSchemaTable.Rows[index]["COLUMN_TYPE"]);
                             query.Append(" ");
-                            query.Append(currentSchemaTable.Rows[index]["IS_NULLABLE"] == "YES" ? "NULL" : "NOT NULL");
-                            if (currentSchemaTable.Rows[index]["COLUMN_KEY"] == "PRI")
+                            query.Append(currentSchemaTable.Rows[index]["IS_NULLABLE"].ToString() == "YES" ? "NULL" : "NOT NULL");
+                            if (currentSchemaTable.Rows[index]["COLUMN_KEY"].ToString() == "PRI")
                             {
                                 query.Append(" PRIMARY KEY");
                             }
-                            if (currentSchemaTable.Rows[index]["EXTRA"] == "auto_increment")
+                            if (currentSchemaTable.Rows[index]["EXTRA"].ToString() == "auto_increment")
                             {
                                 query.Append(" AUTO_INCREMENT");
                             }
                             query.AppendLine(";");
-                            toAdd["DdeEventData"] = FakeDDLEvent(dbName, table.Name, query.ToString());
-                            events.Rows.Add(toAdd);
+                            events.Rows.Add(4, FakeDDLEvent(dbName, table.Name, query.ToString()));
                         }
                     }
+                    catch (ArgumentOutOfRangeException)
+                    {
+                        break;
+                    }
                 }
+                
             }
 
             return events;
@@ -525,10 +540,14 @@ namespace TeslaSQL.DataUtils {
         {
             var cmd = new MySqlCommand(
                     @"SELECT 1 as TableExists FROM INFORMATION_SCHEMA.TABLES
+                    WHERE TABLE_NAME = '" + table + "' AND TABLE_TYPE = 'BASE TABLE'" +
+                   "AND TABLE_SCHEMA = '" + dbName + "';");
+            /*var cmd = new MySqlCommand(
+                    @"SELECT 1 as TableExists FROM INFORMATION_SCHEMA.TABLES
                     WHERE TABLE_NAME = @tablename AND TABLE_TYPE = 'BASE TABLE'");
-            cmd.Parameters.Add("@tablename", MySqlDbType.VarChar, 500).Value = table;
+            cmd.Parameters.Add("@tablename", MySqlDbType.VarChar, 500).Value = table;*/
             var result = MySqlQuery(dbName, cmd);
-            return result.Rows.Count > 0 && result.Rows[0].Field<int>("TableExists") == 1;
+            return result.Rows.Count > 0;
         }
 
         public IEnumerable<string> GetIntersectColumnList(string dbName, string tableName1, string schema1, string tableName2, string schema2)
@@ -576,9 +595,11 @@ namespace TeslaSQL.DataUtils {
                                     c.TABLE_NAME = s.TABLE_NAME AND
                                     c.TABLE_SCHEMA = s.TABLE_SCHEMA AND
                                     s.INDEX_NAME = 'PRIMARY'
-                            WHERE   c.TABLE_NAME = @table";
+                            WHERE   c.TABLE_NAME = " + table + 
+                            "AND     c.TABLE_SCHEMA = " + dbName + ";";
             var cmd = new MySqlCommand(sql);
             cmd.Parameters.Add("@table", MySqlDbType.VarChar, 500).Value = table;
+            cmd.Parameters.Add("@schema", MySqlDbType.VarChar, 500).Value = dbName;
             DataTable res = MySqlQuery(dbName, cmd);
             var columns = new List<TColumn>();
             if (res.Rows.Count == 0)
@@ -676,7 +697,7 @@ namespace TeslaSQL.DataUtils {
 
         public bool IsChangeTrackingEnabled(string dbName, string table, string schema)
         {
-            return CheckTableExists(dbName, "ct_" + table);
+            return CheckTableExists(dbName, table);
         }
 
         public void LogError(string message, string headers)
@@ -956,6 +977,7 @@ namespace TeslaSQL.DataUtils {
                                                 DATA_TYPE,
                                                 CHARACTER_MAXIMUM_LENGTH,
                                                 NUMERIC_SCALE,
+                                                c.TABLE_NAME,
                                                 NUMERIC_PRECISION,
                                                 IS_NULLABLE,
                                                 IF(s.INDEX_NAME IS NOT NULL, 1, 0) InPrimaryKey
@@ -965,15 +987,19 @@ namespace TeslaSQL.DataUtils {
                                                 c.TABLE_NAME = s.TABLE_NAME AND
                                                 c.TABLE_SCHEMA = s.TABLE_SCHEMA AND
                                                 s.INDEX_NAME = 'PRIMARY'
-                                        WHERE   c.TABLE_NAME IN ( {0} );",
+                                        WHERE   c.TABLE_NAME IN ( {0} )
+                                        AND     c.TABLE_SCHEMA = '" + dbName + "';",
                                        string.Join(",", placeHolders));
-            var cmd = new MySqlCommand(sql);
-            foreach (var ph in placeHolders.Zip(t.Values, (ph, tn) => Tuple.Create(ph, tn)))
+            
+            foreach (var ph in placeHolders.Zip(t.Values, (ph, tn) => Tuple.Create(ph, tn)).Reverse())
             {
-                cmd.Parameters.Add(ph.Item1, MySqlDbType.VarChar, 500).Value = ph.Item2;
+                //cmd.Parameters.Add(ph.Item1, MySqlDbType.VarChar, 500).Value = ph.Item2;
+                sql = sql.Replace(ph.Item1, "'" + ph.Item2 + "'");
             }
+            var cmd = new MySqlCommand(sql);
             var res = MySqlQuery(dbName, cmd);
             var fields = new Dictionary<TableConf, IList<TColumn>>();
+            var crap = res.Rows[0]["CHARACTER_MAXIMUM_LENGTH"].GetType();
             foreach (DataRow row in res.Rows)
             {
                 var tableName = row.Field<string>("TABLE_NAME");
@@ -984,11 +1010,11 @@ namespace TeslaSQL.DataUtils {
                     fields[tc] = new List<TColumn>();
                 }
                 fields[tc].Add(new TColumn(
-                    row.Field<string>("COLUMN_NAME"),
-                    row.Field<bool>("InPrimaryKey"),
+                    (String)row["COLUMN_NAME"],
+                    (Int64)row["InPrimaryKey"] > 0 ? true : false,
                     DataType.ParseDataType(row),
                     //for some reason IS_NULLABLE is a varchar(3) rather than a bool or bit
-                    row.Field<string>("IS_NULLABLE") == "YES" ? true : false));
+                    (String)row["IS_NULLABLE"] == "YES" ? true : false));
             }
             return fields;
         }
@@ -1144,11 +1170,12 @@ namespace TeslaSQL.DataUtils {
         {
             var cmd = new MySqlCommand(@"
             SELECT 1 as ColumnExists FROM INFORMATION_SCHEMA.COLUMNS
-                    WHERE TABLE_NAME = @table AND COLUMN_NAME = @column");
+                    WHERE TABLE_NAME = @table AND COLUMN_NAME = @column AND TABLE_SCHEMA = @dbName;");
             cmd.Parameters.Add("@table", MySqlDbType.VarChar, 500).Value = table;
             cmd.Parameters.Add("@column", MySqlDbType.VarChar, 500).Value = column;
+            cmd.Parameters.Add("@dbName", MySqlDbType.VarChar, 500).Value = dbName;
             var result = MySqlQuery(dbName, cmd);
-            return result.Rows.Count > 0 && result.Rows[0].Field<int>("ColumnExists") == 1;
+            return result.Rows.Count > 0;
         }
 
         internal int MySqlNonQuery(string dbName, MySqlCommand cmd, int? timeout = null)
@@ -1215,11 +1242,11 @@ namespace TeslaSQL.DataUtils {
                 }
             }
 
-            query.Append(" FROM information_schema.columns WHERE TABLE_SCHEMA = ");
+            query.Append(" FROM information_schema.columns WHERE TABLE_SCHEMA = '");
             query.Append(dbName);
-            query.Append(" AND TABLE_NAME = ");
+            query.Append("' AND TABLE_NAME = '");
             query.Append(tableName);
-            query.AppendLine(" ORDER BY ORDINAL_POSITION;");
+            query.AppendLine("' ORDER BY ORDINAL_POSITION;");
 
             return MySqlQuery(dbName, new MySqlCommand(query.ToString()));
         }
