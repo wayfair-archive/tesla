@@ -154,7 +154,7 @@ namespace TeslaSQL.DataCopy
             destDataUtils.DropTableIfExists(destDB, destTableName, schema);
 
             //create it at the destination
-            destDataUtils.SqlNonQuery(destDB, new SqlCommand(script.ToString()));
+            destDataUtils.SqlNonQuery(destDB, new SqlCommand(script.ToString() + ";"));
         }
 
     }

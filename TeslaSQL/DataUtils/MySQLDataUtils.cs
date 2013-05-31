@@ -431,12 +431,12 @@ namespace TeslaSQL.DataUtils {
                 {
                     try
                     {
-                        if (currentSchemaTable.Rows[index]["COLUMN_TYPE"] != compareSchemaTable.Rows[index]["COLUMN_TYPE"])
+                        if (String.Compare(currentSchemaTable.Rows[index]["COLUMN_TYPE"].ToString(), compareSchemaTable.Rows[index]["COLUMN_TYPE"].ToString()) != 0)
                         {
                             query.Clear();
                             query.Append("ALTER TABLE ");
                             query.Append(table.Name);
-                            query.Append("MODIFY ");
+                            query.Append(" MODIFY ");
                             query.Append(currentSchemaTable.Rows[index]["COLUMN_NAME"]);
                             query.Append(" ");
                             query.Append(currentSchemaTable.Rows[index]["COLUMN_TYPE"]);
@@ -692,7 +692,7 @@ namespace TeslaSQL.DataUtils {
         public Int64 GetTableRowCount(string dbName, string table, string schema = "")
         {
             var cmd = new MySqlCommand(string.Format("SELECT COUNT(*) FROM {0}", table));
-            return MySqlQueryToScalar<Int32>(dbName, cmd);
+            return Convert.ToInt64(MySqlQueryToScalar<object>(dbName, cmd).ToString());
         }
 
         public bool IsChangeTrackingEnabled(string dbName, string table, string schema)
