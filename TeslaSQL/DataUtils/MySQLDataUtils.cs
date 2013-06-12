@@ -559,7 +559,7 @@ namespace TeslaSQL.DataUtils {
         public DataRow GetDataType(string dbName, string table, string schema, string column)
         {
             var cmd = new MySqlCommand("SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE " +
-                                    "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_CATALOG = @db " +
+                                    "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db " +
                                     "AND TABLE_NAME = @table AND COLUMN_NAME = @column;");
             cmd.Parameters.Add("@db", MySqlDbType.VarChar, 500).Value = dbName;
             cmd.Parameters.Add("@table", MySqlDbType.VarChar, 500).Value = table;
