@@ -223,6 +223,7 @@ namespace TeslaSQL.DataUtils {
             query.Append(";");
 
             var cttime = MySqlQueryToScalar<DateTime>(sourceDB, new MySqlCommand(query.ToString()));
+
             query.Clear();
 
             query.Append("SELECT @@SESSION.BINLOG_FORMAT;");
@@ -1197,7 +1198,7 @@ namespace TeslaSQL.DataUtils {
                     break;
             }
 
-            return "server=" + sqlhost + "; database=" + database + ";user=" + sqluser + ";password=" + sqlpass;
+            return "server=" + sqlhost + "; database=" + database + ";user=" + sqluser + ";password=" + sqlpass + ";Convert Zero Datetime=True";
         }
 
         private T MySqlQueryToScalar<T>(string dbName, MySqlCommand cmd, int? timeout = null)
