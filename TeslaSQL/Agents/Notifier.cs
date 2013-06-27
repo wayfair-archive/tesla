@@ -27,7 +27,7 @@ namespace TeslaSQL.Agents {
         }
 
         public override void Run() {
-            var errors = sourceDataUtils.GetUnsentErrors();
+            IEnumerable<TError> errors = sourceDataUtils.GetUnsentErrors();
             var errorBlocks = new List<string>();
             var ids = new List<int>();
             
