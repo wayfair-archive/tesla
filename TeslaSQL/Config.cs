@@ -65,6 +65,7 @@ namespace TeslaSQL {
             NetezzaStringLength = c.netezzaStringLength;
             PlinkPath = c.plinkPath;
             IgnoreCase = c.ignoreCase;
+            EmailMessage = c.emailMessage;
 
             if (c.magicHours != null) {
                 MagicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
@@ -274,6 +275,9 @@ namespace TeslaSQL {
 
 
         #region properties
+        //a configurable message when e-mailing errors
+        public static string EmailMessage { get; set; }
+
         //array of table objects for global configuration        
         public static List<TableConf> Tables { get; set; }
 
@@ -511,6 +515,7 @@ namespace TeslaSQL {
         public string nzLoadScriptPath { get; set; }
         public string plinkPath { get; set; }
         public bool ignoreCase { get; set; }
+        public string emailMessage { get; set; }
 
         [XmlArrayItem("magicHour")]
         public string[] magicHours { get; set; }
