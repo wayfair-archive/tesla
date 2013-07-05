@@ -115,7 +115,7 @@ namespace TeslaSQL.DataUtils {
                 return 1;
             }
             StringBuilder query = new StringBuilder();
-            DateTime mysqlTimestamp = DateTime.Today, maxTimestamp = DateTime.MinValue;
+            DateTime mysqlTimestamp = DateTime.Now, maxTimestamp = DateTime.MinValue;
 
             //get the max timestamp from all of the tables that Tesla is watching
             foreach (TableConf table in Config.Tables)
@@ -134,6 +134,8 @@ namespace TeslaSQL.DataUtils {
                 maxTimestamp = maxTimestamp > mysqlTimestamp ? maxTimestamp : mysqlTimestamp;
                 query.Clear();
             }
+
+            maxTimestamp = maxTimestamp > mysqlTimestamp ? maxTimestamp : mysqlTimestamp;
            
             //write that timestamp into our version<->timestamp table as the latest "version" number, then select that
             query.Append("INSERT INTO ");
@@ -241,7 +243,7 @@ namespace TeslaSQL.DataUtils {
             query.Clear();
 
             query.AppendLine("BEGIN;");
-            query.Append("INSERT INTO ");
+            query.Append("REPLACE ");
             query.AppendLine(tableToInsert);
             query.Append("SELECT ");
             query.Append(table.ModifiedMasterColumnList);
@@ -921,7 +923,9 @@ namespace TeslaSQL.DataUtils {
 
         public IEnumerable<TTable> GetTables(string dbName)
         {
-            string sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+            string sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES " +
+                            "WHERE TABLE_TYPE = 'BASE TABLE'" +
+                            "AND TABLE_SCHEMA = '" + dbName + "';";
             var cmd = new MySqlCommand(sql);
             var res = MySqlQuery(dbName, cmd);
             var tables = new List<TTable>();
