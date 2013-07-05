@@ -46,6 +46,7 @@ namespace TeslaSQL.Agents {
             IEnumerable<TError> errors = sourceDataUtils.GetUnsentErrors();
             List<AggregateError> aggregateErrors = new List<AggregateError>();
             var errorBlocks = new List<string>();
+            errorBlocks.Add(Config.EmailMessage);
             var ids = new List<int>();
 
             //don't add an error to the e-mail if it happens a lot, just report the number of times it happened
@@ -60,10 +61,10 @@ namespace TeslaSQL.Agents {
                     aggregateErrors.Add(new AggregateError(error));
                 }
             }
+
             
             foreach (AggregateError aggError in aggregateErrors.OrderBy(x => x.Error.logDate)) {
                 var blockBuilder = new StringBuilder();
-                blockBuilder.AppendLine(Config.EmailMessage);
                 blockBuilder.Append("<div><p><span> ");
                 blockBuilder.Append(aggError.Error.logDate);
                 blockBuilder.Append(" </span><span>Count: ");
@@ -74,7 +75,7 @@ namespace TeslaSQL.Agents {
                 blockBuilder.Append("</p>");
                 if (aggError.Error.message.StartsWith("Table:"))
                 {
-                    blockBuilder.AppendLine(aggError.Error.message.Substring(0, aggError.Error.message.IndexOf("\n")));
+                    blockBuilder.AppendLine(aggError.Error.message.Substring(0, aggError.Error.message.IndexOf("\n", aggError.Error.message.IndexOf("\n") + 1)));
                 }
                 blockBuilder.AppendLine("</div><br/>");
                 var block = blockBuilder.ToString();
