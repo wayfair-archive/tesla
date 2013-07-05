@@ -52,6 +52,7 @@ namespace TeslaSQL.Agents {
             //don't add an error to the e-mail if it happens a lot, just report the number of times it happened
             foreach (TError error in errors)
             {
+                ids.Add(error.id);
                 if (aggregateErrors.Exists(x => x.Error.logDate.Date == error.logDate.Date && x.Error.message == error.message))
                 {
                     aggregateErrors.First(x => x.Error.logDate.Date == error.logDate.Date && x.Error.message == error.message).Count++;
@@ -81,7 +82,6 @@ namespace TeslaSQL.Agents {
                 var block = blockBuilder.ToString();
                 block = Regex.Replace(block, "\r?\n", "<br />");
                 errorBlocks.Add(block);
-                ids.Add(aggError.Error.id);
             }
             if (errorBlocks.Count == 0) {
                 return;
