@@ -1306,5 +1306,29 @@ namespace TeslaSQL.DataUtils {
 
             return MySqlQuery(dbName, new MySqlCommand(query.ToString()));
         }
+
+        public bool CleanupTriggerTable(string dbName, string tableName, DateTime chopDate)
+        {
+            tableName = "ct_" + tableName;
+            var query = new StringBuilder();
+            query.Append("DELETE FROM ");
+            query.Append(tableName);
+            query.Append(" WHERE ctTimeStamp < '");
+            query.Append(chopDate.ToString("yyyy-MM-dd HH:mm:ss"));
+            query.AppendLine(";");
+
+            try
+            {
+                MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+            }
+            catch (Exception e)
+            {
+                logger.Log(e, "Failed when cleaning up trigger table " + tableName);
+                return false;
+            }
+
+            return true;
+
+        }
     }
 }

@@ -46,6 +46,15 @@ namespace TeslaSQL.Agents {
             } else {
                 logger.Log("No tables to delete", LogLevel.Info);
             }
+
+            if (Config.MasterType == SqlFlavor.MySQL)
+            {
+                foreach (var table in Config.Tables)
+                {
+                    var temp = (MySQLDataUtils)sourceDataUtils;
+                    temp.CleanupTriggerTable(Config.MasterDB, table.Name, chopDate);
+                }
+            }
         }
     }
 }
