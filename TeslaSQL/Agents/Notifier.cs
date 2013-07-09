@@ -60,6 +60,7 @@ namespace TeslaSQL.Agents {
                 {
                     aggregateErrors.Add(new AggregateError(error));
                 }
+                ids.Add(error.id);
             }
 
             
@@ -75,13 +76,12 @@ namespace TeslaSQL.Agents {
                 blockBuilder.Append("</p>");
                 if (aggError.Error.message.StartsWith("Table:"))
                 {
-                    blockBuilder.AppendLine(aggError.Error.message.Substring(0, aggError.Error.message.IndexOf("\n", aggError.Error.message.IndexOf("\n") + 1)));
+                    blockBuilder.AppendLine(aggError.Error.message.Substring(0, Math.Max(aggError.Error.message.IndexOf("\n", aggError.Error.message.IndexOf("\n") + 1), 0)));
                 }
                 blockBuilder.AppendLine("</div><br/>");
                 var block = blockBuilder.ToString();
                 block = Regex.Replace(block, "\r?\n", "<br />");
                 errorBlocks.Add(block);
-                ids.Add(aggError.Error.id);
             }
             if (errorBlocks.Count == 0) {
                 return;
