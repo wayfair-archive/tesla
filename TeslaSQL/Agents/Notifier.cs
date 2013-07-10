@@ -52,19 +52,20 @@ namespace TeslaSQL.Agents {
             //don't add an error to the e-mail if it happens a lot, just report the number of times it happened
             foreach (TError error in errors)
             {
-                ids.Add(error.id);
-                if (aggregateErrors.Exists(x => x.Error.logDate.Date == error.logDate.Date && x.Error.message == error.message))
+                int index = aggregateErrors.FindIndex(x => x.Error.logDate.Date == error.logDate.Date && x.Error.message == error.message);
+                if (index > 0)
                 {
-                    aggregateErrors.First(x => x.Error.logDate.Date == error.logDate.Date && x.Error.message == error.message).Count++;
+                    aggregateErrors[index].Count++;
                 }
                 else
                 {
                     aggregateErrors.Add(new AggregateError(error));
                 }
+                ids.Add(error.id);
             }
 
             
-            foreach (AggregateError aggError in aggregateErrors.OrderBy(x => x.Error.logDate)) {
+            foreach (AggregateError aggError in aggregateErrors.OrderBy(x => x.Error.logDate).Reverse()) {
                 var blockBuilder = new StringBuilder();
                 blockBuilder.Append("<div><p><span> ");
                 blockBuilder.Append(aggError.Error.logDate);
@@ -76,7 +77,16 @@ namespace TeslaSQL.Agents {
                 blockBuilder.Append("</p>");
                 if (aggError.Error.message.StartsWith("Table:"))
                 {
-                    blockBuilder.AppendLine(aggError.Error.message.Substring(0, aggError.Error.message.IndexOf("\n", aggError.Error.message.IndexOf("\n") + 1)));
+                    var lines = aggError.Error.message.Split('\n');
+                    if (lines.Count() > 2)
+                    {
+                        blockBuilder.AppendLine(lines[0]);
+                        blockBuilder.AppendLine(lines[1]);
+                    } else
+                    {
+                        blockBuilder.AppendLine(aggError.Error.message);
+                    }
+                    
                 }
                 blockBuilder.AppendLine("</div><br/>");
                 var block = blockBuilder.ToString();
@@ -87,7 +97,14 @@ namespace TeslaSQL.Agents {
                 return;
             }
             emailClient.SendEmail(Config.EmailErrorRecipient, "Errors occurred during changetracking", "<html>" + string.Join("", errorBlocks) + "</html>");
-            sourceDataUtils.MarkErrorsSent(ids);
+            if (ids.Count > 0)
+            {
+                sourceDataUtils.MarkErrorsSent(ids);
+            }
+            else
+            {
+                logger.Log("Notifier got run but at the end there were no error ids to mark as complete.", LogLevel.Error);
+            }
         }
     }
 }
