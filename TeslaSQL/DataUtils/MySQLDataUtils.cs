@@ -1315,7 +1315,7 @@ namespace TeslaSQL.DataUtils {
             query.Append(tableName);
             query.Append(" WHERE ctTimeStamp < '");
             query.Append(chopDate.ToString("yyyy-MM-dd HH:mm:ss"));
-            query.AppendLine(";");
+            query.AppendLine("';");
 
             try
             {
