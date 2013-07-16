@@ -96,7 +96,7 @@ namespace TeslaSQL.DataUtils {
             query.AppendLine("(");
             query.AppendLine("CTID bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,");
             query.Append(CTTimestampColumnName);
-            query.AppendLine(" timestamp NOT NULL) ENGINE = INNODB;");
+            query.AppendLine(" timestamp NOT NULL);");
             MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
             query.Clear();
             query.Append("INSERT INTO ");
@@ -209,11 +209,6 @@ namespace TeslaSQL.DataUtils {
                 query.Clear();
                 query.Append("ALTER TABLE ");
                 query.Append(tableToInsert);
-                query.Append(" ENGINE INNODB;");
-                MySqlNonQuery(sourceCTDB, new MySqlCommand(query.ToString()));
-                query.Clear();
-                query.Append("ALTER TABLE ");
-                query.Append(tableToInsert);
                 query.Append(" ADD COLUMN SYS_CHANGE_OPERATION char(1);");
                 MySqlNonQuery(sourceCTDB, new MySqlCommand(query.ToString()));
                 query.Clear();
@@ -305,7 +300,7 @@ namespace TeslaSQL.DataUtils {
             CscCharacterMaximumLength int NULL,
             CscNumericPrecision int NULL,
             CscNumericScale int NULL
-            ) ENGINE = INNODB;";
+            );";
 
             MySqlCommand cmd = new MySqlCommand(query);
 
@@ -416,11 +411,6 @@ namespace TeslaSQL.DataUtils {
                 query.Append(" LIKE ");
                 query.Append(table.Name);
                 query.AppendLine(";");
-                MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-                query.Clear();
-                query.Append("ALTER TABLE ");
-                query.Append(currentSchemaTableName);
-                query.AppendLine(" ENGINE = INNODB;");
                 MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
                 //if this is the first time running, just return an empty event set
                 if (!CheckTableExists(CTdbName, compareSchemaTableNameShort))
