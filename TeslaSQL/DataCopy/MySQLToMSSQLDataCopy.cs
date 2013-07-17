@@ -100,7 +100,7 @@ namespace TeslaSQL.DataCopy
                     case "text":
                     case "ntext":
                         script.Append('(');
-                        script.Append(column.dataType.CharacterMaximumLength != null ? column.dataType.CharacterMaximumLength.ToString() : "MAX");
+                        script.Append((column.dataType.CharacterMaximumLength != null && column.dataType.CharacterMaximumLength < 8000) ? column.dataType.CharacterMaximumLength.ToString() : "MAX");
                         script.Append(')');
                         break;
                     case "decimal":
