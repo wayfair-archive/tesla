@@ -87,11 +87,16 @@ namespace TeslaSQL.Agents {
                     {
                         blockBuilder.AppendLine(lines[0]);
                         blockBuilder.AppendLine(lines[1]);
-                    } else
+                    }
+                    else
                     {
                         blockBuilder.AppendLine(aggError.Error.message);
                     }
-                    
+
+                }
+                else
+                {
+                    blockBuilder.AppendLine(aggError.Error.message);
                 }
                 blockBuilder.AppendLine("</div><br/>");
                 var block = blockBuilder.ToString();
