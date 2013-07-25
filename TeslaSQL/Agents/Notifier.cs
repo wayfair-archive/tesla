@@ -44,6 +44,10 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             IEnumerable<TError> errors = sourceDataUtils.GetUnsentErrors();
+            if (errors.Count() < 1)
+            {
+                return;
+            }
             List<AggregateError> aggregateErrors = new List<AggregateError>();
             var errorBlocks = new List<string>();
             errorBlocks.Add(Config.EmailMessage);
