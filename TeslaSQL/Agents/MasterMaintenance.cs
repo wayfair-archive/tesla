@@ -38,7 +38,16 @@ namespace TeslaSQL.Agents {
 
         public override void Run() {
             var chopDate = DateTime.Now - new TimeSpan(Config.ChangeRetentionHours, 0, 0);
-            var CTIDs = destDataUtils.GetOldCTIDsMaster(Config.RelayDB, chopDate);
+            IEnumerable<long> CTIDs;
+            if (Config.MasterType == SqlFlavor.MySQL)
+            {
+                var temp = (MSSQLDataUtils)destDataUtils;
+                CTIDs = temp.GetOldStopSyncMaster(Config.RelayDB, chopDate);
+            }
+            else
+            {
+                CTIDs = destDataUtils.GetOldCTIDsMaster(Config.RelayDB, chopDate);
+            }
             var tables = sourceDataUtils.GetTables(Config.MasterCTDB);
             if (tables.Count() > 0) {
                 logger.Log("Deleting {" + string.Join(",", CTIDs) + "} from { " + string.Join(",", tables.Select(t => t.name)) + "}", LogLevel.Debug);

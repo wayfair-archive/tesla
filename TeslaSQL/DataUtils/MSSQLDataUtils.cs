@@ -1241,6 +1241,20 @@ namespace TeslaSQL.DataUtils {
             var cmd = new SqlCommand(sql);
             SqlNonQuery(consolidatedDB, cmd);
         }
+        
+        public IEnumerable<long> GetOldStopSyncMaster(string dbName, DateTime chopDate)
+        {
+            string sql = "SELECT syncStopVersion AS ctid FROM [dbo].[tblCTVersion] WHERE syncStartTime < @chopDate";
+            var cmd = new SqlCommand(sql);
+            cmd.Parameters.Add("@chopDate", SqlDbType.DateTime).Value = chopDate;
+            var res = SqlQuery(dbName, cmd);
+            var CTIDs = new List<long>();
+            foreach (DataRow row in res.Rows)
+            {
+                CTIDs.Add(row.Field<long>("ctid"));
+            }
+            return CTIDs;
+        }
 
     }
 }
