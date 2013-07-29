@@ -938,7 +938,7 @@ namespace TeslaSQL.DataUtils {
 
         public IEnumerable<long> GetOldCTIDsMaster(string dbName, DateTime chopDate)
         {
-            string sql = "SELECT ctid FROM tblCTVersion WHERE syncStartTime < @chopDate";
+            string sql = "SELECT syncStopVersion AS ctid FROM tblCTVersion WHERE syncStartTime < @chopDate";
             var cmd = new MySqlCommand(sql);
             cmd.Parameters.Add("@chopDate", MySqlDbType.Timestamp).Value = chopDate.ToUniversalTime();
             DataTable res = MySqlQuery(dbName, cmd);
