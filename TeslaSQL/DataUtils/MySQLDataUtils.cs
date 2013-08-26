@@ -94,16 +94,15 @@ namespace TeslaSQL.DataUtils {
             query.Append("CREATE TABLE ");
             query.Append(CTIDtoTimestampTable);
             query.AppendLine("(");
-            query.AppendLine("CTID bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,");
+            query.AppendLine("CTID bigint NOT NULL PRIMARY KEY,");
             query.Append(CTTimestampColumnName);
             query.AppendLine(" timestamp NOT NULL);");
             MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
             query.Clear();
             query.Append("INSERT INTO ");
             query.AppendLine(CTIDtoTimestampTable);
-            query.Append("SET ");
-            query.Append(CTTimestampColumnName);
-            query.AppendLine(" = NOW();");
+            query.Append("VALUES(1, ");
+            query.AppendLine("NOW());");
             MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
         }
 
@@ -115,43 +114,25 @@ namespace TeslaSQL.DataUtils {
                 return 1;
             }
             StringBuilder query = new StringBuilder();
-            DateTime mysqlTimestamp = DateTime.Now, maxTimestamp = DateTime.MinValue;
 
-            //get the max timestamp from all of the tables that Tesla is watching
-            foreach (TableConf table in Config.Tables)
-            {
-                query.Append("SELECT MAX(");
-                query.Append(CTTimestampColumnName);
-                query.Append(") FROM ct_");
-                query.Append(table.Name);
-                query.AppendLine(";");
-                string dateMaybe = MySqlQuery(dbName, new MySqlCommand(query.ToString())).Rows[0].ItemArray[0].ToString();
-                if (String.IsNullOrEmpty(dateMaybe))
-                {
-                    continue;
-                }
-                mysqlTimestamp = DateTime.Parse(dateMaybe);
-                maxTimestamp = maxTimestamp > mysqlTimestamp ? maxTimestamp : mysqlTimestamp;
-                query.Clear();
-            }
-
-            maxTimestamp = maxTimestamp > mysqlTimestamp ? maxTimestamp : mysqlTimestamp;
-           
-            //write that timestamp into our version<->timestamp table as the latest "version" number, then select that
-            query.Append("INSERT INTO ");
-            query.AppendLine(CTIDtoTimestampTable);
-            query.Append("SET ");
-            query.Append(CTTimestampColumnName);
-            query.Append(" = '");
-            query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
-            query.AppendLine("';");
-            MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-            query.Clear();
             query.Append("SELECT MAX(CTID) FROM ");
             query.Append(CTIDtoTimestampTable);
             query.AppendLine(";");
             MySqlCommand cmd = new MySqlCommand(query.ToString());
-            this.CTID = MySqlQueryToScalar<Int64>(dbName, cmd);
+            this.CTID = MySqlQueryToScalar<Int64>(dbName, cmd) + 1;
+
+            DateTime maxTimestamp = DateTime.Now.Subtract(new TimeSpan(0,0,1));
+           
+            //write that timestamp into our version<->timestamp table as the latest "version" number, then select that
+            query.Clear();
+            query.Append("INSERT INTO ");
+            query.AppendLine(CTIDtoTimestampTable);
+            query.Append(" VALUES (");
+            query.Append(this.CTID);
+            query.Append(", '");
+            query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
+            query.AppendLine("');");
+            MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
             return this.CTID;
         }
 
@@ -192,7 +173,6 @@ namespace TeslaSQL.DataUtils {
         public int SelectIntoCTTable(string sourceCTDB, TableConf table, string sourceDB, ChangeTrackingBatch batch, int timeout, Int64? startVersionOverride = null)
         {
 
-            //String tableToInsert = table.ToCTName(batch.CTID);
             String tableToInsert = table.ToCTName(batch.CTID);
             String originalTableFullName = sourceDB + "." + table.Name;
             String CTTableFullName = sourceDB + ".ct_" + table.Name;
