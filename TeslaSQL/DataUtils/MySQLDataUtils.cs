@@ -871,8 +871,6 @@ namespace TeslaSQL.DataUtils {
 
         public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB, bool isConsolidated)
         {
-            //not yet
-            throw new NotImplementedException();
             string sql;
             string sourceTable;
             List<TColumn> fields;
@@ -889,22 +887,24 @@ namespace TeslaSQL.DataUtils {
             }
 
             string insertColumns = "CTHistID, " + string.Join(",", fields.Select(col => col.name));
-            string selectColumns = "CAST(" + t.CTID + " AS INT64) AS CTHistID, " + string.Join(",", fields.Select(col => col.name));
+            string selectColumns = "CAST(" + t.CTID + " AS BIGINT) AS CTHistID, " + string.Join(",", fields.Select(col => col.name));
 
-            if (CheckTableExists(slaveCTDB, t.historyName, t.schemaName))
+            if (!CheckTableExists(slaveCTDB, t.historyName, t.schemaName))
             {
-                logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
-                sql = string.Format("INSERT INTO {0} ({1}) SELECT {2} FROM {3}", t.historyName, insertColumns, selectColumns, sourceTable);
+                logger.Log("table " + t.historyName + " does not exist, creating it", LogLevel.Trace);
+                sql = string.Format("CREATE TABLE {0} LIKE {1};", t.historyName, sourceTable);
                 logger.Log(sql, LogLevel.Debug);
-            }
-            else
-            {
-                logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
-                sql = string.Format("SELECT {0} INTO {1} FROM {2}", selectColumns, t.historyName, sourceTable);
+                MySqlNonQuery(slaveCTDB, new MySqlCommand(sql));
+                sql = string.Format("ALTER TABLE {0} ADD CTHistID BIGINT FIRST;", t.historyName, sourceTable);
                 logger.Log(sql, LogLevel.Debug);
+                MySqlNonQuery(slaveCTDB, new MySqlCommand(sql));
             }
-            var cmd = new SqlCommand(sql);
-            SqlNonQuery(slaveCTDB, cmd);
+
+            logger.Log("selecting into " + t.historyName, LogLevel.Trace);
+            sql = string.Format("INSERT INTO {0} ({1}) SELECT {2} FROM {3};", t.historyName, insertColumns, selectColumns, sourceTable);
+            logger.Log(sql, LogLevel.Debug);
+            var cmd = new MySqlCommand(sql);
+            MySqlNonQuery(slaveCTDB, cmd);
         }
 
         public ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid)
@@ -940,13 +940,13 @@ namespace TeslaSQL.DataUtils {
 
         public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long CTID, string database)
         {
-            //not yet
+            //not yet 
             throw new NotImplementedException();
         }
 
         public int GetExpectedRowCounts(string ctDbName, long ctid)
         {
-            //not yet
+            //not yet (relay)
             throw new NotImplementedException();
         }
 
@@ -981,7 +981,7 @@ namespace TeslaSQL.DataUtils {
 
         public IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate)
         {
-            //not yet
+            //not yet (relay)
             throw new NotImplementedException();
         }
 
@@ -1015,7 +1015,7 @@ namespace TeslaSQL.DataUtils {
 
         public Int64? GetInitializeStartVersion(string sourceCTDB, TableConf table)
         {
-            string sql = @"SELECT nextSynchVersion FROM tblCTInitialize WHERE tableName = @tableName";
+            string sql = @"SELECT nextSynchVersion FROM tblCTInitialize WHERE tableName = @tableName;";
             var cmd = new MySqlCommand(sql);
             cmd.Parameters.Add("@tableName", MySqlDbType.VarChar, 500).Value = table.Name;
             DataTable res = MySqlQuery(sourceCTDB, cmd);
@@ -1033,7 +1033,7 @@ namespace TeslaSQL.DataUtils {
         {
             string sql = @"DELETE FROM tblCTInitialize
                            WHERE inProgress = 0
-                           AND iniFinishTime < @syncStartTime";
+                           AND iniFinishTime < @syncStartTime;";
             var cmd = new MySqlCommand(sql);
             cmd.Parameters.Add("@syncStartTime", MySqlDbType.Timestamp).Value = syncStartTime.ToUniversalTime();
             MySqlNonQuery(dbName, cmd);
@@ -1358,6 +1358,27 @@ namespace TeslaSQL.DataUtils {
 
             return true;
 
+        }
+
+        /// <summary>
+        /// Writes data from the given stream reader to a destination database
+        /// </summary>
+        /// <param name="reader">DataReader object to stream input from</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="schema">Schema of the table to write to</param>
+        /// <param name="table">Table name to write to</param>
+        /// <param name="timeout">Timeout</param>
+        public void BulkCopy(IDataReader reader, string dbName, string schema, string table, int timeout, int batchSize = 500)
+        {
+            using (MySqlConnection conn = new MySqlConnection(buildConnString(dbName)))
+            {
+                DataTable data = new DataTable();
+                data.Load(reader);
+                MySqlDataAdapter adapter = new MySqlDataAdapter(new MySqlCommand("SELECT * FROM " + schema + "." + table + ";"));
+                MySqlCommandBuilder cb = new MySqlCommandBuilder(adapter);
+                adapter.UpdateBatchSize = batchSize;
+                adapter.Update(data);
+            }
         }
 
     }
