@@ -28,8 +28,10 @@ namespace TeslaSQL {
 
             MasterDB = ValidateNullableIdentifier(c.masterDB);
             MasterCTDB = ValidateNullableIdentifier(c.masterCTDB);
+            MasterEngine = ValidateNullableIdentifier(c.masterEngine);
             SlaveCTDB = ValidateNullableIdentifier(c.slaveCTDB);
             SlaveDB = ValidateNullableIdentifier(c.slaveDB);
+            SlaveEngine = ValidateNullableIdentifier(c.slaveEngine);
             RelayDB = ValidateNullableIdentifier(c.relayDB);
             ErrorLogDB = ValidateNullableIdentifier(c.errorLogDB);
             MasterUser = ValidateNullableIdentifier(c.masterUser);
@@ -302,6 +304,12 @@ namespace TeslaSQL {
         //type of slave server (i.e. MSSQL, MySQL, PostgreSQL)
         public static SqlFlavor SlaveType { get; set; }
 
+        //engine of master server. gets ignored except for mySQL right now
+        public static string MasterEngine { get; set; }
+
+        //engine of slave server. gets ignored except for mySQL right now
+        public static string SlaveEngine { get; set; }
+
         //master database name
         public static string MasterDB { get; set; }
 
@@ -480,8 +488,10 @@ namespace TeslaSQL {
         public SqlFlavor relayType { get; set; }
         public string masterDB { get; set; }
         public string masterCTDB { get; set; }
+        public string masterEngine { get; set; }
         public string slaveDB { get; set; }
         public string slaveCTDB { get; set; }
+        public string slaveEngine { get; set; }
         public string relayDB { get; set; }
         public string errorLogDB { get; set; }
         public string masterUser { get; set; }
