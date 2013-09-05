@@ -27,12 +27,12 @@ namespace TeslaSQL.DataUtils {
             if (agentType.Equals(AgentType.Slave))
             {
                 cmd = new MySqlCommand("SELECT CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime" +
-                    " FROM tblCTSlaveVersion WITH(NOLOCK) WHERE slaveIdentifier = @slave ORDER BY cttimestamp DESC LIMIT 0,1");
+                    " FROM tblCTSlaveVersion WHERE slaveIdentifier = @slave ORDER BY cttimestamp DESC LIMIT 0,1;");
                 cmd.Parameters.Add("@slave", MySqlDbType.VarChar, 100).Value = slaveIdentifier;
             }
             else
             {
-                cmd = new MySqlCommand("SELECT CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime FROM tblCTVersion ORDER BY CTID DESC LIMIT 0,1");
+                cmd = new MySqlCommand("SELECT CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime FROM tblCTVersion ORDER BY CTID DESC LIMIT 0,1;");
             }
 
             DataTable result = MySqlQuery(dbName, cmd);
@@ -42,8 +42,8 @@ namespace TeslaSQL.DataUtils {
         public DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise)
         {
             string query = ("SELECT CTID, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise" +
-                                " FROM tblCTVersion WITH(NOLOCK) WHERE CTID > @ctid AND syncBitWise & @syncbitwise > 0" +
-                                " ORDER BY CTID ASC");
+                                " FROM tblCTVersion WHERE CTID > @ctid AND syncBitWise & @syncbitwise > 0" +
+                                " ORDER BY CTID ASC;");
             MySqlCommand cmd = new MySqlCommand(query);
             cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
@@ -54,8 +54,16 @@ namespace TeslaSQL.DataUtils {
 
         public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier, int bitwise)
         {
-            //not yet (slave)
-            throw new NotImplementedException();
+            string query = @"SELECT * FROM tblCTSlaveVersion
+                            WHERE slaveIdentifier = @slaveidentifier AND CTID >
+                            (
+                            	SELECT MAX(ctid) FROM tblCTSlaveVersion WHERE slaveIdentifier = @slaveidentifier AND syncBitWise = @bitwise
+                            ) ORDER BY CTID;";
+            MySqlCommand cmd = new MySqlCommand(query);
+            cmd.Parameters.Add("@bitwise", MySqlDbType.Int32).Value = bitwise;
+            cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 500).Value = slaveIdentifier;
+            logger.Log("Running query: " + cmd.CommandText + "... slaveidentifiers is " + slaveIdentifier, LogLevel.Debug);
+            return MySqlQuery(dbName, cmd);
         }
 
         public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type, string slaveIdentifier = null)
@@ -257,8 +265,19 @@ namespace TeslaSQL.DataUtils {
 
         public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier)
         {
-            //not yet (slave)
-            throw new NotImplementedException();
+            string query = "INSERT INTO tblCTSlaveVersion (CTID, slaveIdentifier, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
+            query += " VALUES (@ctid, @slaveidentifier, @startversion, @stopversion, @starttime, @syncbitwise);";
+
+            MySqlCommand cmd = new MySqlCommand(query);
+
+            cmd.Parameters.Add("@ctid", MySqlDbType.Int64).Value = ctb.CTID;
+            cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 100).Value = slaveIdentifier;
+            cmd.Parameters.Add("@startversion", MySqlDbType.Int64).Value = ctb.SyncStartVersion;
+            cmd.Parameters.Add("@stopversion", MySqlDbType.Int64).Value = ctb.SyncStopVersion;
+            cmd.Parameters.Add("@starttime", MySqlDbType.DateTime).Value = ctb.SyncStartTime;
+            cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = ctb.SyncBitWise;
+
+            MySqlNonQuery(dbName, cmd, 30);
         }
 
         public void CreateSchemaChangeTable(string dbName, Int64 CTID)
@@ -679,22 +698,20 @@ namespace TeslaSQL.DataUtils {
 
         public int ReadBitWise(string dbName, Int64 CTID, AgentType agentType)
         {
-            //does this get called?
-            throw new NotImplementedException();
             string query;
             MySqlCommand cmd;
             if (agentType.Equals(AgentType.Slave))
             {
-                query = "SELECT syncBitWise from tblCTSlaveVersion WITH(NOLOCK)";
-                query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
+                query = "SELECT syncBitWise from tblCTSlaveVersion";
+                query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid;";
                 cmd = new MySqlCommand(query);
                 cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 100).Value = Config.Slave;
                 cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
             else
             {
-                query = "SELECT syncBitWise from tblCTVersion WITH(NOLOCK)";
-                query += " WHERE CTID = @ctid";
+                query = "SELECT syncBitWise from tblCTVersion";
+                query += " WHERE CTID = @ctid;";
                 cmd = new MySqlCommand(query);
                 cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
@@ -856,6 +873,38 @@ namespace TeslaSQL.DataUtils {
         {
             //not yet
             throw new NotImplementedException();
+            string sql;
+            string sourceTable;
+            List<TColumn> fields;
+            if (false && isConsolidated && Config.Slave == Config.RelayServer && slaveCTDB == Config.RelayDB) //false added until mysql relay for compiler optimization
+            {
+                //we don't have a mysql relay so I'm not touching this
+                sourceTable = "[" + t.schemaName + "].[" + t.consolidatedName + "]";
+                fields = GetFieldList(slaveCTDB, t.consolidatedName, t.schemaName);
+            }
+            else
+            {
+                sourceTable = t.ctName;
+                fields = GetFieldList(slaveCTDB, t.ctName, t.schemaName);
+            }
+
+            string insertColumns = "CTHistID, " + string.Join(",", fields.Select(col => col.name));
+            string selectColumns = "CAST(" + t.CTID + " AS INT64) AS CTHistID, " + string.Join(",", fields.Select(col => col.name));
+
+            if (CheckTableExists(slaveCTDB, t.historyName, t.schemaName))
+            {
+                logger.Log("table " + t.historyName + " already exists; selecting into it", LogLevel.Trace);
+                sql = string.Format("INSERT INTO {0} ({1}) SELECT {2} FROM {3}", t.historyName, insertColumns, selectColumns, sourceTable);
+                logger.Log(sql, LogLevel.Debug);
+            }
+            else
+            {
+                logger.Log("table " + t.historyName + " does not exist, inserting into it", LogLevel.Trace);
+                sql = string.Format("SELECT {0} INTO {1} FROM {2}", selectColumns, t.historyName, sourceTable);
+                logger.Log(sql, LogLevel.Debug);
+            }
+            var cmd = new SqlCommand(sql);
+            SqlNonQuery(slaveCTDB, cmd);
         }
 
         public ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid)
