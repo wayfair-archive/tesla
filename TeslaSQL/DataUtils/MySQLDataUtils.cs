@@ -1035,7 +1035,6 @@ namespace TeslaSQL.DataUtils {
             var cmd = new MySqlCommand(sql);
             var res = MySqlQuery(dbName, cmd);
             var fields = new Dictionary<TableConf, IList<TColumn>>();
-            var crap = res.Rows[0]["CHARACTER_MAXIMUM_LENGTH"].GetType();
             foreach (DataRow row in res.Rows)
             {
                 var tableName = row.Field<string>("TABLE_NAME");
