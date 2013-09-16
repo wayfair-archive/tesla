@@ -13,7 +13,7 @@ namespace TeslaSQL {
         private static Dictionary<SqlFlavor, IList<string>> dataMappings = new Dictionary<SqlFlavor, IList<string>>();
 
         public string BaseType { get; private set; }
-        public int? CharacterMaximumLength { get; private set; }
+        public long? CharacterMaximumLength { get; private set; }
         public int? NumericPrecision { get; private set; }
         public int? NumericScale { get; private set; }
 
@@ -58,7 +58,7 @@ namespace TeslaSQL {
         }
 
 
-        public DataType(string baseType, int? characterMaximumLength = null, int? numericPrecision = null, int? numericScale = null) {
+        public DataType(string baseType, long? characterMaximumLength = null, int? numericPrecision = null, int? numericScale = null) {
             this.BaseType = baseType;
             this.CharacterMaximumLength = characterMaximumLength;
             this.NumericPrecision = numericPrecision;
@@ -139,14 +139,14 @@ namespace TeslaSQL {
         /// <returns>A TeslaSQL.DataType object</returns>
         public static DataType ParseDataType(DataRow row) {
             string dataType = row.Field<string>("DATA_TYPE");
-            Nullable<int> characterMaximumLength;
+            Nullable<long> characterMaximumLength;
             if (row["CHARACTER_MAXIMUM_LENGTH"].GetType() == typeof(System.DBNull))
             {
                 characterMaximumLength = null;
             }
             else
             {
-                characterMaximumLength = Convert.ToInt32(row["CHARACTER_MAXIMUM_LENGTH"]);
+                characterMaximumLength = Convert.ToInt64(row["CHARACTER_MAXIMUM_LENGTH"]);
             }
 
             //Nullable<int> characterMaximumLength = row["CHARACTER_MAXIMUM_LENGTH"].GetType() == typeof(System.DBNull) ? null : row.Field<int?>("CHARACTER_MAXIMUM_LENGTH");
