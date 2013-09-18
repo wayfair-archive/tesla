@@ -14,10 +14,17 @@ namespace TeslaSQL.DataCopy {
             }
             switch (sourceSqlFlavor) {
                 case SqlFlavor.MSSQL:
-                    if (destSqlFlavor == SqlFlavor.MSSQL) {
+                    if (destSqlFlavor == SqlFlavor.MSSQL) 
+                    {
                         return new MSSQLToMSSQLDataCopy((MSSQLDataUtils)sourceDataUtils, (MSSQLDataUtils)destDataUtils, logger);
-                    } else if (destSqlFlavor == SqlFlavor.Netezza) {
+                    } 
+                    else if (destSqlFlavor == SqlFlavor.Netezza) 
+                    {
                         return new MSSQLToNetezzaDataCopy((MSSQLDataUtils)sourceDataUtils, (NetezzaDataUtils)destDataUtils, logger, Config.Slave, Config.NetezzaUser, Config.NetezzaPrivateKeyPath);
+                    }
+                    else if (destSqlFlavor == SqlFlavor.MySQL)
+                    {
+                        return new MSSQLToMySQLDataCopy((MSSQLDataUtils)sourceDataUtils, (MySQLDataUtils)destDataUtils, logger);
                     }
                     break;
                 case SqlFlavor.MySQL:

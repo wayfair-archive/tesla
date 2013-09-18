@@ -571,8 +571,16 @@ namespace TeslaSQL {
         /// <summary>
         /// Returns a string representation of the column for use in CREATE TABLE statements
         /// </summary>
-        public string ToExpression() {
-            return string.Format("[{0}] {1} {2}", name, dataType.ToString(), isNullable ? "NULL" : "NOT NULL");
+        public string ToExpression(SqlFlavor flavor = SqlFlavor.MSSQL) {
+            switch (flavor)
+            {
+                case SqlFlavor.MSSQL:
+                    return string.Format("[{0}] {1} {2}", name, dataType.ToString(), isNullable ? "NULL" : "NOT NULL");
+                case SqlFlavor.MySQL:
+                    return string.Format("{0} {1} {2}", name, dataType.ToString(), isNullable ? "NULL" : "NOT NULL");
+                default:
+                    throw new NotImplementedException("No defined ToExpression for sql flavor: " + flavor.ToString());
+            }
         }
 
         public bool Equals(TColumn other) {

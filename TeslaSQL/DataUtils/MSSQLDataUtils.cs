@@ -925,15 +925,25 @@ namespace TeslaSQL.DataUtils {
         /// <param name="schema">Table's schema</param>\
         /// <param name="originalTableName">Original table to pull TableConf for</param>
         /// <returns>The CREATE TABLE script as a string</returns>
-        public string ScriptTable(string dbName, string table, string schema, string originalTableName) {
+        public string ScriptTable(string dbName, string table, string schema, string originalTableName, SqlFlavor flavor = SqlFlavor.MSSQL) {
             //get actual field list on the source table
             var includeColumns = new List<string>() { "SYS_CHANGE_VERSION", "SYS_CHANGE_OPERATION" };
             List<TColumn> columns = GetFieldList(dbName, table, schema, originalTableName, includeColumns);
-
-            return string.Format(
-                @"CREATE TABLE [{0}].[{1}] (
-                    {2}
-                );", schema, table, string.Join(",", columns.Select(c => c.ToExpression())));
+            switch (flavor) 
+            {
+                case SqlFlavor.MSSQL:
+                    return string.Format(
+                        @"CREATE TABLE [{0}].[{1}] (
+                            {2}
+                        );", schema, table, string.Join(",", columns.Select(c => c.ToExpression())));
+                case SqlFlavor.MySQL:
+                    return string.Format(
+                        @"CREATE TABLE {0}.{1} (
+                            {2}
+                        );", schema, table, string.Join(",", columns.Select(c => c.ToExpression(SqlFlavor.MySQL))));;
+                default:
+                    throw new NotImplementedException("No scripting rules defined for " + flavor.ToString());
+            }
         }
 
         public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName) {

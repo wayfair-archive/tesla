@@ -115,7 +115,7 @@ namespace TeslaSQL.DataCopy {
         /// <param name="destDB">Destination database name</param>
         public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, string originalTableName = null) {
             //script out the table at the source
-            string createScript = sourceDataUtils.ScriptTable(sourceDB, sourceTableName, schema, originalTableName);
+            string createScript = sourceDataUtils.ScriptTable(sourceDB, sourceTableName, schema, originalTableName, SqlFlavor.MySQL);
             createScript = createScript.Replace(sourceTableName, destTableName);
             MySqlCommand cmd = new MySqlCommand(createScript);
 
