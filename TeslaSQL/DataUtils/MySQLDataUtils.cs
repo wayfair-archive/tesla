@@ -1024,7 +1024,8 @@ namespace TeslaSQL.DataUtils {
                                                 c.TABLE_SCHEMA = s.TABLE_SCHEMA AND
                                                 s.INDEX_NAME = 'PRIMARY'
                                         WHERE   c.TABLE_NAME IN ( {0} )
-                                        AND     c.TABLE_SCHEMA = '" + dbName + "';",
+                                        AND     c.TABLE_SCHEMA = '" + dbName + @"'
+                                        ORDER BY c.ORDINAL_POSITION;",
                                        string.Join(",", placeHolders));
             
             foreach (var ph in placeHolders.Zip(t.Values, (ph, tn) => Tuple.Create(ph, tn)).Reverse())
