@@ -1045,9 +1045,10 @@ namespace TeslaSQL.DataUtils {
                 {
                     fields[tc] = new List<TColumn>();
                 }
+
                 fields[tc].Add(new TColumn(
                     (String)row["COLUMN_NAME"],
-                    (Int64)row["InPrimaryKey"] > 0 ? true : false,
+                    (Int32)row["InPrimaryKey"] > 0 ? true : false,
                     DataType.ParseDataType(row),
                     //for some reason IS_NULLABLE is a varchar(3) rather than a bool or bit
                     (String)row["IS_NULLABLE"] == "YES" ? true : false));
