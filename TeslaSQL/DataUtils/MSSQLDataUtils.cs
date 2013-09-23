@@ -924,6 +924,7 @@ namespace TeslaSQL.DataUtils {
         /// <param name="table">Table name</param>
         /// <param name="schema">Table's schema</param>\
         /// <param name="originalTableName">Original table to pull TableConf for</param>
+        /// <param name="flavor">SQL type of the table the script will be run on</param>
         /// <returns>The CREATE TABLE script as a string</returns>
         public string ScriptTable(string dbName, string table, string schema, string originalTableName, SqlFlavor flavor = SqlFlavor.MSSQL) {
             //get actual field list on the source table
@@ -937,10 +938,19 @@ namespace TeslaSQL.DataUtils {
                             {2}
                         );", schema, table, string.Join(",", columns.Select(c => c.ToExpression())));
                 case SqlFlavor.MySQL:
-                    return string.Format(
-                        @"CREATE TABLE {0}.{1} (
-                            {2}
-                        );", schema, table, string.Join(",", columns.Select(c => c.ToExpression(SqlFlavor.MySQL))));;
+                    foreach (TColumn column in columns)
+                    {
+                        column.dataType = new DataType(DataType.MapDataType(SqlFlavor.MSSQL, SqlFlavor.MySQL, column.dataType.BaseType), column.dataType.CharacterMaximumLength, column.dataType.NumericPrecision, column.dataType.NumericScale);
+                        if (column.dataType.UsesMaxLength() && column.dataType.CharacterMaximumLength == -1)
+                        {
+                            column.dataType = new DataType("longtext");
+                        }
+                    }
+                    var ctid = table.Split('_').Last();
+                    TableConf fakeTableConf = new TableConf();
+                    fakeTableConf.Name = originalTableName;
+                    string pks = String.Join(",",GetPrimaryKeysFromInfoTable(fakeTableConf, Convert.ToInt64(ctid), dbName));
+                    return string.Format("CREATE TABLE {0}.{1}({2}, PRIMARY KEY ({3}));", dbName, table, string.Join(",", columns.Select(c => c.ToExpression(SqlFlavor.MySQL))), pks);
                 default:
                     throw new NotImplementedException("No scripting rules defined for " + flavor.ToString());
             }

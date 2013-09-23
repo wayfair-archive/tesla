@@ -104,13 +104,14 @@ namespace TeslaSQL.DataUtils {
             query.AppendLine("(");
             query.AppendLine("CTID bigint NOT NULL PRIMARY KEY,");
             query.Append(CTTimestampColumnName);
-            query.AppendLine(" timestamp NOT NULL);");
+            query.AppendLine(" timestamp NOT NULL,");
+            query.AppendLine("status tinyint NOT NULL);");
             MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
             query.Clear();
             query.Append("INSERT INTO ");
             query.AppendLine(CTIDtoTimestampTable);
             query.Append("VALUES(1, ");
-            query.AppendLine("NOW());");
+            query.AppendLine("NOW(), 0);");
             MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
         }
 
@@ -127,21 +128,55 @@ namespace TeslaSQL.DataUtils {
             query.Append(CTIDtoTimestampTable);
             query.AppendLine(";");
             MySqlCommand cmd = new MySqlCommand(query.ToString());
-            this.CTID = MySqlQueryToScalar<Int64>(dbName, cmd) + 1;
 
-            DateTime maxTimestamp = DateTime.Now.Subtract(new TimeSpan(0,0,1));
-           
-            //write that timestamp into our version<->timestamp table as the latest "version" number, then select that
+            //check to see if the last version made it 'til the end or not
+            var latestRunCTID = MySqlQueryToScalar<Int64>(dbName, cmd);
             query.Clear();
-            query.Append("INSERT INTO ");
-            query.AppendLine(CTIDtoTimestampTable);
-            query.Append(" VALUES (");
-            query.Append(this.CTID);
-            query.Append(", '");
-            query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
-            query.AppendLine("');");
-            MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-            return this.CTID;
+            query.Append("SELECT status FROM ");
+            query.Append(CTIDtoTimestampTable);
+            query.Append(" WHERE CTID=");
+            query.Append(latestRunCTID);
+            query.AppendLine(";");
+
+            //if it finished, write a new row
+            if (Convert.ToInt32(MySqlQuery(dbName, new MySqlCommand(query.ToString())).Rows[0][0]) == 1)
+            {
+                this.CTID = latestRunCTID + 1;
+
+                DateTime maxTimestamp = DateTime.Now.Subtract(new TimeSpan(0, 0, 1));
+
+                //write that timestamp into our version<->timestamp table as the latest "version" number, then select that
+                query.Clear();
+                query.Append("INSERT INTO ");
+                query.AppendLine(CTIDtoTimestampTable);
+                query.Append(" VALUES (");
+                query.Append(this.CTID);
+                query.Append(", '");
+                query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
+                query.AppendLine("', 0);");
+                MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+                return this.CTID;
+            }
+            else //change the timestamp of the last row that was written so that we select in the right date ranges
+            {
+                this.CTID = latestRunCTID;
+                DateTime maxTimestamp = DateTime.Now.Subtract(new TimeSpan(0, 0, 1));
+
+                query.Clear();
+                query.Append("UPDATE ");
+                query.Append(CTIDtoTimestampTable);
+                query.Append(" SET ");
+                query.Append(CTTimestampColumnName);
+                query.Append("='");
+                query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
+                query.Append("' WHERE CTID=");
+                query.Append(this.CTID);
+                query.AppendLine(";");
+                MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+
+                return this.CTID;
+            }
+
         }
 
         public Int64 GetMinValidVersion(string dbName, string table, string schema)
@@ -808,7 +843,7 @@ namespace TeslaSQL.DataUtils {
             //add column if it doesn't exist
             if (!CheckColumnExists(dbName, t.SchemaName, t.Name, columnName))
             {
-                cmd = new MySqlCommand("ALTER TABLE " + t.FullName + " ADD " + columnName + " " + dataType);
+                cmd = new MySqlCommand("ALTER TABLE " + Config.SlaveDB + "." + t.Name + " ADD " + columnName + " " + dataType);
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
                 MySqlNonQuery(dbName, cmd);
             }
@@ -854,8 +889,42 @@ namespace TeslaSQL.DataUtils {
 
         public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName, bool isConsolidated)
         {
-            //We're not writing to MySQL slaves at this time
-            throw new NotImplementedException();
+            var rowcounts = new DataTable();
+            List<MySqlCommand> commands = new List<MySqlCommand>();
+            commands.Add(BuildCopyCommand(table, dbName, CTDBName, CTID));
+            if (archiveTable != null)
+            {
+                commands.Add(BuildCopyCommand(archiveTable, dbName, CTDBName, CTID));
+            }
+
+            foreach (MySqlCommand command in commands)
+            {
+                rowcounts = MySqlQuery(dbName, command, null, "allow user variables=true;");
+                logger.Log(Convert.ToInt32(rowcounts.Rows[0]["a"]) + " rows deleted, " + Convert.ToInt32(rowcounts.Rows[0]["a"]) + " rows inserted into table " + table.Name, LogLevel.Info);
+            }
+
+            return new RowCounts(Convert.ToInt32(rowcounts.Rows[0]["a"]), Convert.ToInt32(rowcounts.Rows[0]["b"]));
+        }
+
+        private MySqlCommand BuildCopyCommand(TableConf table, string dbName, string CTDBName, Int64 CTID)
+        {
+            var sql = string.Format(@"BEGIN;
+                                      DELETE P FROM {0} AS P
+                                      WHERE EXISTS (
+                                        SELECT 1 FROM {1}.{2} AS CT WHERE {3} AND CT.sys_change_operation = 'D');
+                                      SELECT row_count() into @a;
+                                      REPLACE {0}
+                                      SELECT {4} FROM {1}.{2} AS CT WHERE CT.sys_change_operation IN ('I', 'U');
+                                      SELECT row_count() into @b;
+                                      COMMIT;
+                                      SELECT @a as a, @b as b;",
+                                    table.Name,
+                                    CTDBName,
+                                    table.ToCTName(CTID),
+                                    table.PkList,
+                                    table.SimpleColumnList);
+
+            return new MySqlCommand(sql.ToString());
         }
 
         public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName)
@@ -1029,6 +1098,11 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
+        //there's logic here to also write some values for the CTID <-> Timestamp table. It doesn't
+        //belong here, really, but it's the only hook into Master.cs that we have in the proper place
+        //to ensure that it's run at the end, and I really don't want to mess with the program flow
+        //without doing a proper rewrite. I pray that I get time to do this sooner than later and this comment 
+        //won't live here long. --cpence 9/20/13
         public void CleanUpInitializeTable(string dbName, DateTime syncStartTime)
         {
             string sql = @"DELETE FROM tblCTInitialize
@@ -1037,6 +1111,9 @@ namespace TeslaSQL.DataUtils {
             var cmd = new MySqlCommand(sql);
             cmd.Parameters.Add("@syncStartTime", MySqlDbType.Timestamp).Value = syncStartTime.ToUniversalTime();
             MySqlNonQuery(dbName, cmd);
+            
+            sql = "UPDATE " + CTIDtoTimestampTable + " SET status=1;";
+            MySqlNonQuery(dbName.Substring(3), new MySqlCommand(sql));
         }
 
         public DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches)
@@ -1161,7 +1238,7 @@ namespace TeslaSQL.DataUtils {
             return reader;
         }
 
-        private DataTable MySqlQuery(string dbName, MySqlCommand cmd, int? timeout = null)
+        private DataTable MySqlQuery(string dbName, MySqlCommand cmd, int? timeout = null, string addToConnString = "")
         {
             int commandTimeout = timeout ?? Config.QueryTimeout;
             foreach (IDataParameter p in cmd.Parameters)
@@ -1170,7 +1247,7 @@ namespace TeslaSQL.DataUtils {
                     p.Value = DBNull.Value;
             }
             //build connection string based on server/db info passed in
-            string connStr = buildConnString(dbName);
+            string connStr = buildConnString(dbName, addToConnString);
 
             //using block to avoid resource leaks
             using (MySqlConnection conn = new MySqlConnection(connStr))
@@ -1207,7 +1284,7 @@ namespace TeslaSQL.DataUtils {
             return query;
         }
 
-        private string buildConnString(string database)
+        private string buildConnString(string database, string addToConnectionString = "")
         {
             string sqlhost = "";
             string sqluser = "";
@@ -1232,7 +1309,7 @@ namespace TeslaSQL.DataUtils {
                     break;
             }
 
-            return "server=" + sqlhost + "; database=" + database + ";user=" + sqluser + ";password=" + sqlpass + ";Convert Zero Datetime=True";
+            return "server=" + sqlhost + "; database=" + database + ";user=" + sqluser + ";password=" + sqlpass + ";Convert Zero Datetime=True;" + addToConnectionString;
         }
 
         private T MySqlQueryToScalar<T>(string dbName, MySqlCommand cmd, int? timeout = null)
@@ -1369,18 +1446,50 @@ namespace TeslaSQL.DataUtils {
         /// <param name="schema">Schema of the table to write to</param>
         /// <param name="table">Table name to write to</param>
         /// <param name="timeout">Timeout</param>
-        public void BulkCopy(IDataReader reader, string dbName, string schema, string table, int timeout, int batchSize = 500)
+        public void BulkCopy(string file, string dbName, string table, int timeout, List<TeslaSQL.DataCopy.MSSQLToMySQLDataCopy.Col> columns)
         {
-            using (MySqlConnection conn = new MySqlConnection(buildConnString(dbName)))
+            //TODO: Manually build the string
+            using (MySqlConnection conn = new MySqlConnection(buildConnString(dbName, "allow user variables=true;")))
             {
-                DataTable data = new DataTable();
-                data.Load(reader);
-                MySqlDataAdapter adapter = new MySqlDataAdapter(new MySqlCommand("SELECT * FROM " + schema + "." + table + ";"));
-                MySqlCommandBuilder cb = new MySqlCommandBuilder(adapter);
-                adapter.UpdateBatchSize = batchSize;
-                adapter.Update(data);
+                var query = new StringBuilder();
+                query.Append("LOAD DATA INFILE '");
+                query.Append("/wayfair/mnt/change_tracking" + file);
+                query.Append("' INTO TABLE ");
+                query.Append(dbName);
+                query.Append(".");
+                query.Append(table);
+                query.Append(" FIELDS TERMINATED BY '|'");
+                query.Append(" LINES TERMINATED BY '&_+-!/=/='");
+                query.Append(" (" + String.Join(",", columns.Select(x => "@" + x.ColExpression())) + ") SET ");
+                var setStatements = new List<String>();
+                foreach (DataCopy.MSSQLToMySQLDataCopy.Col col in columns)
+                {
+                    string colName = col.ColExpression();
+                    if (col.dataType.UsesPrecisionScale())
+                    {
+                        setStatements.Add(colName + " = CAST(IF(LENGTH(@" + colName + ")=0, NULL, IF(LENGTH(@" + colName + ")=10 AND @" + colName + "='          ', '',@" + colName + ")) AS DECIMAL)");
+                    }
+                    else if (col.dataType.IsStringType())
+                    {
+                        setStatements.Add(colName + " = IF(LENGTH(@" + colName + ")=0, NULL, IF(LENGTH(@" + colName + ")=10 AND @" + colName + "='          ', '',CONVERT(CONVERT(@" + colName + " USING LATIN1) USING UTF8)))");
+                    }
+                    else if (col.dataType.BaseType.ToUpper().Contains("INT") || col.dataType.BaseType.ToUpper().Contains("BIT"))
+                    {
+                        string signed = (bool)col.dataType.Signed ? "SIGNED" : "UNSIGNED";
+                        setStatements.Add(colName + " = CAST(IF(LENGTH(@" + colName + ")=0, NULL, IF(LENGTH(@" + colName + ")=10 AND @" + colName + "='          ', '',@" + colName + ")) AS "+ signed + ")");
+                    }
+                    else
+                    {
+                        setStatements.Add(colName + " = IF(LENGTH(@" + colName + ")=0, NULL, IF(LENGTH(@" + colName + ")=10 AND @" + colName + "='          ', '',@" + colName + "))");
+                    }
+                }
+                query.Append(string.Join(",", setStatements.Select(x => x)));
+                query.Append(";");
+                conn.Open();
+                MySqlCommand comm = new MySqlCommand(query.ToString(), conn);
+                logger.Log("Executing bulk copy query: " + query.ToString(), LogLevel.Info);
+                comm.ExecuteNonQuery();
             }
         }
-
     }
 }

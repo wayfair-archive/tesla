@@ -555,7 +555,7 @@ namespace TeslaSQL {
     public class TColumn : IEquatable<TColumn> {
         public readonly string name;
         public bool isPk;
-        public readonly DataType dataType;
+        public DataType dataType {get;set;}
         public readonly bool isNullable;
 
         public TColumn(string name, bool isPk, DataType dataType, bool isNullable) {

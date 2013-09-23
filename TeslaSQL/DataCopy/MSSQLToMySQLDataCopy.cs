@@ -56,7 +56,7 @@ namespace TeslaSQL.DataCopy {
             string directory = Config.BcpPath.TrimEnd('\\') + @"\" + sourceDB.ToLower();
             CreateDirectoryIfNotExists(directory);
             string password = new cTripleDes().Decrypt(Config.RelayPassword);
-            var bcpArgs = string.Format(@"""{0}"" queryout {1}\{2}.txt -c -S{3} -U {4} -P {5} -t""|"" -r\n",
+            var bcpArgs = string.Format(@"""{0}"" queryout {1}\{2}.txt -c -S{3} -U {4} -P {5} -t""|"" -r""&_+-!/=/=""",
                                             bcpSelect,
                                             directory,
                                             destTableName,
@@ -103,6 +103,9 @@ namespace TeslaSQL.DataCopy {
                 throw new Exception("BCP error: " + err);
             }
             logger.Log("BCP successful for " + sourceTableName, LogLevel.Trace);
+            string filename = sourceDB.ToLower() + "/" + destTableName + ".txt";
+            destDataUtils.BulkCopy(filename, destDB, destTableName, 60 * 10, cols);
+            
         }
 
 
@@ -118,7 +121,7 @@ namespace TeslaSQL.DataCopy {
             string createScript = sourceDataUtils.ScriptTable(sourceDB, sourceTableName, schema, originalTableName, SqlFlavor.MySQL);
             createScript = createScript.Replace(sourceTableName, destTableName);
             MySqlCommand cmd = new MySqlCommand(createScript);
-
+         
             //drop it if it exists at the destination
             destDataUtils.DropTableIfExists(destDB, destTableName, schema);
 
@@ -127,7 +130,7 @@ namespace TeslaSQL.DataCopy {
         }
 
 
-        struct Col
+        public struct Col
         {
             public string name;
             public string typeName;
@@ -181,7 +184,7 @@ namespace TeslaSQL.DataCopy {
                     {
                         modDataType = Regex.Replace(modDataType, @"\d+", mod.length.ToString());
                     }
-                    cols.Add(new Col(NetezzaDataUtils.MapReservedWord(col.name), modDataType, col.dataType));
+                    cols.Add(new Col(col.name, modDataType, col.dataType));
                     continue;
                 }
 
@@ -191,21 +194,12 @@ namespace TeslaSQL.DataCopy {
                     {
                         typeName += "(" + mod.length + ")";
                     }
-                    else if (Config.NetezzaStringLength > 0)
-                    {
-                        typeName += "(" + ((col.dataType.CharacterMaximumLength > Config.NetezzaStringLength
-                            || col.dataType.CharacterMaximumLength < 1) ? Config.NetezzaStringLength : col.dataType.CharacterMaximumLength) + ")";
-                    }
-                    else
-                    {
-                        typeName += "(" + (col.dataType.CharacterMaximumLength > 0 ? col.dataType.CharacterMaximumLength : 16000) + ")";
-                    }
                 }
                 else if (col.dataType.UsesPrecisionScale())
                 {
                     typeName += "(" + col.dataType.NumericPrecision + "," + col.dataType.NumericScale + ")";
                 }
-                cols.Add(new Col(NetezzaDataUtils.MapReservedWord(col.name), typeName, col.dataType));
+                cols.Add(new Col(col.name, typeName, col.dataType));
             }
             return cols;
         }

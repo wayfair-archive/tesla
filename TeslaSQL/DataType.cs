@@ -16,6 +16,7 @@ namespace TeslaSQL {
         public long? CharacterMaximumLength { get; private set; }
         public int? NumericPrecision { get; private set; }
         public int? NumericScale { get; private set; }
+        public bool? Signed { get; private set; }
 
         public static void LoadDataMappingsFromFile(string filePath) {
             string s;
@@ -58,11 +59,12 @@ namespace TeslaSQL {
         }
 
 
-        public DataType(string baseType, long? characterMaximumLength = null, int? numericPrecision = null, int? numericScale = null) {
+        public DataType(string baseType, long? characterMaximumLength = null, int? numericPrecision = null, int? numericScale = null, bool? signed = null) {
             this.BaseType = baseType;
             this.CharacterMaximumLength = characterMaximumLength;
             this.NumericPrecision = numericPrecision;
             this.NumericScale = numericScale;
+            this.Signed = signed;
         }
 
         /// <summary>
@@ -94,7 +96,7 @@ namespace TeslaSQL {
         /// <returns>String expression representing the data type</returns>
         public override string ToString() {
             var typesUsingMaxLen = new string[6] { "varchar", "nvarchar", "char", "nchar", "varbinary", "binary" };
-            var typesUsingScale = new string[2] { "numeric", "decimal" };
+            var typesUsingScale = new string[4] { "numeric", "decimal", "real", "float" };
 
             string suffix = "";
             if (typesUsingMaxLen.Contains(BaseType) && CharacterMaximumLength != null) {
@@ -129,7 +131,10 @@ namespace TeslaSQL {
         /// </summary>
         public bool UsesPrecisionScale() {
             return BaseType.ToLower().Contains("decimal")
-                || BaseType.ToLower().Contains("numeric");
+                || BaseType.ToLower().Contains("numeric")
+                || BaseType.ToLower().Contains("money")
+                || BaseType.ToLower().Contains("real")
+                || BaseType.ToLower().Contains("float");
         }
 
         /// <summary>
@@ -139,6 +144,19 @@ namespace TeslaSQL {
         /// <returns>A TeslaSQL.DataType object</returns>
         public static DataType ParseDataType(DataRow row) {
             string dataType = row.Field<string>("DATA_TYPE");
+            bool? signed;
+            if (dataType.ToUpper().Contains("INT"))
+            {
+                signed = !dataType.ToUpper().Contains("UNSIGNED");
+            }
+            else if (dataType.ToUpper().Contains("BIT"))
+            {
+                signed = false;
+            }
+            else
+            {
+                signed = null;
+            }
             Nullable<long> characterMaximumLength;
             if (row["CHARACTER_MAXIMUM_LENGTH"].GetType() == typeof(System.DBNull))
             {
@@ -156,7 +174,7 @@ namespace TeslaSQL {
             var numericPrecision = precision;
             Nullable<int> numericScale = row["NUMERIC_SCALE"].GetType() == typeof(UInt64) ? Convert.ToByte(row.Field<UInt64>("NUMERIC_SCALE")) : row.Field<int?>("NUMERIC_SCALE");
             return new DataType(
-                dataType, characterMaximumLength, numericPrecision, numericScale
+                dataType, characterMaximumLength, numericPrecision, numericScale, signed
                 );
         }
     }
