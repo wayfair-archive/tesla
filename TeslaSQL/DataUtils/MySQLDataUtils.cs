@@ -96,13 +96,14 @@ namespace TeslaSQL.DataUtils {
             query.AppendLine("(");
             query.AppendLine("CTID bigint NOT NULL PRIMARY KEY,");
             query.Append(CTTimestampColumnName);
-            query.AppendLine(" timestamp NOT NULL);");
+            query.AppendLine(" timestamp NOT NULL,");
+            query.AppendLine("status tinyint NOT NULL);");
             MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
             query.Clear();
             query.Append("INSERT INTO ");
             query.AppendLine(CTIDtoTimestampTable);
             query.Append("VALUES(1, ");
-            query.AppendLine("NOW());");
+            query.AppendLine("NOW(), 0);");
             MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
         }
 
@@ -119,21 +120,55 @@ namespace TeslaSQL.DataUtils {
             query.Append(CTIDtoTimestampTable);
             query.AppendLine(";");
             MySqlCommand cmd = new MySqlCommand(query.ToString());
-            this.CTID = MySqlQueryToScalar<Int64>(dbName, cmd) + 1;
 
-            DateTime maxTimestamp = DateTime.Now.Subtract(new TimeSpan(0,0,1));
-           
-            //write that timestamp into our version<->timestamp table as the latest "version" number, then select that
+            //check to see if the last version made it 'til the end or not
+            var latestRunCTID = MySqlQueryToScalar<Int64>(dbName, cmd);
             query.Clear();
-            query.Append("INSERT INTO ");
-            query.AppendLine(CTIDtoTimestampTable);
-            query.Append(" VALUES (");
-            query.Append(this.CTID);
-            query.Append(", '");
-            query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
-            query.AppendLine("');");
-            MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-            return this.CTID;
+            query.Append("SELECT status FROM ");
+            query.Append(CTIDtoTimestampTable);
+            query.Append(" WHERE CTID=");
+            query.Append(latestRunCTID);
+            query.AppendLine(";");
+
+            //if it finished, write a new row
+            if (Convert.ToInt32(MySqlQuery(dbName, new MySqlCommand(query.ToString())).Rows[0][0]) == 1)
+            {
+                this.CTID = latestRunCTID + 1;
+
+                DateTime maxTimestamp = DateTime.Now.Subtract(new TimeSpan(0, 0, 1));
+
+                //write that timestamp into our version<->timestamp table as the latest "version" number, then select that
+                query.Clear();
+                query.Append("INSERT INTO ");
+                query.AppendLine(CTIDtoTimestampTable);
+                query.Append(" VALUES (");
+                query.Append(this.CTID);
+                query.Append(", '");
+                query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
+                query.AppendLine("', 0);");
+                MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+                return this.CTID;
+            }
+            else //change the timestamp of the last row that was written so that we select in the right date ranges
+            {
+                this.CTID = latestRunCTID;
+                DateTime maxTimestamp = DateTime.Now.Subtract(new TimeSpan(0, 0, 1));
+
+                query.Clear();
+                query.Append("UPDATE ");
+                query.Append(CTIDtoTimestampTable);
+                query.Append(" SET ");
+                query.Append(CTTimestampColumnName);
+                query.Append("='");
+                query.Append(maxTimestamp.ToString("yyyy-MM-dd HH:mm:ss"));
+                query.Append("' WHERE CTID=");
+                query.Append(this.CTID);
+                query.AppendLine(";");
+                MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+
+                return this.CTID;
+            }
+
         }
 
         public Int64 GetMinValidVersion(string dbName, string table, string schema)
@@ -980,14 +1015,22 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
+        //there's logic here to also write some values for the CTID <-> Timestamp table. It doesn't
+        //belong here, really, but it's the only hook into Master.cs that we have in the proper place
+        //to ensure that it's run at the end, and I really don't want to mess with the program flow
+        //without doing a proper rewrite. I pray that I get time to do this sooner than later and this comment 
+        //won't live here long. --cpence 9/20/13
         public void CleanUpInitializeTable(string dbName, DateTime syncStartTime)
         {
             string sql = @"DELETE FROM tblCTInitialize
                            WHERE inProgress = 0
-                           AND iniFinishTime < @syncStartTime";
+                           AND iniFinishTime < @syncStartTime;";
             var cmd = new MySqlCommand(sql);
             cmd.Parameters.Add("@syncStartTime", MySqlDbType.Timestamp).Value = syncStartTime.ToUniversalTime();
             MySqlNonQuery(dbName, cmd);
+            
+            sql = @"UPDATE " + CTIDtoTimestampTable + " SET status=1;";
+            MySqlNonQuery(dbName.Substring(3), new MySqlCommand(sql));
         }
 
         public DataTable GetTablesWithChanges(string dbName, IList<ChangeTrackingBatch> batches)
