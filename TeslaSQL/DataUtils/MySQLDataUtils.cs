@@ -419,14 +419,19 @@ namespace TeslaSQL.DataUtils {
                 String currentSchemaTableNameShort = table.Name + "_schema_" + (this.CTID).ToString();
                 currentSchemaTableName = CTdbName + "." + table.Name + "_schema_" + this.CTID.ToString();
                 compareSchemaTableName = CTdbName + "." + table.Name + "_schema_" + (this.CTID - 1).ToString();
-                //make a snapshot of the current schema to work off of
-                query.Clear();
-                query.Append("CREATE TABLE ");
-                query.Append(currentSchemaTableName);
-                query.Append(" LIKE ");
-                query.Append(table.Name);
-                query.AppendLine(";");
-                MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+                //I'm not sure under what circumstances the table would already exist, but sometimes it does and
+                //so we're checking before we do it.
+                if (!CheckTableExists(CTdbName, currentSchemaTableNameShort))
+                {
+                    //make a snapshot of the current schema to work off of
+                    query.Clear();
+                    query.Append("CREATE TABLE ");
+                    query.Append(currentSchemaTableName);
+                    query.Append(" LIKE ");
+                    query.Append(table.Name);
+                    query.AppendLine(";");
+                    MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
+                }
                 //if this is the first time running, just return an empty event set
                 if (!CheckTableExists(CTdbName, compareSchemaTableNameShort))
                 {
