@@ -27,20 +27,12 @@ namespace TeslaSQL.DataUtils {
             if (agentType.Equals(AgentType.Slave))
             {
                 cmd = new MySqlCommand("SELECT CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime" +
-<<<<<<< HEAD
-                    " FROM tblCTSlaveVersion WITH(NOLOCK) WHERE slaveIdentifier = @slave ORDER BY cttimestamp DESC LIMIT 0,1");
-=======
                     " FROM tblCTSlaveVersion WHERE slaveIdentifier = @slave ORDER BY cttimestamp DESC LIMIT 0,1;");
->>>>>>> working
                 cmd.Parameters.Add("@slave", MySqlDbType.VarChar, 100).Value = slaveIdentifier;
             }
             else
             {
-<<<<<<< HEAD
-                cmd = new MySqlCommand("SELECT CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime FROM tblCTVersion ORDER BY CTID DESC LIMIT 0,1");
-=======
                 cmd = new MySqlCommand("SELECT CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime FROM tblCTVersion ORDER BY CTID DESC LIMIT 0,1;");
->>>>>>> working
             }
 
             DataTable result = MySqlQuery(dbName, cmd);
@@ -50,13 +42,8 @@ namespace TeslaSQL.DataUtils {
         public DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise)
         {
             string query = ("SELECT CTID, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise" +
-<<<<<<< HEAD
-                                " FROM tblCTVersion WITH(NOLOCK) WHERE CTID > @ctid AND syncBitWise & @syncbitwise > 0" +
-                                " ORDER BY CTID ASC");
-=======
                                 " FROM tblCTVersion WHERE CTID > @ctid AND syncBitWise & @syncbitwise > 0" +
                                 " ORDER BY CTID ASC;");
->>>>>>> working
             MySqlCommand cmd = new MySqlCommand(query);
             cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = syncBitWise;
@@ -67,10 +54,6 @@ namespace TeslaSQL.DataUtils {
 
         public DataTable GetPendingCTSlaveVersions(string dbName, string slaveIdentifier, int bitwise)
         {
-<<<<<<< HEAD
-            //not yet (slave)
-            throw new NotImplementedException();
-=======
             string query = @"SELECT * FROM tblCTSlaveVersion
                             WHERE slaveIdentifier = @slaveidentifier AND CTID >
                             (
@@ -81,7 +64,6 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 500).Value = slaveIdentifier;
             logger.Log("Running query: " + cmd.CommandText + "... slaveidentifiers is " + slaveIdentifier, LogLevel.Debug);
             return MySqlQuery(dbName, cmd);
->>>>>>> working
         }
 
         public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type, string slaveIdentifier = null)
@@ -318,10 +300,6 @@ namespace TeslaSQL.DataUtils {
 
         public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier)
         {
-<<<<<<< HEAD
-            //not yet (slave)
-            throw new NotImplementedException();
-=======
             string query = "INSERT INTO tblCTSlaveVersion (CTID, slaveIdentifier, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
             query += " VALUES (@ctid, @slaveidentifier, @startversion, @stopversion, @starttime, @syncbitwise);";
 
@@ -335,7 +313,6 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@syncbitwise", MySqlDbType.Int32).Value = ctb.SyncBitWise;
 
             MySqlNonQuery(dbName, cmd, 30);
->>>>>>> working
         }
 
         public void CreateSchemaChangeTable(string dbName, Int64 CTID)
@@ -461,21 +438,6 @@ namespace TeslaSQL.DataUtils {
                 String currentSchemaTableNameShort = table.Name + "_schema_" + (this.CTID).ToString();
                 currentSchemaTableName = CTdbName + "." + table.Name + "_schema_" + this.CTID.ToString();
                 compareSchemaTableName = CTdbName + "." + table.Name + "_schema_" + (this.CTID - 1).ToString();
-<<<<<<< HEAD
-                //I'm not sure under what circumstances the table would already exist, but sometimes it does and
-                //so we're checking before we do it.
-                if (!CheckTableExists(CTdbName, currentSchemaTableNameShort))
-                {
-                    //make a snapshot of the current schema to work off of
-                    query.Clear();
-                    query.Append("CREATE TABLE ");
-                    query.Append(currentSchemaTableName);
-                    query.Append(" LIKE ");
-                    query.Append(table.Name);
-                    query.AppendLine(";");
-                    MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
-                }
-=======
                 //make a snapshot of the current schema to work off of
                 query.Clear();
                 query.Append("CREATE TABLE ");
@@ -484,7 +446,6 @@ namespace TeslaSQL.DataUtils {
                 query.Append(table.Name);
                 query.AppendLine(";");
                 MySqlNonQuery(dbName, new MySqlCommand(query.ToString()));
->>>>>>> working
                 //if this is the first time running, just return an empty event set
                 if (!CheckTableExists(CTdbName, compareSchemaTableNameShort))
                 {
@@ -772,35 +733,20 @@ namespace TeslaSQL.DataUtils {
 
         public int ReadBitWise(string dbName, Int64 CTID, AgentType agentType)
         {
-<<<<<<< HEAD
-            //does this get called?
-            throw new NotImplementedException();
-=======
->>>>>>> working
             string query;
             MySqlCommand cmd;
             if (agentType.Equals(AgentType.Slave))
             {
-<<<<<<< HEAD
-                query = "SELECT syncBitWise from tblCTSlaveVersion WITH(NOLOCK)";
-                query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid";
-=======
                 query = "SELECT syncBitWise from tblCTSlaveVersion";
                 query += " WHERE slaveIdentifier = @slaveidentifier AND CTID = @ctid;";
->>>>>>> working
                 cmd = new MySqlCommand(query);
                 cmd.Parameters.Add("@slaveidentifier", MySqlDbType.VarChar, 100).Value = Config.Slave;
                 cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
             else
             {
-<<<<<<< HEAD
-                query = "SELECT syncBitWise from tblCTVersion WITH(NOLOCK)";
-                query += " WHERE CTID = @ctid";
-=======
                 query = "SELECT syncBitWise from tblCTVersion";
                 query += " WHERE CTID = @ctid;";
->>>>>>> working
                 cmd = new MySqlCommand(query);
                 cmd.Parameters.Add("@ctid", MySqlDbType.Timestamp).Value = new DateTime(CTID).ToUniversalTime();
             }
@@ -897,11 +843,7 @@ namespace TeslaSQL.DataUtils {
             //add column if it doesn't exist
             if (!CheckColumnExists(dbName, t.SchemaName, t.Name, columnName))
             {
-<<<<<<< HEAD
-                cmd = new MySqlCommand("ALTER TABLE " + t.FullName + " ADD " + columnName + " " + dataType);
-=======
                 cmd = new MySqlCommand("ALTER TABLE " + Config.SlaveDB + "." + t.Name + " ADD " + columnName + " " + dataType);
->>>>>>> working
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
                 MySqlNonQuery(dbName, cmd);
             }
@@ -947,10 +889,6 @@ namespace TeslaSQL.DataUtils {
 
         public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, Int64 CTID, string CTDBName, bool isConsolidated)
         {
-<<<<<<< HEAD
-            //We're not writing to MySQL slaves at this time
-            throw new NotImplementedException();
-=======
             var rowcounts = new DataTable();
             List<MySqlCommand> commands = new List<MySqlCommand>();
             commands.Add(BuildCopyCommand(table, dbName, CTDBName, CTID));
@@ -987,7 +925,6 @@ namespace TeslaSQL.DataUtils {
                                     table.SimpleColumnList);
 
             return new MySqlCommand(sql.ToString());
->>>>>>> working
         }
 
         public void Consolidate(string ctTableName, string consolidatedTableName, string dbName, string schemaName)
@@ -1003,10 +940,6 @@ namespace TeslaSQL.DataUtils {
 
         public void CopyIntoHistoryTable(ChangeTable t, string slaveCTDB, bool isConsolidated)
         {
-<<<<<<< HEAD
-            //not yet
-            throw new NotImplementedException();
-=======
             string sql;
             string sourceTable;
             List<TColumn> fields;
@@ -1041,7 +974,6 @@ namespace TeslaSQL.DataUtils {
             logger.Log(sql, LogLevel.Debug);
             var cmd = new MySqlCommand(sql);
             MySqlNonQuery(slaveCTDB, cmd);
->>>>>>> working
         }
 
         public ChangeTrackingBatch GetCTBatch(string dbName, Int64 ctid)
@@ -1077,21 +1009,13 @@ namespace TeslaSQL.DataUtils {
 
         public IEnumerable<string> GetPrimaryKeysFromInfoTable(TableConf table, long CTID, string database)
         {
-<<<<<<< HEAD
-            //not yet
-=======
             //not yet 
->>>>>>> working
             throw new NotImplementedException();
         }
 
         public int GetExpectedRowCounts(string ctDbName, long ctid)
         {
-<<<<<<< HEAD
-            //not yet
-=======
             //not yet (relay)
->>>>>>> working
             throw new NotImplementedException();
         }
 
@@ -1126,11 +1050,7 @@ namespace TeslaSQL.DataUtils {
 
         public IEnumerable<long> GetOldCTIDsRelay(string dbName, DateTime chopDate)
         {
-<<<<<<< HEAD
-            //not yet
-=======
             //not yet (relay)
->>>>>>> working
             throw new NotImplementedException();
         }
 
@@ -1164,11 +1084,7 @@ namespace TeslaSQL.DataUtils {
 
         public Int64? GetInitializeStartVersion(string sourceCTDB, TableConf table)
         {
-<<<<<<< HEAD
-            string sql = @"SELECT nextSynchVersion FROM tblCTInitialize WHERE tableName = @tableName";
-=======
             string sql = @"SELECT nextSynchVersion FROM tblCTInitialize WHERE tableName = @tableName;";
->>>>>>> working
             var cmd = new MySqlCommand(sql);
             cmd.Parameters.Add("@tableName", MySqlDbType.VarChar, 500).Value = table.Name;
             DataTable res = MySqlQuery(sourceCTDB, cmd);
@@ -1196,11 +1112,7 @@ namespace TeslaSQL.DataUtils {
             cmd.Parameters.Add("@syncStartTime", MySqlDbType.Timestamp).Value = syncStartTime.ToUniversalTime();
             MySqlNonQuery(dbName, cmd);
             
-<<<<<<< HEAD
-            sql = @"UPDATE " + CTIDtoTimestampTable + " SET status=1;";
-=======
             sql = "UPDATE " + CTIDtoTimestampTable + " SET status=1;";
->>>>>>> working
             MySqlNonQuery(dbName.Substring(3), new MySqlCommand(sql));
         }
 
@@ -1326,11 +1238,7 @@ namespace TeslaSQL.DataUtils {
             return reader;
         }
 
-<<<<<<< HEAD
-        private DataTable MySqlQuery(string dbName, MySqlCommand cmd, int? timeout = null)
-=======
         private DataTable MySqlQuery(string dbName, MySqlCommand cmd, int? timeout = null, string addToConnString = "")
->>>>>>> working
         {
             int commandTimeout = timeout ?? Config.QueryTimeout;
             foreach (IDataParameter p in cmd.Parameters)
@@ -1339,11 +1247,7 @@ namespace TeslaSQL.DataUtils {
                     p.Value = DBNull.Value;
             }
             //build connection string based on server/db info passed in
-<<<<<<< HEAD
-            string connStr = buildConnString(dbName);
-=======
             string connStr = buildConnString(dbName, addToConnString);
->>>>>>> working
 
             //using block to avoid resource leaks
             using (MySqlConnection conn = new MySqlConnection(connStr))
@@ -1380,11 +1284,7 @@ namespace TeslaSQL.DataUtils {
             return query;
         }
 
-<<<<<<< HEAD
-        private string buildConnString(string database)
-=======
         private string buildConnString(string database, string addToConnectionString = "")
->>>>>>> working
         {
             string sqlhost = "";
             string sqluser = "";
@@ -1409,11 +1309,7 @@ namespace TeslaSQL.DataUtils {
                     break;
             }
 
-<<<<<<< HEAD
-            return "server=" + sqlhost + "; database=" + database + ";user=" + sqluser + ";password=" + sqlpass + ";Convert Zero Datetime=True";
-=======
             return "server=" + sqlhost + "; database=" + database + ";user=" + sqluser + ";password=" + sqlpass + ";Convert Zero Datetime=True;" + addToConnectionString;
->>>>>>> working
         }
 
         private T MySqlQueryToScalar<T>(string dbName, MySqlCommand cmd, int? timeout = null)
@@ -1542,8 +1438,6 @@ namespace TeslaSQL.DataUtils {
 
         }
 
-<<<<<<< HEAD
-=======
         /// <summary>
         /// Writes data from the given stream reader to a destination database
         /// </summary>
@@ -1597,6 +1491,5 @@ namespace TeslaSQL.DataUtils {
                 comm.ExecuteNonQuery();
             }
         }
->>>>>>> working
     }
 }
