@@ -99,6 +99,7 @@
     <Compile Include="ChangeTrackingBatch.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="DataCopy\MSSQLToVerticaDataCopy.cs" />
+    <Compile Include="DataCopy\MSSQLToMySQLDataCopy.cs" />
     <Compile Include="DataCopy\MySQLToMSSQLDataCopy.cs" />
     <Compile Include="DataCopy\TestDataCopy.cs" />
     <Compile Include="DataCopy\DataCopyFactory.cs" />
