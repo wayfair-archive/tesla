@@ -97,6 +97,11 @@ namespace TeslaSQL.DataCopy
                     case "nvarchar":
                     case "char":
                     case "nchar":
+<<<<<<< HEAD
+=======
+                    case "text":
+                    case "ntext":
+>>>>>>> working
                         script.Append('(');
                         script.Append((column.dataType.CharacterMaximumLength != null && column.dataType.CharacterMaximumLength < 8000) ? column.dataType.CharacterMaximumLength.ToString() : "MAX");
                         script.Append(')');

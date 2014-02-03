@@ -139,9 +139,12 @@ namespace TeslaSQL.Agents {
             IList<ChangeTrackingBatch> batches = new List<ChangeTrackingBatch>();
 
             DataRow lastBatch = sourceDataUtils.GetLastCTBatch(Config.RelayDB, AgentType.Slave, Config.Slave);
+            //apparently we shouldn't hit the code block below except for unit tests?
+            //in the db init we're supposed to write the first row, so it (in theory) shouldn't return null
             if (lastBatch == null) {
                 ctb = new ChangeTrackingBatch(1, 0, 0, 0);
                 batches.Add(ctb);
+                logger.Log("Couldn't find any records for the last change tracking batch! Returning the default new CTB.", LogLevel.Warn);
                 return batches;
             }
 
@@ -179,7 +182,7 @@ namespace TeslaSQL.Agents {
         /// <summary>
         /// Runs a single change tracking batch
         /// </summary>
-        /// <param name="CTID">Change tracking batch object to work on</param>
+        /// <param name="ctb">Change tracking batch object to work on</param>
         private void RunSingleBatch(ChangeTrackingBatch ctb) {
             Stopwatch sw;
             logger.Log("Applying schema changes ", LogLevel.Info);
