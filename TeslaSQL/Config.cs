@@ -68,6 +68,17 @@ namespace TeslaSQL {
             PlinkPath = c.plinkPath;
             IgnoreCase = c.ignoreCase;
             EmailMessage = c.emailMessage;
+            // Vertica
+            VerticaUser                  = c.verticaUser;
+            VerticaDatabase              = c.verticaDatabase;
+            VerticaPort                  = c.verticaPort;
+            VerticaIsolationLevel        = c.verticaIsolationLevel;
+            VerticaLabel                 = c.verticaLabel;
+            VerticaConnectionTimeout     = c.verticaConnectionTimeout;
+            VerticaConnectionLoadBalance = c.verticaConnectionLoadBalance;
+            VerticaBackupServerNode      = c.verticaBackupServerNode;
+            VerticaKsafe                 = c.verticaKsafe;
+            VerticaCopyPath              = c.verticaCopyPath;
 
             if (c.magicHours != null) {
                 MagicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
@@ -115,7 +126,7 @@ namespace TeslaSQL {
 
 
         /// <summary>
-        /// Validates a sql flavor (MSSQL, Netezza, etc.) and returns a SqlFlavor enum
+        /// Validates a sql flavor (MSSQL, Netezza, Vertica, etc.) and returns a SqlFlavor enum
         /// </summary>
         /// <param name="sqltype">String representing the sql flavor</param>
         /// <returns>SqlFlavor enum</returns>
@@ -441,6 +452,18 @@ namespace TeslaSQL {
         //when applying changes on the slave side in UPPER() functions to effectively ignore case.
         public static bool IgnoreCase { get; set; }
 
+        // Vertica
+        public static string VerticaUser                  { get; set; }
+        public static string VerticaDatabase              { get; set; }
+        public static int    VerticaPort                  { get; set; }
+        public static string VerticaIsolationLevel        { get; set; }
+        public static string VerticaLabel                 { get; set; }
+        public static int    VerticaConnectionTimeout     { get; set; }
+        public static bool   VerticaConnectionLoadBalance { get; set; }
+        public static string VerticaBackupServerNode      { get; set; }
+        public static int    VerticaKsafe                 { get; set; }
+        public static string VerticaCopyPath              { get; set; }
+
         #endregion
 
         /// <summary>
@@ -526,6 +549,18 @@ namespace TeslaSQL {
         public string plinkPath { get; set; }
         public bool ignoreCase { get; set; }
         public string emailMessage { get; set; }
+        // Vertica
+        public string verticaUser                  { get; set; }
+        public string verticaDatabase              { get; set; }
+        public int    verticaPort                  { get; set; }
+        public string verticaIsolationLevel        { get; set; }
+        public string verticaLabel                 { get; set; }
+        public int    verticaConnectionTimeout     { get; set; }
+        public bool   verticaConnectionLoadBalance { get; set; }
+        public string verticaBackupServerNode      { get; set; }
+        public int    verticaKsafe                 { get; set; }
+        public string verticaCopyPath              { get; set; }
+
 
         [XmlArrayItem("magicHour")]
         public string[] magicHours { get; set; }

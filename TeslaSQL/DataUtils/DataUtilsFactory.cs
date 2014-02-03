@@ -16,6 +16,8 @@ namespace TeslaSQL.DataUtils {
                     return new NetezzaDataUtils(logger, server);
                 case SqlFlavor.MySQL:
                     return new MySQLDataUtils(logger, server);
+                case SqlFlavor.Vertica:
+                    return new VerticaDataUtils(logger, server);
             }
             //if we get here without returning it means something was passed in that isn't supported
             throw new NotImplementedException("Specified SQL types not supported for data copying!");

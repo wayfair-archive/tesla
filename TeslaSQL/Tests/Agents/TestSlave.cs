@@ -90,6 +90,11 @@ namespace TeslaSQL.Tests.Agents {
                 slave.ApplySchemaChanges("CT_testdb", "testdb", 1);
 
                 var expected = new DataColumn("column2", typeof(Int32));
+                // DataTableCollection.IndexOf Method (String, String)
+                // public int IndexOf(
+                //    string tableName,
+                //    string tableNamespace
+                // )
                 var actual = destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns["column2"];
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
             }

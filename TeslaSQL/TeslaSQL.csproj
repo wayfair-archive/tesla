@@ -74,6 +74,10 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="Vertica.Data, Version=7.0.0.0, Culture=neutral, PublicKeyToken=725728a8837b3bd5, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\Program Files\Vertica Systems\ADO.NET\Vertica.Data.dll</HintPath>
+    </Reference>
     <Reference Include="xunit">
       <HintPath>..\References\xunit.dll</HintPath>
     </Reference>
@@ -94,6 +98,7 @@
     <Compile Include="ChangeTable.cs" />
     <Compile Include="ChangeTrackingBatch.cs" />
     <Compile Include="Config.cs" />
+    <Compile Include="DataCopy\MSSQLToVerticaDataCopy.cs" />
     <Compile Include="DataCopy\MySQLToMSSQLDataCopy.cs" />
     <Compile Include="DataCopy\TestDataCopy.cs" />
     <Compile Include="DataCopy\DataCopyFactory.cs" />
@@ -106,6 +111,7 @@
     <Compile Include="cTripleDes.cs" />
     <Compile Include="DataType.cs" />
     <Compile Include="DataUtils\MSSQLDataUtils.cs" />
+    <Compile Include="DataUtils\VerticaDataUtils.cs" />
     <Compile Include="DDLEvent.cs" />
     <Compile Include="Enums.cs" />
     <Compile Include="Exceptions.cs" />

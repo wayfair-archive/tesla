@@ -42,11 +42,25 @@ namespace TeslaSQL.DataUtils {
                 conn.Open();
                 cmd.Connection = conn;
                 cmd.CommandTimeout = commandTimeout;
+                // TODO: remove this log line
+                logger.Log("Connecting database: " + conn.Database +
+                        ", datasource: " + conn.DataSource, LogLevel.Debug);
                 LogCommand(cmd);
                 DataSet ds = new DataSet();
                 SqlDataAdapter da = new SqlDataAdapter(cmd);
                 //this is where the query is run
-                da.Fill(ds);
+
+                // TODO: remove this try catch
+                try
+                {
+                    da.Fill(ds);
+                }
+                catch (Exception e)
+                {
+
+                    throw new Exception(e.Message + " - connection: database: " + conn.Database +
+                        ", datasource: " + conn.DataSource);
+                }
 
                 //return the result, which is the first DataTable in the DataSet
                 return ds.Tables[0];
@@ -152,7 +166,9 @@ namespace TeslaSQL.DataUtils {
                     break;
             }
 
+
             return "Data Source=" + sqlhost + "; Initial Catalog=" + database + ";User ID=" + sqluser + ";Password=" + sqlpass + ";Connection Timeout=60;";
+
         }
 
 
@@ -160,11 +176,19 @@ namespace TeslaSQL.DataUtils {
             SqlCommand cmd;
             //for slave we have to pass the slave identifier in and use tblCTSlaveVersion
             if (agentType.Equals(AgentType.Slave)) {
+
                 cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime" +
                     " FROM dbo.tblCTSlaveVersion WITH(NOLOCK) WHERE slaveIdentifier = @slave ORDER BY CTID DESC");
+
                 cmd.Parameters.Add("@slave", SqlDbType.VarChar, 100).Value = slaveIdentifier;
             } else {
-                cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime FROM dbo.tblCTVersion ORDER BY CTID DESC");
+                // Q: we are not using WITH (NOLOCK) here. what is the reason bebind that?
+                // so when it is a master agent in operation, trying to get the last CT batch,
+                // it will not read in uncommitted CT records from other master agents? - nmeng
+
+                cmd = new SqlCommand("SELECT TOP 1 CTID, syncStartVersion, syncStopVersion, syncBitWise, syncStartTime" +
+                    " FROM dbo.tblCTVersion ORDER BY CTID DESC");
+
             }
 
             DataTable result = SqlQuery(dbName, cmd);
@@ -173,9 +197,11 @@ namespace TeslaSQL.DataUtils {
 
 
         public DataTable GetPendingCTVersions(string dbName, Int64 CTID, int syncBitWise) {
+
             string query = ("SELECT CTID, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise" +
                 " FROM dbo.tblCTVersion WITH(NOLOCK) WHERE CTID > @ctid AND syncBitWise & @syncbitwise > 0" +
                 " ORDER BY CTID ASC");
+
             SqlCommand cmd = new SqlCommand(query);
             cmd.Parameters.Add("@ctid", SqlDbType.BigInt).Value = CTID;
             cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
@@ -188,16 +214,20 @@ namespace TeslaSQL.DataUtils {
         public DateTime GetLastStartTime(string dbName, Int64 CTID, int syncBitWise, AgentType type, string slaveIdentifier = null) {
             SqlCommand cmd;
             if (slaveIdentifier != null) {
+
                 cmd = new SqlCommand(
                 "select MAX(syncStartTime) as maxStart FROM dbo.tblCTSlaveVersion WITH(NOLOCK)"
                 + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID and slaveIdentifier = @slaveidentifier");
+
                 cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
                 cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
                 cmd.Parameters.Add("@slaveidentifier", SqlDbType.VarChar, 500).Value = slaveIdentifier;
             } else {
+
                 cmd = new SqlCommand(
                 "select MAX(syncStartTime) as maxStart FROM dbo.tblCTVersion WITH(NOLOCK)"
                 + " WHERE syncBitWise & @syncbitwise > 0 AND CTID < @CTID");
+
                 cmd.Parameters.Add("@syncbitwise", SqlDbType.Int).Value = syncBitWise;
                 cmd.Parameters.Add("@CTID", SqlDbType.BigInt).Value = CTID;
             }
@@ -215,13 +245,17 @@ namespace TeslaSQL.DataUtils {
 
 
         public Int64 GetCurrentCTVersion(string dbName) {
+
             SqlCommand cmd = new SqlCommand("SELECT CHANGE_TRACKING_CURRENT_VERSION();");
+
             return SqlQueryToScalar<Int64>(dbName, cmd);
         }
 
 
         public Int64 GetMinValidVersion(string dbName, string table, string schema) {
+
             SqlCommand cmd = new SqlCommand("SELECT ISNULL(CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID(@tablename)), 0)");
+
             cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = schema + "." + table;
             return SqlQueryToScalar<Int64>(dbName, cmd);
         }
@@ -234,6 +268,7 @@ namespace TeslaSQL.DataUtils {
              * actual database objects at this point. The database names are also validated to be legal database identifiers.
              * Only the start and stop versions are actually parametrizable.
              */
+
             string query = "SELECT " + table.ModifiedMasterColumnList + ", CT.SYS_CHANGE_VERSION, CT.SYS_CHANGE_OPERATION ";
             query += " INTO " + table.SchemaName + "." + table.ToCTName(ctb.CTID);
             query += " FROM CHANGETABLE(CHANGES " + sourceDB + "." + table.SchemaName + "." + table.Name + ", @startversion) CT";
@@ -249,6 +284,7 @@ namespace TeslaSQL.DataUtils {
              */
             query += " UNION ALL SELECT " + table.SimpleColumnList + ", NULL, NULL FROM " + sourceDB + "." + table.SchemaName + "." + table.Name + " WHERE 1 = 0";
 
+
             SqlCommand cmd = new SqlCommand(query);
 
             cmd.Parameters.Add("@startversion", SqlDbType.BigInt).Value = (overrideStartVersion.HasValue ? overrideStartVersion.Value : ctb.SyncStartVersion);
@@ -260,9 +296,11 @@ namespace TeslaSQL.DataUtils {
 
         public ChangeTrackingBatch CreateCTVersion(string dbName, Int64 syncStartVersion, Int64 syncStopVersion) {
             //create new row in tblCTVersion, output the CTID
+
             string query = "INSERT INTO dbo.tblCTVersion (syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
             query += " OUTPUT inserted.CTID, inserted.syncStartTime";
             query += " VALUES (@startVersion, @stopVersion, GETDATE(), 0)";
+
 
             SqlCommand cmd = new SqlCommand(query);
 
@@ -279,8 +317,10 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void CreateShardCTVersion(string dbName, Int64 CTID, long startVersion) {
+
             string query = "INSERT INTO dbo.tblCTVersion (ctid, syncStartVersion, syncStartTime, syncBitWise)";
             query += " VALUES (@ctid,@syncStartVersion, GETDATE(), 0)";
+
 
             SqlCommand cmd = new SqlCommand(query);
 
@@ -293,8 +333,10 @@ namespace TeslaSQL.DataUtils {
 
         public void CreateSlaveCTVersion(string dbName, ChangeTrackingBatch ctb, string slaveIdentifier) {
 
+
             string query = "INSERT INTO dbo.tblCTSlaveVersion (CTID, slaveIdentifier, syncStartVersion, syncStopVersion, syncStartTime, syncBitWise)";
             query += " VALUES (@ctid, @slaveidentifier, @startversion, @stopversion, @starttime, @syncbitwise)";
+
 
             SqlCommand cmd = new SqlCommand(query);
 
@@ -314,6 +356,7 @@ namespace TeslaSQL.DataUtils {
             DropTableIfExists(dbName, "tblCTSchemaChange_" + Convert.ToString(CTID), "dbo");
 
             //can't parametrize the CTID since it's part of a table name, but it is an Int64 so it's not an injection risk
+
             string query = "CREATE TABLE [dbo].[tblCTSchemaChange_" + CTID + "] (";
             query += @"
             [CscID] [int] NOT NULL IDENTITY(1,1) PRIMARY KEY,
@@ -328,6 +371,7 @@ namespace TeslaSQL.DataUtils {
             [CscNumericPrecision] [int] NULL,
             [CscNumericScale] [int] NULL
             )";
+
 
             SqlCommand cmd = new SqlCommand(query);
 
@@ -350,11 +394,13 @@ namespace TeslaSQL.DataUtils {
 
 
         public void WriteSchemaChange(string dbName, Int64 CTID, SchemaChange schemaChange) {
+
             string query = "INSERT INTO dbo.tblCTSchemaChange_" + Convert.ToString(CTID) +
                 " (CscDdeID, CscTableName, CscEventType, CscSchema, CscColumnName, CscNewColumnName, " +
                 " CscBaseDataType, CscCharacterMaximumLength, CscNumericPrecision, CscNumericScale) " +
                 " VALUES (@ddeid, @tablename, @eventtype, @schema, @columnname, @newcolumnname, " +
                 " @basedatatype, @charactermaximumlength, @numericprecision, @numericscale)";
+
 
             var cmd = new SqlCommand(query);
             cmd.Parameters.Add("@ddeid", SqlDbType.Int).Value = schemaChange.DdeID;
@@ -386,9 +432,11 @@ namespace TeslaSQL.DataUtils {
 
 
         public DataRow GetDataType(string dbName, string table, string schema, string column) {
+
             var cmd = new SqlCommand("SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE " +
                 "FROM INFORMATION_SCHEMA.COLUMNS WITH(NOLOCK) WHERE TABLE_SCHEMA = @schema AND TABLE_CATALOG = @db " +
                 "AND TABLE_NAME = @table AND COLUMN_NAME = @column");
+
             cmd.Parameters.Add("@db", SqlDbType.VarChar, 500).Value = dbName;
             cmd.Parameters.Add("@table", SqlDbType.VarChar, 500).Value = table;
             cmd.Parameters.Add("@schema", SqlDbType.VarChar, 500).Value = schema;
@@ -405,7 +453,9 @@ namespace TeslaSQL.DataUtils {
 
 
         public void UpdateSyncStopVersion(string dbName, Int64 syncStopVersion, Int64 CTID) {
+
             string query = "UPDATE dbo.tblCTVersion set syncStopVersion = @stopversion WHERE CTID = @ctid";
+
             SqlCommand cmd = new SqlCommand(query);
 
             cmd.Parameters.Add("@stopversion", SqlDbType.BigInt).Value = syncStopVersion;
@@ -415,7 +465,9 @@ namespace TeslaSQL.DataUtils {
         }
 
         public IEnumerable<TTable> GetTables(string dbName) {
+
             string sql = "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+
             var cmd = new SqlCommand(sql);
             var res = SqlQuery(dbName, cmd);
             var tables = new List<TTable>();
@@ -426,9 +478,11 @@ namespace TeslaSQL.DataUtils {
         }
 
         public bool CheckTableExists(string dbName, string table, string schema = "dbo") {
+
             var cmd = new SqlCommand(
                 @"SELECT 1 as TableExists FROM INFORMATION_SCHEMA.TABLES
                     WHERE TABLE_NAME = @tablename AND TABLE_SCHEMA = @schema AND TABLE_TYPE = 'BASE TABLE'");
+
             cmd.Parameters.Add("@tablename", SqlDbType.VarChar, 500).Value = table;
             cmd.Parameters.Add("@schema", SqlDbType.VarChar, 500).Value = schema;
             var result = SqlQuery(dbName, cmd);

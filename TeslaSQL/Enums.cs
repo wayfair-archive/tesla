@@ -71,7 +71,8 @@ namespace TeslaSQL {
         None,
         MSSQL,
         Netezza,
-        MySQL
+        MySQL,
+        Vertica
     }
 
     /// <summary>

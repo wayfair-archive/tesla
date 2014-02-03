@@ -18,6 +18,8 @@ namespace TeslaSQL.DataCopy {
                         return new MSSQLToMSSQLDataCopy((MSSQLDataUtils)sourceDataUtils, (MSSQLDataUtils)destDataUtils, logger);
                     } else if (destSqlFlavor == SqlFlavor.Netezza) {
                         return new MSSQLToNetezzaDataCopy((MSSQLDataUtils)sourceDataUtils, (NetezzaDataUtils)destDataUtils, logger, Config.Slave, Config.NetezzaUser, Config.NetezzaPrivateKeyPath);
+                    } else if (destSqlFlavor == SqlFlavor.Vertica) {
+                        return new MSSQLToVerticaDataCopy((MSSQLDataUtils)sourceDataUtils, (VerticaDataUtils)destDataUtils, logger, Config.Slave, Config.VerticaUser);
                     }
                     break;
                 case SqlFlavor.MySQL:

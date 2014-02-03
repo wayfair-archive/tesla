@@ -143,6 +143,23 @@ namespace TeslaSQL {
             return FullName;
         }
 
+        /// <summary>
+        /// This is added for Vertica, since Vertica does not like the first alias P in the following command:
+        ///     DELETE FROM a.b P WHERE EXISTS (SELECT 1 FROM c.d CT WHERE P.id = CT.id)
+        /// So, we get the PK list without the alias, but with the full [schemaName] [tableName] string,
+        /// which in the case Vertica, is [schemaName].[tableName] (one dot)
+        /// </summary>
+        /// <param name="schemaTable">The composite string of [schemaName] and [tableName]</param>
+        /// <returns></returns>
+        public string getNoAliasPkList(string schemaTableName)
+        {
+            return string.Join(
+                    " AND ",
+                    columns.Where(c => c.isPk)
+                    .Select(c => c.dataType.IsStringType() && Config.IgnoreCase ? String.Format("UPPER(P.{0}) = UPPER(CT.{0})", c.name)
+                        : String.Format("{0}.{1} = CT.{1}", schemaTableName, c.name))); 
+        }
+
         [XmlIgnore]
         public string HistoryName {
             get {
