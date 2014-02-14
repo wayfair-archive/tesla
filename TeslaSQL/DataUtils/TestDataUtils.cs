@@ -399,18 +399,18 @@ namespace TeslaSQL.DataUtils {
             dt.Columns[columnName].ColumnName = newColumnName;
         }
 
-        public void ModifyColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
+        public void ModifyColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB) {
             //can't change the datatype of a column in a datatable but since this is just for unit testing, we can just drop and recreate it
             //instead since there is no data to worry about losing       
             DropColumn(t, dbName, columnName, historyDB);
             AddColumn(t, dbName, columnName, dataType, historyDB);
         }
 
-        public void AddColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
+        public void AddColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB) {
             DataTable dt = testData.Tables[t.FullName, GetTableSpace(dbName)];
             Type type;
             //since this is just for unit testing we only need to support a subset of data types     
-            switch (dataType) {
+            switch (dataType.ToString()) {
                 case "int":
                     type = typeof(Int32);
                     break;

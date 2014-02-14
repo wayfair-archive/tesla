@@ -90,11 +90,6 @@ namespace TeslaSQL.Tests.Agents {
                 slave.ApplySchemaChanges("CT_testdb", "testdb", 1);
 
                 var expected = new DataColumn("column2", typeof(Int32));
-                // DataTableCollection.IndexOf Method (String, String)
-                // public int IndexOf(
-                //    string tableName,
-                //    string tableNamespace
-                // )
                 var actual = destDataUtils.testData.Tables["dbo.test2", "SLAVE.testdb"].Columns["column2"];
                 Assert.True(expected.ColumnName == actual.ColumnName && expected.DataType == actual.DataType);
             }
@@ -247,10 +242,12 @@ namespace TeslaSQL.Tests.Agents {
                 tables = new TableConf[2];
                 //first table has no column list
                 tables[0] = new TableConf();
+                tables[0].SchemaName = "dbo";
                 tables[0].Name = "test1";
 
                 //second one has column list
                 tables[1] = new TableConf();
+                tables[1].SchemaName = "dbo";
                 tables[1].Name = "test2";
                 tables[1].ColumnList = new string[] { "column1", "column2" };
 

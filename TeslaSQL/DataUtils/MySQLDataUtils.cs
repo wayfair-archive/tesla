@@ -818,39 +818,51 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
 
-        public void ModifyColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB)
+        public void ModifyColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB)
         {
+            // NOTE: We changed the signature of this method to use "DataType dataType" instead of "string dataType".
+            // Currently nothing is done in this method, in terms of mapping source column data type to MySQL column data type.
+            // The generic DataType.MapDataType() method is likely to have problem mapping source column data types to
+            // destination (in this case, MySQL) column data types.  We should implement a MapColumnTypeName() method
+            // within this DataUtil class to handle the specific column data type mapping from different sources to MySQL.
+            // Check out VerticaDataUtil for an example.
             MySqlCommand cmd;
             //Modify the column if it exists
             if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName))
             {
-                cmd = new MySqlCommand("ALTER TABLE " + t.FullName + " MODIFY COLUMN " + columnName + " " + dataType);
+                cmd = new MySqlCommand("ALTER TABLE " + t.FullName + " MODIFY COLUMN " + columnName + " " + dataType.ToString());
                 logger.Log("Altering table column with command: " + cmd.CommandText, LogLevel.Debug);
                 MySqlNonQuery(dbName, cmd);
             }
             //modify on history table if that exists too
             if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName, t.SchemaName) && CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName))
             {
-                cmd = new MySqlCommand("ALTER TABLE " + t.SchemaName + "." + t.HistoryName + " MODIFY COLUMN " + columnName + " " + dataType);
+                cmd = new MySqlCommand("ALTER TABLE " + t.SchemaName + "." + t.HistoryName + " MODIFY COLUMN " + columnName + " " + dataType.ToString());
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 MySqlNonQuery(historyDB, cmd);
             }
         }
 
-        public void AddColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB)
+        public void AddColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB)
         {
+            // NOTE: We changed the signature of this method to use "DataType dataType" instead of "string dataType".
+            // Currently nothing is done in this method, in terms of mapping source column data type to MySQL column data type.
+            // The generic DataType.MapDataType() method is likely to have problem mapping source column data types to
+            // destination (in this case, MySQL) column data types.  We should implement a MapColumnTypeName() method
+            // within this DataUtil class to handle the specific column data type mapping from different sources to MySQL.
+            // Check out VerticaDataUtil for an example.
             MySqlCommand cmd;
             //add column if it doesn't exist
             if (!CheckColumnExists(dbName, t.SchemaName, t.Name, columnName))
             {
-                cmd = new MySqlCommand("ALTER TABLE " + Config.SlaveDB + "." + t.Name + " ADD " + columnName + " " + dataType);
+                cmd = new MySqlCommand("ALTER TABLE " + Config.SlaveDB + "." + t.Name + " ADD " + columnName + " " + dataType.ToString());
                 logger.Log("Altering table with command: " + cmd.CommandText, LogLevel.Debug);
                 MySqlNonQuery(dbName, cmd);
             }
             //add column to history table if the table exists and the column doesn't
             if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName) && !CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName))
             {
-                cmd = new MySqlCommand("ALTER TABLE " + t.HistoryName + " ADD " + columnName + " " + dataType);
+                cmd = new MySqlCommand("ALTER TABLE " + t.HistoryName + " ADD " + columnName + " " + dataType.ToString());
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 MySqlNonQuery(historyDB, cmd);
             }

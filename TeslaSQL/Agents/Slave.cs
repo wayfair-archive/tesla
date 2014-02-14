@@ -52,9 +52,7 @@ namespace TeslaSQL.Agents {
             DateTime start = DateTime.Now;
             logger.Log("Initializing CT batch", LogLevel.Info);
             if (HasMagicHour()) {
-                // get batches that were posted by master
-                // but not yet completed by slave
-                var batches = GetIncompleteBatches(); // for slave: tblCTSlaveVersion
+                var batches = GetIncompleteBatches();
                 ApplyBatchedSchemaChanges(batches);
                 if (batches.All(b => b.SyncBitWise == SCHEMA_CHANGE_COMPLETE)) {
                     //pull new batches
@@ -65,9 +63,6 @@ namespace TeslaSQL.Agents {
                         logger.Log("Magic hour criteria reached, processing batch(es)", LogLevel.Debug);
                         ProcessBatches(batches);
                     } else {
-                        // batches.Count <= 0 || !IsFullRunTime
-                        // NOT the case that schema changes for all pending batches are complete
-                        // OR NOT the case that magic hour criteria is reached
                         logger.Log("Schema changes for all pending batches complete and magic hour not yet reached", LogLevel.Debug);
                     }
                 } else if (batches.Count > 0 && IsFullRunTime(batches.Last().SyncStartTime.Value)) {
@@ -176,10 +171,6 @@ namespace TeslaSQL.Agents {
             var batches = new List<ChangeTrackingBatch>();
             logger.Log("Retrieving information on last run", LogLevel.Debug);
             var incompleteBatches = sourceDataUtils.GetPendingCTSlaveVersions(Config.RelayDB, Config.Slave, BATCH_COMPLETE);
-
-            // TODO: remove
-            logger.Log("incompleteBatches: " + incompleteBatches.ToString(), LogLevel.Debug);
-
             if (incompleteBatches.Rows.Count > 0) {
                 foreach (DataRow row in incompleteBatches.Rows) {
                     batches.Add(new ChangeTrackingBatch(row));
@@ -198,6 +189,12 @@ namespace TeslaSQL.Agents {
             ApplySchemaChangesAndWrite(ctb);
             //marking this field so that all completed slave batches will have the same values
             sourceDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
+
+            logger.Log("Populating table list", LogLevel.Info);
+            List<ChangeTable> existingCTTables = PopulateTableList(Config.Tables, Config.RelayDB, new List<ChangeTrackingBatch>() { ctb });
+            logger.Log("Capturing field lists", LogLevel.Info);
+            SetFieldListsSlave(Config.RelayDB, Config.Tables, ctb, existingCTTables);
+
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 logger.Log("Downloading changes", LogLevel.Info);
                 sw = Stopwatch.StartNew();
@@ -207,13 +204,9 @@ namespace TeslaSQL.Agents {
                 logger.Timing(StepTimingKey("DownloadChanges"), (int)sw.ElapsedMilliseconds);
             }
 
-            logger.Log("Populating table list", LogLevel.Info);
-            List<ChangeTable> existingCTTables = PopulateTableList(Config.Tables, Config.RelayDB, new List<ChangeTrackingBatch>() { ctb });
-
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.ApplyChanges)) == 0) {
                 logger.Log("Applying changes", LogLevel.Info);
                 sw = Stopwatch.StartNew();
-                SetFieldListsSlave(Config.RelayDB, Config.Tables, ctb, existingCTTables);
                 RowCounts total = ApplyChanges(existingCTTables, ctb.CTID, isConsolidated: false);
                 RecordRowCounts(total, ctb);
                 logger.Log("ApplyChanges: " + sw.Elapsed, LogLevel.Trace);
@@ -346,6 +339,10 @@ namespace TeslaSQL.Agents {
                         lu[table.Name] = lu[kvp.Key];
                     } else {
                         logger.Log("No changes captured for " + table.Name, LogLevel.Info);
+                        var ct = new ChangeTable(table.Name, null, table.SchemaName, Config.Slave);
+                        string sourceConsolidatedCTTable = ct.consolidatedName;
+                        logger.Log("Dropping (if exists) consolidated CT table " + sourceConsolidatedCTTable, LogLevel.Info);
+                        sourceDataUtils.DropTableIfExists(Config.RelayDB, sourceConsolidatedCTTable, table.SchemaName);
                         continue;
                     }
                 }
@@ -419,34 +416,6 @@ namespace TeslaSQL.Agents {
                     columns.First((c => c.name == pk)).isPk = true;
                 }
                 SetFieldList(table, columns);
-            }
-
-            if (Config.SlaveType == SqlFlavor.Vertica)
-            {
-                // TODO: Vertica slaves need primary key information
-                /*
-                Dictionary<TableConf, IList<TColumn>> allColumnsByTable = sourceDataUtils.GetAllFields(dbName, tableCTName);
-                Dictionary<TableConf, IList<string>> primaryKeysByTableForVertica = sourceDataUtils.GetAllPrimaryKeys(dbName, tables, batch);
-                foreach (var table in tables)
-                {
-                    IList<string> pks;
-                    try
-                    {
-                        pks = primaryKeysByTableForVertica[table];
-                    }
-                    catch (KeyNotFoundException)
-                    {
-                        var e = new Exception("Primary keys for table " + table.FullName + " not found in " + dbName + ".dbo.tblCTTableInfo_" + batch.CTID);
-                        HandleException(e, table);
-                        //if we handled the exception by just logging an error, this table is still broken so we need to continue
-                        continue;
-                    }
-                }
-                foreach (var pk in pks)
-                {
-                    columns.First((c => c.name == pk)).isPk = true;
-                }
-                 * */
             }
         }
 
@@ -568,7 +537,6 @@ namespace TeslaSQL.Agents {
 
         /// <summary>
         /// Copies change tables from the master to the relay server
-        /// Q: wrong doc? Copies change tables from the relay server to the slave? - nmeng
         /// </summary>
         /// <param name="tables">Array of table config objects</param>
         /// <param name="sourceCTDB">Source CT database</param>
@@ -632,13 +600,9 @@ namespace TeslaSQL.Agents {
                     ") of type " + schemaChange.EventType + " for table " + table.Name, LogLevel.Info);
 
                 if (table.ColumnList == null || table.ColumnList.Contains(schemaChange.ColumnName, StringComparer.OrdinalIgnoreCase)) {
-                    // Q: looks like if table.ColumnList is null in the config
-                    // it means we want to track all columns in that table? - nmeng
                     logger.Log("Schema change applies to a valid column, so we will apply it", LogLevel.Info);
                     try {
                         ApplySchemaChange(destDB, table, schemaChange);
-                    } catch (NullReferenceException e) {
-                        logger.Log(e.Message, LogLevel.Info);
                     } catch (Exception e) {
                         var wrappedExc = new Exception(schemaChange.ToString(), e);
                         HandleException(wrappedExc, table);
@@ -658,11 +622,11 @@ namespace TeslaSQL.Agents {
                     break;
                 case SchemaChangeType.Modify:
                     logger.Log("Changing data type on column " + schemaChange.ColumnName, LogLevel.Info);
-                    destDataUtils.ModifyColumn(table, destDB, schemaChange.ColumnName, schemaChange.DataType.ToString(), Config.SlaveCTDB);
+                    destDataUtils.ModifyColumn(table, destDB, schemaChange.ColumnName, schemaChange.DataType, Config.SlaveCTDB);
                     break;
                 case SchemaChangeType.Add:
                     logger.Log("Adding column " + schemaChange.ColumnName, LogLevel.Info);
-                    destDataUtils.AddColumn(table, destDB, schemaChange.ColumnName, schemaChange.DataType.ToString(), Config.SlaveCTDB);
+                    destDataUtils.AddColumn(table, destDB, schemaChange.ColumnName, schemaChange.DataType, Config.SlaveCTDB);
                     break;
                 case SchemaChangeType.Drop:
                     logger.Log("Dropping column " + schemaChange.ColumnName, LogLevel.Info);

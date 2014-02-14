@@ -210,26 +210,32 @@ namespace TeslaSQL.DataUtils {
                 + dbName + "." + t.FullName + " for slave " + Config.Slave, LogLevel.Error);
         }
 
-        public void ModifyColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
-            logger.Log("Unable to apply modify of column " + columnName + " to type " + dataType + " on "
+        public void ModifyColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB) {
+            logger.Log("Unable to apply modify of column " + columnName + " to type " + dataType.ToString() + " on "
                 + dbName + "." + t.FullName + " for slave " + Config.Slave, LogLevel.Error);
         }
 
-        public void AddColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
+        public void AddColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB) {
+            // NOTE: We changed the signature of this method to use "DataType dataType" instead of "string dataType"
+            // but currently, we are still using the generic DataType.MapDataType(), passing in dataType.ToString().
+            // The generic DataType.MapDataType() method is likely to have problem mapping source column data types to
+            // destination (in this case, Netezza) column data types.  We should implement a MapColumnTypeName() method
+            // within this DataUtil class to handle the specific column data type mapping from different sources to Netezza.
+            // Check out VerticaDataUtil for an example.
             columnName = MapReservedWord(columnName);
             if (!CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
                 //The "max" string doesn't exist on netezza, we can just replace it with the NetezzaStringLength after mapping it.
                 //In practice this only impacts varchar and nvarchar, since other data types would be mapped to something else by the MapDataType
                 //function (i.e. varbinary). This is the only place we do this special string-based handling because we wanted to keep Netezza specific logic
                 //out of the DataType class. Outside of this case, the "max" is handled appropriately in the netezza data copy class.
-                dataType = DataType.MapDataType(Config.RelayType, SqlFlavor.Netezza, dataType).Replace("max", Config.NetezzaStringLength.ToString());
-                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", t.Name, columnName, dataType);
+                string destDataType = DataType.MapDataType(Config.RelayType, SqlFlavor.Netezza, dataType.ToString()).Replace("max", Config.NetezzaStringLength.ToString());
+                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", t.Name, columnName, destDataType);
                 var cmd = new OleDbCommand(sql);
                 SqlNonQuery(dbName, cmd);
                 RefreshViews(dbName, t.Name);
             }
             if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName, t.SchemaName) && !CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName)) {
-                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", t.HistoryName, columnName, dataType);
+                string sql = string.Format("ALTER TABLE {0} ADD {1} {2}; GROOM TABLE {0} VERSIONS;", t.HistoryName, columnName, dataType.ToString());
                 var cmd = new OleDbCommand(sql);
                 logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
                 SqlNonQuery(historyDB, cmd);

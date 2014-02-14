@@ -64,5 +64,31 @@ namespace TeslaSQL.Tests {
             Assert.Throws<InvalidDataException>(delegate { Config.ValidateSqlFlavor(null); });
             Assert.Throws<InvalidDataException>(delegate { Config.ValidateSqlFlavor("SomethingElseInvalid"); });
         }
+
+        [Fact]
+        public void TestRefreshViewConfigTableNameProperty()
+        {
+            RefreshView rv = new RefreshView();
+
+            // Verify "vw" is replaced by "TBL"
+            rv.ViewName = "vwTest";
+            Assert.Equal(rv.TableName, "TBLTest");
+
+            // Verify only first occurrence of "vw" is replaced by "TBL"
+            rv.ViewName = "vwVwTestvw";
+            Assert.Equal(rv.TableName, "TBLVwTestvw");
+            rv.ViewName = "tblVwTest";
+            Assert.Equal(rv.TableName, "tblVwTest");
+
+            // Verify case is ignored when matching "vw"
+            rv.ViewName = "VWTest";
+            Assert.Equal(rv.TableName, "TBLTest");
+            rv.ViewName = "VwTest";
+            Assert.Equal(rv.TableName, "TBLTest");
+
+            // Verify table name part case is kept
+            rv.ViewName = "VWTeStCaSe";
+            Assert.Equal(rv.TableName, "TBLTeStCaSe");
+        }
     }
 }

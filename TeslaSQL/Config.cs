@@ -69,7 +69,6 @@ namespace TeslaSQL {
             IgnoreCase = c.ignoreCase;
             EmailMessage = c.emailMessage;
             // Vertica
-            VerticaUser                  = c.verticaUser;
             VerticaDatabase              = c.verticaDatabase;
             VerticaPort                  = c.verticaPort;
             VerticaIsolationLevel        = c.verticaIsolationLevel;
@@ -79,6 +78,7 @@ namespace TeslaSQL {
             VerticaBackupServerNode      = c.verticaBackupServerNode;
             VerticaKsafe                 = c.verticaKsafe;
             VerticaCopyPath              = c.verticaCopyPath;
+            VerticaStringLength          = c.verticaStringLength;
 
             if (c.magicHours != null) {
                 MagicHours = c.magicHours.Select(fmt => DateTime.Parse(fmt).TimeOfDay).ToArray();
@@ -453,7 +453,6 @@ namespace TeslaSQL {
         public static bool IgnoreCase { get; set; }
 
         // Vertica
-        public static string VerticaUser                  { get; set; }
         public static string VerticaDatabase              { get; set; }
         public static int    VerticaPort                  { get; set; }
         public static string VerticaIsolationLevel        { get; set; }
@@ -463,6 +462,7 @@ namespace TeslaSQL {
         public static string VerticaBackupServerNode      { get; set; }
         public static int    VerticaKsafe                 { get; set; }
         public static string VerticaCopyPath              { get; set; }
+        public static int    VerticaStringLength          { get; set; }
 
         #endregion
 
@@ -550,7 +550,6 @@ namespace TeslaSQL {
         public bool ignoreCase { get; set; }
         public string emailMessage { get; set; }
         // Vertica
-        public string verticaUser                  { get; set; }
         public string verticaDatabase              { get; set; }
         public int    verticaPort                  { get; set; }
         public string verticaIsolationLevel        { get; set; }
@@ -560,6 +559,7 @@ namespace TeslaSQL {
         public string verticaBackupServerNode      { get; set; }
         public int    verticaKsafe                 { get; set; }
         public string verticaCopyPath              { get; set; }
+        public int    verticaStringLength          { get; set; }
 
 
         [XmlArrayItem("magicHour")]
@@ -579,7 +579,12 @@ namespace TeslaSQL {
         public string Db { get; set; }
         public string Command { get; set; }
         [XmlIgnore]
-        public string TableName { get { return Regex.Replace(ViewName, "vw", "TBL", RegexOptions.IgnoreCase); } }
+        public string TableName { get { return Regex.Replace(ViewName, "^vw", "TBL", RegexOptions.IgnoreCase); } }
+        // Only replace the first occurence of "vw", ignoring case.
+
+        // Previous pitfall with TableName: ignoring case, if configuration has <viewName>VWVWORDER</viewName>,
+        // TableName property will be "TBLTBLORDER" where all occurrences of "VW" are replaced by "TBL". This
+        // will cause problem when the table name contains "VW" string(s).
 
         public override string ToString() {
             return string.Format("{0}..{1}: command = {2}", Db, ViewName, Command);

@@ -156,8 +156,26 @@ namespace TeslaSQL {
             return string.Join(
                     " AND ",
                     columns.Where(c => c.isPk)
-                    .Select(c => c.dataType.IsStringType() && Config.IgnoreCase ? String.Format("UPPER(P.{0}) = UPPER(CT.{0})", c.name)
+                    .Select(c => c.dataType.IsStringType() && Config.IgnoreCase
+                        ? String.Format("UPPER({0}.{1}) = UPPER(CT.{1})", schemaTableName, c.name)
                         : String.Format("{0}.{1} = CT.{1}", schemaTableName, c.name))); 
+        }
+
+        /// <summary>
+        /// Given a column name, get the column modifier, if specified in the config
+        /// </summary>
+        /// <param name="columnName"></param>
+        /// <returns></returns>
+        public ColumnModifier getColumnModifier(string columnName)
+        {
+            ColumnModifier mod = null;
+            // see if there are any column modifiers which override our length defaults for the given column
+            if (ColumnModifiers != null)
+            {
+                IEnumerable<ColumnModifier> mods = ColumnModifiers.Where(c => ((c.columnName == columnName) && (c.type == "ShortenField")));
+                mod = mods.FirstOrDefault();
+            }
+            return mod;
         }
 
         [XmlIgnore]

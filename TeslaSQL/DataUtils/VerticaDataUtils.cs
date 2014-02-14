@@ -5,8 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Data.SqlClient;
 using System.Data;
-// using System.Data.OleDb;
+using System.Text.RegularExpressions;
 using Vertica.Data.VerticaClient;
+
 namespace TeslaSQL.DataUtils {
     public class VerticaDataUtils : IDataUtils {
 
@@ -24,7 +25,6 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">VerticaCommand to run</param>
         /// <param name="timeout">Query timeout</param>
         /// <returns>DataTable object representing the result</returns>
-        /// TODO: REVIEW
         internal DataTable SqlQuery(VerticaCommand cmd, int? timeout = null) {
             int commandTimeout = timeout ?? Config.QueryTimeout;
             string connStr = buildConnString();
@@ -52,7 +52,6 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        /// TODO: REVIEW
         internal int SqlNonQuery(VerticaCommand cmd, int? timeout = null) {
             int commandTimeout = timeout ?? Config.QueryTimeout;
             //build connection string based on server/db info passed in
@@ -76,7 +75,6 @@ namespace TeslaSQL.DataUtils {
         /// <param name="cmd">SqlCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
-        /// TODO: REVIEW
         internal int SqlNonQueryWithTransaction(VerticaCommand cmd, int? timeout = null) {
             int commandTimeout = timeout ?? Config.QueryTimeout;
             //build connection string based on server/db info passed in
@@ -96,7 +94,10 @@ namespace TeslaSQL.DataUtils {
             return numrows;
         }
 
-        // TODO: REVIEW
+        /// <summary>
+        /// Log a command
+        /// </summary>
+        /// <param name="cmd">The VerticaCommand object to log</param>
         private void LogCommand(VerticaCommand cmd) {
             string query = cmd.CommandText;
 
@@ -107,7 +108,6 @@ namespace TeslaSQL.DataUtils {
             logger.Log("Executing query: " + query, LogLevel.Debug);
         }
 
-
         /// <summary>
         /// Builds a connection string for the passed in server identifier using global config values
         /// NOTE: Vertica does not have multiple databases per host so we 
@@ -115,7 +115,6 @@ namespace TeslaSQL.DataUtils {
         /// Database name is configured in the config file
         /// </summary>
         /// <returns>An ADO.NET connection string</returns>
-        /// TODO: REVIEW
         private string buildConnString() {
             string host = "";
             string user = "";
@@ -124,10 +123,9 @@ namespace TeslaSQL.DataUtils {
             string isolationLevel = "";
             string backupServerNode = "";
             string verticaDatabase = "";
-            // TODO: do not like hard coding integers, or booleans
-            int port = 5433;
-            int connectionTimeout = 300;
-            bool connectionLoadBalance = true;
+            int port;
+            int connectionTimeout;
+            bool connectionLoadBalance;
 
             switch (server) {
                 case TServer.SLAVE:
@@ -155,49 +153,37 @@ namespace TeslaSQL.DataUtils {
             builder.Port = port;
             builder.ConnectionTimeout = connectionTimeout;
             builder.ConnectionLoadBalance = connectionLoadBalance;
-            try
-            {
+            try {
                 builder.IsolationLevel = (IsolationLevel)Enum.Parse(typeof(IsolationLevel), isolationLevel);
-            }
-            catch (Exception)
-            {
-                throw new Exception("Problem parsing vertica connection isolation level");
+            } catch (Exception) {
+                throw new Exception("Problem parsing Vertica connection isolation level");
             }
 
             return builder.ToString();
         }
 
-        // TODO: WORK, REVIEW
+        // NOTE: this may need work when Vertica is used as master agent
+        // currently this is not used by any workflow
         public List<TColumn> GetFieldList(string dbName, string table, string schema) {
             var cols = new List<TColumn>();
             using (var con = new VerticaConnection(buildConnString())) {
                 con.Open();
                 var t = con.GetSchema("Columns", new string[] { dbName, schema, table, null });
-                foreach (DataRow row in t.Rows)
-                {
-                    cols.Add(new TColumn(row.Field<string>("COLUMN_NAME"), false, null, true));
-                }
-                //this dark magic is (sort of) documented here 
-                //http://msdn.microsoft.com/en-us/library/system.data.oledb.oledbschemaguid.tables.aspx
-                /*
-                var t = con.GetOleDbSchemaTable(OleDbSchemaGuid.Columns, new object[] { null, null, table, null });
                 foreach (DataRow row in t.Rows) {
                     cols.Add(new TColumn(row.Field<string>("COLUMN_NAME"), false, null, true));
                 }
-                 * */
             }
             return cols;
         }
 
         /// <summary>
-        /// Writes data from the given stream reader to a destination database
+        /// Writes data from the given data file to the destination Vertica database
         /// </summary>
         /// <param name="fileName">Name of data file to copy from</param>
         /// <param name="dbName">Database name</param>
         /// <param name="table">Table name to write to</param>
         /// <param name="timeout">Timeout</param>
-        public void BulkCopy(string fileName, string dbName, string table, int timeout)
-        {
+        public void BulkCopy(string fileName, string dbName, string table, int timeout) {
             // reference: http://goo.gl/8R6UXJ
             string copyStatement = string.Format(
                 "COPY {0}.{1} FROM '{2}' DELIMITER '|' NULL '' ENCLOSED BY '' RECORD TERMINATOR E'\r\n' ABORT ON ERROR DIRECT STREAM NAME 'Tesla' NO COMMIT",
@@ -208,7 +194,6 @@ namespace TeslaSQL.DataUtils {
             SqlNonQueryWithTransaction(cmd);
         }
 
-        // TODO: WORK
         public bool DropTableIfExists(string dbName, string table, string schema) {
             // here we are still calling the public method defined by the interface
             if (CheckTableExists(dbName, table, schema)) {
@@ -218,11 +203,9 @@ namespace TeslaSQL.DataUtils {
                 return SqlNonQuery(cmd) > 0;
             }
             return false;
-
         }
 
-        protected bool CheckTableExists(string schema, string table)
-        {
+        protected bool CheckTableExists(string schema, string table) {
             VerticaCommand cmd = new VerticaCommand();
             // NOTE: Vertica is data case-sensitive, and command case-insensitive
             // which means:
@@ -237,15 +220,21 @@ namespace TeslaSQL.DataUtils {
             return res.Rows.Count > 0;
         }
 
-        // TODO: REVIEW
+        /// <summary>
+        /// Public facing function to check if [dbName].[schema].[table] exists in Vertica DB
+        /// For Vertica, we are always connecting to the same database (Config.VerticaDatabase)
+        /// but different schemas.  Which means the source's database name becomes the destination's
+        /// (Vertica's) schema name
+        /// </summary>
+        /// <param name="dbName">Database name from the caller</param>
+        /// <param name="table"></param>
+        /// <param name="schema"></param>
+        /// <returns></returns>
         public bool CheckTableExists(string dbName, string table, string schema = "") {
-            // For Vertica, we are always connecting to the same database (Config.VerticaDatabase)
-            // but different schemas.  Which means the source's database becomes the destination's
-            // (Vertica's) schema
+            // ignore [schema] and call the overloaded protected method using [dbName] as [schema]
             return CheckTableExists(dbName, table);
         }
 
-        // TODO: REVIEW
         public RowCounts ApplyTableChanges(TableConf table, TableConf archiveTable, string dbName, long CTID, string CTDBName, bool isConsolidated) {
             var cmds = new List<InsertDelete>();
             cmds.Add(BuildApplyCommand(table, dbName, CTDBName, CTID));
@@ -257,8 +246,7 @@ namespace TeslaSQL.DataUtils {
             using (var conn = new VerticaConnection(connStr)) {
                 conn.Open();
                 VerticaTransaction trans = conn.BeginTransaction();
-                foreach (var id in cmds)
-                {
+                foreach (var id in cmds) {
                     id.delete.Connection = conn;
                     id.delete.Transaction = trans;
                     id.delete.CommandTimeout = Config.QueryTimeout;
@@ -287,7 +275,14 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
-        // TODO: WORK
+        /// <summary>
+        /// Build the apply command
+        /// </summary>
+        /// <param name="table">Table to apply changes to</param>
+        /// <param name="schema">Vertica schema to apply changes to</param>
+        /// <param name="CTDBName">CT database name, which is actually Vertica CT schema name</param>
+        /// <param name="CTID">Change tracking ID</param>
+        /// <returns>InsertDelete object representing the apply command</returns>
         private InsertDelete BuildApplyCommand(TableConf table, string schema, string CTDBName, long CTID) {
             // NOTE: Vertica does not like the first alias P in the following command:
             //      DELETE FROM a.b P WHERE EXISTS (SELECT 1 FROM c.d CT WHERE P.id = CT.id)
@@ -319,66 +314,42 @@ namespace TeslaSQL.DataUtils {
             return new InsertDelete(insertCmd, deleteCmd);
         }
 
-        // TODO: REVIEW
         public void CopyIntoHistoryTable(ChangeTable t, string dbName, bool isConsolidated) {
             throw new NotImplementedException();
         }
 
-        // TODO: We should be able to implement RenameColumn for Vertica
         public void RenameColumn(TableConf t, string dbName, string columnName, string newColumnName, string historyDB) {
             logger.Log("Unable to apply rename of column " + columnName + " to " + newColumnName + " on " 
                 + dbName + "." + t.FullName + " for slave " + Config.Slave, LogLevel.Error);
         }
 
-        // TODO: WORK
-        // We keep it simple for the first round of Tesla Vertica feature development
-        // We do not implement column modification in the first round
-        public void ModifyColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
-            logger.Log("Unable to apply modify of column " + columnName + " to type " + dataType + " on "
+        public void ModifyColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB) {
+            logger.Log("Unable to apply modify of column " + columnName + " to type " + dataType.ToString() + " on "
                 + dbName + "." + t.FullName + " for slave " + Config.Slave, LogLevel.Error);
         }
 
-        // TODO: WORK
-        public void AddColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB) {
+        public void AddColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB) {
+            // NOTE: Reserved word should not be a problem for Vertica
+            // in case we found it is some point in the future, enable mapping
             // columnName = MapReservedWord(columnName);
             if (!CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
-                //The "max" string doesn't exist on netezza, we can just replace it with the NetezzaStringLength after mapping it.
-                //In practice this only impacts varchar and nvarchar, since other data types would be mapped to something else by the MapDataType
-                //function (i.e. varbinary). This is the only place we do this special string-based handling because we wanted to keep Netezza specific logic
-                //out of the DataType class. Outside of this case, the "max" is handled appropriately in the netezza data copy class.
-
-                // TODO: Config.NetezzaStringLength?
-                // dataType = DataType.MapDataType(Config.RelayType, SqlFlavor.Vertica, dataType).Replace("max", Config.NetezzaStringLength.ToString());
-                dataType = DataType.MapDataType(Config.RelayType, SqlFlavor.Vertica, dataType);
+                string destDataType = MapColumnTypeName(Config.RelayType, dataType, t.getColumnModifier(columnName));
                 string sql = string.Format(
                     @"ALTER TABLE {0}.{1} ADD {2} {3};",
                     dbName,
                     t.Name,
                     columnName,
-                    dataType);
+                    destDataType);
                 var cmd = new VerticaCommand(sql);
                 SqlNonQuery(cmd);
 
-                // TODO: RefreshViews?
                 RefreshViews(dbName, t.Name);
             }
-            // TODO: VERIFY
-            // we are not implementing the history table for Vertica slaves
-            /*
-            if (t.RecordHistoryTable && CheckTableExists(historyDB, t.HistoryName, t.SchemaName) && !CheckColumnExists(historyDB, t.SchemaName, t.HistoryName, columnName)) {
-                string sql = string.Format("ALTER TABLE {0} ADD {1} {2};", t.HistoryName, columnName, dataType);
-                var cmd = new VerticaCommand(sql);
-                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(historyDB, cmd);
-
-                // TODO: RefreshViews?
-                RefreshViews(historyDB, t.HistoryName);
-            }
-             * */
         }
 
-        // TODO: WORK
         public void DropColumn(TableConf t, string dbName, string columnName, string historyDB) {
+            // NOTE: Reserved word should not be a problem for Vertica
+            // in case we found it is some point in the future, enable mapping
             // columnName = MapReservedWord(columnName);
             if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
                 string sql = string.Format(
@@ -389,28 +360,15 @@ namespace TeslaSQL.DataUtils {
                 var cmd = new VerticaCommand(sql);
                 SqlNonQuery(cmd);
 
-                // TODO: RefreshViews?
                 RefreshViews(dbName, t.Name);
             }
-
-            /*
-            if (t.RecordHistoryTable && CheckTableExists(dbName, t.HistoryName, t.SchemaName) && CheckColumnExists(dbName, t.SchemaName, t.HistoryName, columnName)) {
-                string sql = string.Format("ALTER TABLE {0} DROP COLUMN {1} RESTRICT;", t.HistoryName, columnName);
-                var cmd = new VerticaCommand(sql);
-                logger.Log("Altering history table column with command: " + cmd.CommandText, LogLevel.Debug);
-                SqlNonQuery(historyDB, cmd);
-
-                // TODO: RefreshViews?
-                RefreshViews(historyDB, t.HistoryName);
-            }
-             * */
         }
 
-        // TODO: WORK
         // The refresh command configured will execute if Config.RefreshViews has a configuration for the dbName tableName pair
         private void RefreshViews(string dbName, string tableName) {
             var refresh = Config.RefreshViews.Where(r => r.Db.ToLower() == dbName.ToLower() && r.TableName.ToLower() == tableName.ToLower()).FirstOrDefault();
             if (refresh == null) {
+                logger.Log("No refresh view config is available for [" + dbName + "].[" + tableName + "]. Abort refreshing views.", LogLevel.Debug);
                 return;
             }
             string sql = refresh.Command;
@@ -422,9 +380,22 @@ namespace TeslaSQL.DataUtils {
             }
         }
 
-        // TODO: WORK
-        // TODO: VERIFY
-        public bool CheckColumnExists(string dbName, string schema, string table, string column) {
+        /// <summary>
+        /// Check if a column [column] exists in [dbName].[table] in Vertica DB
+        /// We treat dbName as the schema in Vertica
+        /// </summary>
+        /// <param name="dbName">Database name</param>
+        /// <param name="schema">Schema name</param>
+        /// <param name="table">Table name</param>
+        /// <param name="column">Column name</param>
+        /// <returns>Boolean representing whether the column exists</returns>
+        private bool CheckColumnExists(string dbName, string schema, string table, string column) {
+            // NOTE: for our scenario (MSSQL relay, Vertica slave)
+            // MSSQL database name becomes Vertica schema name
+            // and MSSQL schema name is ignored
+            // NOTE: not sure why this same method is public in NetezzaDataUtils class
+            // where the method is not used anywhere outside the class. We are keeping
+            // this method private here, as is the case in MSSQLDataUtils and MySQLDataUtils
             string sql = string.Format(
                 @"SELECT 1 FROM v_catalog.columns 
                 WHERE UPPER(table_schema) = UPPER('{0}')
@@ -438,34 +409,87 @@ namespace TeslaSQL.DataUtils {
             return res.Rows.Count > 0;
         }
 
-        // TODO: REVIEW
-        // we think we don't need this for Vertica
+        // NOTE: we don't think we need this for Vertica
+        // keeping as placeholder in case some thing emerges
         public static string MapReservedWord(string col) {
             return col;
         }
 
-        // TODO: WORK
         public IEnumerable<TTable> GetTables(string dbName) {
             var tables = new List<TTable>();
             using (var con = new VerticaConnection(buildConnString())) {
                 con.Open();
                 var t = con.GetSchema("Tables", new string[] { null, null, null, "TABLE" });
-                foreach (DataRow row in t.Rows)
-                {
+                foreach (DataRow row in t.Rows) {
                     string tableName = row.Field<string>("TABLE_NAME");
-                    string schema = row.Field<string>("TABLE_SCHEMA");
+                    // NOTE: interestingly, "TABLE_SCHEM" shall be used instead of "TABLE_SCHEMA"
+                    // in case you think this is a typo
+                    string schema = row.Field<string>("TABLE_SCHEM");
                     tables.Add(new TTable(tableName, schema));
                 }
-                //this dark magic is (sort of) documented here 
-                //http://msdn.microsoft.com/en-us/library/system.data.oledb.oledbschemaguid.tables.aspx
-                //var t = con.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, new object[] { null, null, null, "TABLE" });
-                //foreach (DataRow row in t.Rows) {
-                //    string tableName = row.Field<string>("TABLE_NAME");
-                //    string schema = row.Field<string>("TABLE_SCHEMA");
-                //    tables.Add(new TTable(tableName, schema));
-                //}
             }
             return tables;
+        }
+
+        /// <summary>
+        /// Map source column type to Vertica column type, to the form of: data_type_name[(octet_length)]
+        /// NOTE: other DataUtils may consider implementing this method to map data types correctly
+        /// </summary>
+        /// <param name="sourceFlavor">SQL type of the data source</param>
+        /// <param name="sourceDataType">Data type in the source</param>
+        /// <param name="modifier">Modifier configured for the column</param>
+        /// <returns>string representing Vertica column type in the form of: data_type_name[(octet_length)]</returns>
+        public string MapColumnTypeName(SqlFlavor sourceFlavor, DataType sourceDataType, ColumnModifier modifier) {
+            string typeName = "";
+            string modDataType = DataType.MapDataType(sourceFlavor, SqlFlavor.Vertica, sourceDataType.BaseType);
+
+            switch (sourceFlavor) {
+                case SqlFlavor.MSSQL:
+                    // these MSSQL types will carry over the length specs (CHARACTER_MAXIMUM_LENGTH) from MSSQL to Vertica
+                    // NOTE: for these types, we have to make sure, in the data mapping file, the mapped-to Vertica data type is
+                    // specified without the (LENGTH) suffix. That is:
+                    // correct: char => char
+                    // wrong: char => char(65000)
+                    var typesUsingLength = new string[6] { "binary", "char", "nchar", "nvarchar", "varbinary", "varchar" };
+
+                    // these MSSQL types will carry over the scale and precision specs (NUMERIC_PRECISION, NUMERIC_SCALE) from MSSQL to Vertica
+                    var typesUsingScale = new string[4] { "decimal", "money", "numeric", "smallmoney" };
+
+                    if (modifier != null) {
+                        // if modifier is specified, and matches regex, apply modifier to get type name
+                        if (Regex.IsMatch(modDataType, @".*\(\d+\)$")) {
+                            // if (LENGTH) is specified in the mapped data type
+                            typeName = Regex.Replace(modDataType, @"\d+", modifier.length.ToString());
+                        } else {
+                            // there is no (LENGTH) in the mapped data type
+                            typeName = modDataType + "(" + modifier.length.ToString() + ")";
+                        }
+                    } else {
+                        // if no modifier is specified, or regex does not match
+                        string suffix = "";
+
+                        if (typesUsingLength.Contains(sourceDataType.BaseType) && sourceDataType.CharacterMaximumLength != null) {
+                            // if this type uses length, and its CHARACTER_MAXIMUM_LENGTH is set in MSSQL
+
+                            // if CHARACTER_MAXIMUM_LENGTH is -1 (max) [(n)varchar(max) types stored with a maxlen of -1 in MSSQL]
+                            // or if CHARACTER_MAXIMUM_LENGTH is greater than Vertica string length,
+                            // then change that to Vertica string length
+                            // otherwise keep the CHARACTER_MAXIMUM_LENGTH value from MSSQL
+                            suffix = "(" + ((sourceDataType.CharacterMaximumLength == -1 || sourceDataType.CharacterMaximumLength > Config.VerticaStringLength)
+                                ? Convert.ToString(Config.VerticaStringLength) : Convert.ToString(sourceDataType.CharacterMaximumLength)) + ")";
+                        } else if (typesUsingScale.Contains(sourceDataType.BaseType) && sourceDataType.NumericPrecision != null && sourceDataType.NumericScale != null) {
+                            // if this type uses scale and precision
+                            // and both information are available from MSSQL
+                            suffix = "(" + sourceDataType.NumericPrecision + ", " + sourceDataType.NumericScale + ")";
+                        }
+
+                        typeName = modDataType + suffix;
+                    }
+                    break;
+                default:
+                    throw new NotImplementedException("Vertica column type name mapping is not implementation for this source: " + sourceFlavor.ToString());
+            }
+            return typeName;
         }
 
         #region unimplemented
@@ -607,7 +631,7 @@ namespace TeslaSQL.DataUtils {
         }
 
         public void RevertCTBatch(string dbName, long CTID) {
-            //throw new NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public void MergeCTTable(TableConf table, string destDB, string sourceDB, long CTID) {

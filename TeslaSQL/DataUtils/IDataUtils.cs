@@ -230,12 +230,12 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// Changes a column's data type
         /// </summary>
-        void ModifyColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB);
+        void ModifyColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB);
 
         /// <summary>
         /// Adds a column to a table
         /// </summary>
-        void AddColumn(TableConf t, string dbName, string columnName, string dataType, string historyDB);
+        void AddColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB);
 
         /// <summary>
         /// Drops a column from a table

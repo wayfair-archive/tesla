@@ -5,7 +5,6 @@ using System.Text;
 using TeslaSQL.DataUtils;
 using System.Data.SqlClient;
 using System.Data;
-// using System.Data.OleDb;
 using Vertica.Data.VerticaClient;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -17,17 +16,11 @@ namespace TeslaSQL.DataCopy {
         private MSSQLDataUtils sourceDataUtils;
         private VerticaDataUtils destDataUtils;
         private Logger logger;
-        private string vServer;
-        private string vUser;
-        // private string vPrivateKeyPath;
 
-        public MSSQLToVerticaDataCopy(MSSQLDataUtils sourceDataUtils, VerticaDataUtils destDataUtils, Logger logger, string vServer, string vUser) {
+        public MSSQLToVerticaDataCopy(MSSQLDataUtils sourceDataUtils, VerticaDataUtils destDataUtils, Logger logger) {
             this.sourceDataUtils = sourceDataUtils;
             this.destDataUtils = destDataUtils;
             this.logger = logger;
-            this.vServer = vServer;
-            this.vUser = vUser;
-            // this.vPrivateKeyPath = vPrivateKeyPath;
         }
 
         private static void CreateDirectoryIfNotExists(string directory) {
@@ -43,8 +36,7 @@ namespace TeslaSQL.DataCopy {
         /// <param name="fileName">Name of data file to copy from</param>
         /// <param name="destinationTable">Table to write to on the destination (must already exist)</param>
         /// <param name="bulkCopyTimeout">How long writing to the destination can take</param>
-        private void CopyDataFromQuery(string fileName, string destDB, string destinationTable, int bulkCopyTimeout = 36000)
-        {
+        private void CopyDataFromQuery(string fileName, string destDB, string destinationTable, int bulkCopyTimeout = 36000) {
             destDataUtils.BulkCopy(fileName, destDB, destinationTable, bulkCopyTimeout);
         }
 
@@ -72,7 +64,6 @@ namespace TeslaSQL.DataCopy {
             string bcpFileName = bcpDirectory + @"\" + destTableName + ".txt";
             CreateDirectoryIfNotExists(bcpDirectory);
             string password = new cTripleDes().Decrypt(Config.RelayPassword);
-            // var bcpArgs = string.Format(@"""{0}"" queryout {1}\{2}.txt -c -S{3} -U {4} -P {5} -t""|"" -r\n",
             var bcpArgs = string.Format(@"""{0}"" queryout {1} -c -S{2} -U {3} -P {4} -t""|"" -r\n",
                                             bcpSelect,
                                             bcpFileName,
@@ -114,7 +105,7 @@ namespace TeslaSQL.DataCopy {
             }
             logger.Log("BCP successful for " + destTableName, LogLevel.Trace);
 
-            // TODO: use COPY on Vertica
+            // Use COPY command to copy data from data file to Vertica database
             string verticaCopyDirectory = Config.VerticaCopyPath.TrimEnd('/') + "/" + sourceDB.ToLower();
             string verticaCopyFileName = verticaCopyDirectory + "/" + destTableName + ".txt";
             CopyDataFromQuery(verticaCopyFileName, destDB, destTableName, timeout);
@@ -138,7 +129,7 @@ namespace TeslaSQL.DataCopy {
             /// </summary>
             public string ColExpression() {
                 if (dataType.IsStringType()) {
-                    //This nasty expression should handle everything that could be in a string which would break nzload.
+                    // This nasty expression should handle everything that could be in a string which would break bcp.
                     string toFormat = @"ISNULL(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(cast({0}";
                     toFormat += @" as varchar(max)),'\', '\\'),CHAR(13)+CHAR(10),' '),'\""', '\'+'\""'),";
                     toFormat += @"'|', ','),CHAR(10), ' '), 'NULL', '\NULL'), 'NULL') as {0}";
@@ -151,7 +142,6 @@ namespace TeslaSQL.DataCopy {
             }
         }
 
-        // TODO: WORK
         public void CopyTableDefinition(string sourceDB, string sourceTableName, string schema, string destDB, string destTableName, string originalTableName = null) {
             var cols = GetColumns(sourceDB, sourceTableName, schema, originalTableName ?? sourceTableName);
 
@@ -159,10 +149,14 @@ namespace TeslaSQL.DataCopy {
             var table = Config.TableByName(originalTableName);
             List<TableConf> tableConfs = new List<TableConf>() { table };
             Dictionary<TableConf, IList<TColumn>> allColumnsByTable = sourceDataUtils.GetAllFields(sourceDB, tableConfs.ToDictionary(t => t, t => t.Name));
-            // When we create this string we should check if the final string ends up being a database..tablename (two dots). In Vertica we want one dot only
-            // The [PK] syntax should work for both a simple PK (one column only) and a composite PK (more than one column)
-            // KSAFE should be another XML parameter at the table level in the config files for the subscriber side only
-            // TODO: replace [PK] with the PK definition
+
+            string pkList = string.Join(",", cols.Where(c => c.isPk).Select(c => c.name));
+            if (String.IsNullOrEmpty(pkList)) {
+                string err = "Primary Key information is required for Vertica, but absent";
+                logger.Log(err, LogLevel.Error);
+                throw new Exception("Copy table definition error: " + err);
+            }
+
             string vCreate = string.Format(
                 @"CREATE TABLE {0}.{1}
                             (
@@ -176,7 +170,7 @@ namespace TeslaSQL.DataCopy {
                 destDB, // for Vertica, the "database" becomes the "schema"
                 destTableName,
                 string.Join(",", cols),
-                string.Join(",", cols.Where(c => c.isPk).Select(c => c.name)),
+                pkList,
                 Config.VerticaKsafe);
             logger.Log(vCreate, LogLevel.Trace);
             destDataUtils.DropTableIfExists(destDB, destTableName, schema);
@@ -185,7 +179,6 @@ namespace TeslaSQL.DataCopy {
 
         }
 
-        // TODO: WORK
         private List<Col> GetColumns(string sourceDB, string sourceTableName, string schema, string originalTableName) {
             //get actual field list on the source table
             var includeColumns = new List<string>() { "SYS_CHANGE_VERSION", "SYS_CHANGE_OPERATION" };
@@ -193,97 +186,25 @@ namespace TeslaSQL.DataCopy {
             //get the table config object
             var table = Config.TableByName(originalTableName);
 
-            // TODO: verify and verify
-            /*
-            List<TableConf> tableConfs = new List<TableConf>(){table};
-            Dictionary<TableConf, IList<TColumn>> allColumnsByTable = sourceDataUtils.GetAllFields(sourceDB, tableConfs.ToDictionary(t => t, t => t.Name));
-             * */
-
             var cols = new List<Col>();
             bool isPrimaryKey;
             foreach (TColumn col in columns) {
-                string typeName = col.dataType.BaseType;
                 isPrimaryKey = false;
-
-                if (table.columns.Count > 0)
-                {
-                    // if table.columns is populated
-                    try
-                    {
+                if (table.columns.Count > 0) {
+                    // NOTE: it is important that table.columns is populated. Problem occurs if not.
+                    // Because Vertica needs Primary Key information for the columns
+                    try {
                         isPrimaryKey = table.columns.Where(c => (c.name != "SYS_CHANGE_VERSION" && c.name != "SYS_CHANGE_OPERATION")).First(c => c.name == col.name).isPk;
-                    }
-                    catch (Exception e)
-                    {
+                    } catch (Exception e) {
                         logger.Log("Cannot determine whether column [" + col.name + "] is PK", LogLevel.Warn);
                         isPrimaryKey = false;
                     }
                 }
 
-                /*
-                try
-                {
-                    isPrimaryKey = allColumnsByTable[table].First(c => c.name == col.name).isPk;
-                }
-                catch (Exception e)
-                {
-                    throw new Exception("Cannot determine whether the column [" + col.name + "] is primary key");
-                }
-                 * */
+                ColumnModifier mod = table.getColumnModifier(col.name);
 
-                /*
-                try
-                {
-                    isPrimaryKey = table.columns.First(c => c.name == col.name).isPk;
-                }
-                catch (Exception e)
-                {
-                    isPrimaryKey = false;
-                }
-                 * */
-
-                ColumnModifier mod = null;
-                //see if there are any column modifiers which override our length defaults
-                ColumnModifier[] modifiers = table.ColumnModifiers;
-                if (modifiers != null) {
-                    IEnumerable<ColumnModifier> mods = modifiers.Where(c => ((c.columnName == col.name) && (c.type == "ShortenField")));
-                    mod = mods.FirstOrDefault();
-                }
-
-                // try to map the source data type to the destination data type 
-                string modDataType = DataType.MapDataType(SqlFlavor.MSSQL, SqlFlavor.Vertica, typeName);
-                if (typeName != modDataType) {
-                    if (mod != null && Regex.IsMatch(modDataType, @".*\(\d+\)$")) {
-                        modDataType = Regex.Replace(modDataType, @"\d+", mod.length.ToString());
-                    }
-                    // cols.Add(new Col(VerticaDataUtils.MapReservedWord(col.name), modDataType, col.dataType, col.isPk));
-                    cols.Add(new Col(VerticaDataUtils.MapReservedWord(col.name), modDataType, col.dataType, isPrimaryKey));
-                    continue;
-                }
-
-                if (col.dataType.UsesMaxLength())
-                {
-                    if (mod != null)
-                    {
-                        typeName += "(" + mod.length + ")";
-                    }
-                    else if (Config.NetezzaStringLength > 0)
-                    {
-                        // TODO: Config.NetezzaStringLength?
-                        typeName += "(" + ((col.dataType.CharacterMaximumLength > Config.NetezzaStringLength
-                            || col.dataType.CharacterMaximumLength < 1) ? Config.NetezzaStringLength : col.dataType.CharacterMaximumLength) + ")";
-                    }
-                    else
-                    {
-                        // TODO: 16000
-                        typeName += "(" + (col.dataType.CharacterMaximumLength > 0 ? col.dataType.CharacterMaximumLength : 16000) + ")";
-                    }
-                }
-                else if (col.dataType.UsesPrecisionScale())
-                {
-                    typeName += "(" + col.dataType.NumericPrecision + "," + col.dataType.NumericScale + ")";
-                }
-                cols.Add(new Col(VerticaDataUtils.MapReservedWord(col.name), typeName, col.dataType, isPrimaryKey));
-                // cols.Add(new Col(VerticaDataUtils.MapReservedWord(col.name), typeName, col.dataType, col.isPk));
+                string verticaTypeName = destDataUtils.MapColumnTypeName(SqlFlavor.MSSQL, col.dataType, mod);
+                cols.Add(new Col(VerticaDataUtils.MapReservedWord(col.name), verticaTypeName, col.dataType, isPrimaryKey));
             }
             return cols;
         }
