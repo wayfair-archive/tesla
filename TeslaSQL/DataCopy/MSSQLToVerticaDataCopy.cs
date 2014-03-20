@@ -132,7 +132,7 @@ namespace TeslaSQL.DataCopy {
                     // This nasty expression should handle everything that could be in a string which would break bcp.
                     string toFormat = @"ISNULL(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(cast({0}";
                     toFormat += @" as varchar(max)),'\', '\\'),CHAR(13)+CHAR(10),' '),'\""', '\'+'\""'),";
-                    toFormat += @"'|', ','),CHAR(10), ' '), 'NULL', '\NULL'), 'NULL') as {0}";
+                    toFormat += @"'|', ','),CHAR(10), ' '), 'NULL', '\NULL'), NULL) as {0}";
                     return string.Format(toFormat, name);
                 }
                 return name;
