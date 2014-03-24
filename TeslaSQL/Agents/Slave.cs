@@ -191,6 +191,7 @@ namespace TeslaSQL.Agents {
             sourceDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.ConsolidateBatches), AgentType.Slave);
 
             logger.Log("Populating table list", LogLevel.Info);
+
             List<ChangeTable> existingCTTables = PopulateTableList(Config.Tables, Config.RelayDB, new List<ChangeTrackingBatch>() { ctb });
             logger.Log("Capturing field lists", LogLevel.Info);
             SetFieldListsSlave(Config.RelayDB, Config.Tables, ctb, existingCTTables);
@@ -198,7 +199,7 @@ namespace TeslaSQL.Agents {
             if ((ctb.SyncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 logger.Log("Downloading changes", LogLevel.Info);
                 sw = Stopwatch.StartNew();
-                CopyChangeTables(Config.Tables, Config.RelayDB, Config.SlaveCTDB, ctb.CTID);
+                CopyChangeTables(Config.Tables, Config.RelayDB, Config.SlaveCTDB, ctb.CTID, existingCTTables);
                 logger.Log("CopyChangeTables: " + sw.Elapsed, LogLevel.Trace);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, ctb.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 logger.Timing(StepTimingKey("DownloadChanges"), (int)sw.ElapsedMilliseconds);
@@ -283,7 +284,7 @@ namespace TeslaSQL.Agents {
             if ((endBatch.SyncBitWise & Convert.ToInt32(SyncBitWise.DownloadChanges)) == 0) {
                 var sw = Stopwatch.StartNew();
                 logger.Log("Downloading consolidated changetables", LogLevel.Info);
-                CopyChangeTables(Config.Tables, Config.RelayDB, Config.SlaveCTDB, endBatch.CTID, isConsolidated: true);
+                CopyChangeTables(Config.Tables, Config.RelayDB, Config.SlaveCTDB, endBatch.CTID, existingCTTables, isConsolidated: true);
                 logger.Log("Changes downloaded successfully", LogLevel.Debug);
                 sourceDataUtils.WriteBitWise(Config.RelayDB, endBatch.CTID, Convert.ToInt32(SyncBitWise.DownloadChanges), AgentType.Slave);
                 logger.Timing(StepTimingKey("DownloadChanges"), (int)sw.ElapsedMilliseconds);
@@ -536,13 +537,16 @@ namespace TeslaSQL.Agents {
         }
 
         /// <summary>
-        /// Copies change tables from the master to the relay server
+        /// Copies change tables from the relay to the slave server
         /// </summary>
         /// <param name="tables">Array of table config objects</param>
         /// <param name="sourceCTDB">Source CT database</param>
         /// <param name="destCTDB">Dest CT database</param>
         /// <param name="CTID">CT batch ID this is for</param>
-        private void CopyChangeTables(IEnumerable<TableConf> tables, string sourceCTDB, string destCTDB, Int64 CTID, bool isConsolidated = false) {
+        /// <param name="existingCTTables">List of existing CT tables</param>
+        /// <param name="isConsolidated">Whether source CT table is consolidated</param>
+        private void CopyChangeTables(IEnumerable<TableConf> tables, string sourceCTDB, string destCTDB, Int64 CTID, List<ChangeTable> existingCTTables, bool isConsolidated = false)
+        {
             if (Config.Slave == Config.RelayServer && sourceCTDB == destCTDB) {
                 logger.Log("Skipping download because slave is equal to relay.", LogLevel.Debug);
                 return;
@@ -550,6 +554,15 @@ namespace TeslaSQL.Agents {
 
             var actions = new List<Action>();
             foreach (TableConf t in tables) {
+                if (Config.SlaveType == SqlFlavor.Vertica) {
+                    // NOTE: bug fix for ticket # 1699344
+                    // Currently we are testing this fix for Vertica only
+                    ChangeTable changeTable = existingCTTables.Where(ctbl => String.Compare(ctbl.name, t.Name, StringComparison.OrdinalIgnoreCase) == 0).OrderBy(ctbl => ctbl.CTID).LastOrDefault();
+                    if (changeTable == null) {
+                        continue;
+                    }
+                }
+
                 IDataCopy dataCopy = DataCopyFactory.GetInstance(Config.RelayType, Config.SlaveType, sourceDataUtils, destDataUtils, logger);
                 var ct = new ChangeTable(t.Name, CTID, t.SchemaName, Config.Slave);
                 string sourceCTTable = isConsolidated ? ct.consolidatedName : ct.ctName;
