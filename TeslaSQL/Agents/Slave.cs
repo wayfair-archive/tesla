@@ -461,6 +461,13 @@ namespace TeslaSQL.Agents {
             Parallel.Invoke(options, actions.ToArray());
         }
 
+        /// <summary>
+        /// Apply changes for the change tables we captured
+        /// </summary>
+        /// <param name="tables">Change tables we captured</param>
+        /// <param name="CTID">Change tracking id</param>
+        /// <param name="isConsolidated">Whether changes are consolidated</param>
+        /// <returns></returns>
         private RowCounts ApplyChanges(List<ChangeTable> tables, Int64 CTID, bool isConsolidated) {
             var hasArchive = ValidTablesAndArchives(tables, CTID);
             var actions = new List<Action>();
@@ -488,30 +495,41 @@ namespace TeslaSQL.Agents {
             return total;
         }
 
+        /// <summary>
+        /// Pair table name with its archive table name if applicable
+        /// </summary>
+        /// <param name="changeTables">Change tables captured</param>
+        /// <param name="CTID">Change tracking id (not actually used)</param>
+        /// <returns>Dictionary of "table name, archive table name" pairs</returns>
         protected Dictionary<TableConf, TableConf> ValidTablesAndArchives(IEnumerable<ChangeTable> changeTables, Int64 CTID) {
             var hasArchive = new Dictionary<TableConf, TableConf>();
             foreach (var confTable in Config.Tables) {
                 if (!changeTables.Any(s => String.Compare(s.name, confTable.Name, StringComparison.OrdinalIgnoreCase) == 0)) {
+                    // if the current configured table does not have changes
                     continue;
                 }
                 if (hasArchive.Any(s => String.Compare(s.Key.Name, confTable.Name, StringComparison.OrdinalIgnoreCase) == 0)) {
-                    //so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
+                    // if the current configured table is already a key in hasArchive dictionary
+                    // so we don't grab tblOrderArchive, insert tlbOrder: tblOrderArchive, and then go back and insert tblOrder: null.
                     continue;
                 }
                 if (confTable.Name.EndsWith("Archive")) {
-                    //if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
+                    // if the current configured table is an archive table
+                    // if we have an archive table, we want to check if we also have the non-archive version of it configured in CT
+                    // get the non-archive table name of this archive table
+                    // e.g. if confTable.Name is 'tableArchive' then nonArchiveTableName is 'table'
                     string nonArchiveTableName = confTable.Name.Substring(0, confTable.Name.LastIndexOf("Archive"));
                     if (changeTables.Any(s => String.Compare(s.name, nonArchiveTableName, StringComparison.OrdinalIgnoreCase) == 0)) {
-                        //if the non-archive table has any changes, we grab the associated table configuration and pair them
+                        // if the non-archive table has any changes, we grab the associated table configuration and pair them
                         var nonArchiveTable = Config.Tables.First(t => String.Compare(t.Name, nonArchiveTableName, StringComparison.OrdinalIgnoreCase) == 0);
 
                         hasArchive[nonArchiveTable] = confTable;
                     } else {
-                        //otherwise we just go ahead and treat the archive CT table as a normal table
+                        // otherwise we just go ahead and treat the archive CT table as a normal table
                         hasArchive[confTable] = null;
                     }
                 } else {
-                    //if the table doesn't end with "Archive," there's no archive table for it to pair up with.
+                    // if the table doesn't end with "Archive," there's no archive table for it to pair up with.
                     hasArchive[confTable] = null;
                 }
 

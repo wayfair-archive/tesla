@@ -49,7 +49,7 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// Runs a query that does not return results (i.e. a write operation)
         /// </summary>
-        /// <param name="cmd">SqlCommand to run</param>
+        /// <param name="cmd">VerticaCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
         internal int SqlNonQuery(VerticaCommand cmd, int? timeout = null) {
@@ -72,7 +72,7 @@ namespace TeslaSQL.DataUtils {
         /// <summary>
         /// Runs a query that does not return results (i.e. a write operation), with transaction
         /// </summary>
-        /// <param name="cmd">SqlCommand to run</param>
+        /// <param name="cmd">VerticaCommand to run</param>
         /// <param name="timeout">Timeout (higher than selects since some writes can be large)</param>
         /// <returns>The number of rows affected</returns>
         internal int SqlNonQueryWithTransaction(VerticaCommand cmd, int? timeout = null) {
@@ -95,17 +95,44 @@ namespace TeslaSQL.DataUtils {
         }
 
         /// <summary>
-        /// Log a command
+        /// Runs a sql query and returns first column and row from results as specified type
         /// </summary>
-        /// <param name="cmd">The VerticaCommand object to log</param>
-        private void LogCommand(VerticaCommand cmd) {
-            string query = cmd.CommandText;
+        /// <param name="cmd">VerticaCommand to run</param>
+        /// <param name="timeout">Query timeout</param>
+        /// <returns>The value in the first column and row, as the specified type</returns>
+        private T SqlQueryToScalar<T>(VerticaCommand cmd, int? timeout = null)
+        {
+            DataTable result = SqlQuery(cmd, timeout);
+            // return result in first column and first row as specified type
+            T toRet;
+            try {
+                toRet = (T)result.Rows[0][0];
+            } catch (InvalidCastException) {
+                throw new Exception("Unable to cast value " + result.Rows[0][0].ToString() + " to type " + typeof(T) +
+                    " when running query: " + ParseCommand(cmd));
+            }
+            return toRet;
+        }
 
+        /// <summary>
+        /// Parse a SQL query, substituting parameters for their values.
+        /// </summary>
+        /// <param name="cmd">VerticaCommand to parse</param>
+        /// <returns>The parsed query</returns>
+        private string ParseCommand(VerticaCommand cmd) {
+            string query = cmd.CommandText;
             foreach (VerticaParameter p in cmd.Parameters) {
                 query = query.Replace(p.ParameterName, "'" + p.Value.ToString() + "'");
             }
+            return query;
+        }
 
-            logger.Log("Executing query: " + query, LogLevel.Debug);
+        /// <summary>
+        /// Log a command
+        /// </summary>
+        /// <param name="cmd">VerticaCommand to log</param>
+        private void LogCommand(VerticaCommand cmd) {
+            logger.Log("Executing query: " + ParseCommand(cmd), LogLevel.Debug);
         }
 
         /// <summary>
@@ -318,14 +345,111 @@ namespace TeslaSQL.DataUtils {
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// Check if we shall refresh views for the given table, column, action(, dataType) combination
+        /// </summary>
+        /// <param name="t">Table configuration</param>
+        /// <param name="dbName">Database name</param>
+        /// <param name="columnName">Column name</param>
+        /// <param name="action">The demanded action</param>
+        /// <param name="columnShallExist">Whether the column shall exist</param>
+        /// <param name="dataType">Demanded datatype of the column</param>
+        /// <returns>Whether we shall refresh views for the given table and column</returns>
+        protected bool ShallRefreshViews(TableConf t, string dbName, string columnName, string action, bool columnShallExist, string dataType = null) {
+            if (t.Name.EndsWith("Archive")) {
+                // if the given table is an archive table, check its non-archive (base) table
+                string nonArchiveTableName = t.Name.Substring(0, t.Name.LastIndexOf("Archive"));
+                if (CheckColumnExists(dbName, t.SchemaName, nonArchiveTableName, columnName)) {
+                    if (columnShallExist) {
+                        // if the column exists in the non-archive (base) table, and it shall exist
+                        if (action == "ModifyColumn") {
+                            if (ColumnDatatypeMatches(dbName, t.SchemaName, nonArchiveTableName, columnName, dataType)) {
+                                // if we are modifying the column
+                                // we shall refresh views if the data type of the target column matches the demanded data type
+                                return true;
+                            }
+                            // will return false if the data type does not match
+                        } else {
+                            // if we are not modifying the column
+                            // we shall refresh views if the column exists and shall exist in the non-archive (base) table
+                            return true;
+                        }
+                    }
+                    // will return false if the column exists, but shall not exist
+                } else {
+                    // if the column does NOT exist, and it shall NOT exist
+                    if (!columnShallExist) {
+                        return true;
+                    }
+                    // will return false if the column does not exist, but shall exist
+                }
+            } else {
+                // if the given table is NOT an archive table, check its archive table
+                string archiveTableName = t.Name + "Archive";
+                if (CheckColumnExists(dbName, t.SchemaName, archiveTableName, columnName)) {
+                    if (columnShallExist) {
+                        // if the column exists in the archive table, and it shall exist
+                        if (action == "ModifyColumn") {
+                            if (ColumnDatatypeMatches(dbName, t.SchemaName, archiveTableName, columnName, dataType)) {
+                                // if we are modifying the column
+                                // we shall refresh views if the data type of the target column matches the demanded data type
+                                return true;
+                            }
+                            // will return false if the data type does not match
+                        } else {
+                            // if we are not modifying the column
+                            // we shall refresh views if the column exists and shall exist in the archive table
+                            return true;
+                        }
+                    }
+                    // will return false if the column exists, but shall not exist
+                } else {
+                    // if the column does NOT exist, and it shall NOT exist
+                    if (!columnShallExist) {
+                        return true;
+                    }
+                    // will return false if the column does not exist, but shall exist
+                }
+            }
+            return false;
+        }
+
         public void RenameColumn(TableConf t, string dbName, string columnName, string newColumnName, string historyDB) {
-            logger.Log("Unable to apply rename of column " + columnName + " to " + newColumnName + " on " 
-                + dbName + "." + t.FullName + " for slave " + Config.Slave, LogLevel.Error);
+            // rename the column if it exists
+            if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
+                string sql = string.Format(
+                    @"ALTER TABLE {0}.{1} RENAME COLUMN {2} TO {3};",
+                    dbName,
+                    t.Name,
+                    columnName,
+                    newColumnName);
+                var cmd = new VerticaCommand(sql);
+                SqlNonQuery(cmd);
+                if (ShallRefreshViews(t, dbName, newColumnName, action: "RenameColumn", columnShallExist: true)) {
+                    RefreshViews(dbName, t.Name);
+                }
+            }
         }
 
         public void ModifyColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB) {
-            logger.Log("Unable to apply modify of column " + columnName + " to type " + dataType.ToString() + " on "
-                + dbName + "." + t.FullName + " for slave " + Config.Slave, LogLevel.Error);
+            // modify the column if it exists
+            if (CheckColumnExists(dbName, t.SchemaName, t.Name, columnName)) {
+                string destDataType = MapColumnTypeName(Config.RelayType, dataType, t.getColumnModifier(columnName));
+                if (!ColumnDatatypeMatches(dbName, t.SchemaName, t.Name, columnName, destDataType)) {
+                    // do not modify if the destination column already has the right data type
+                    string sql = string.Format(
+                        @"ALTER TABLE {0}.{1} ALTER COLUMN {2} SET DATA TYPE {3};",
+                        dbName,
+                        t.Name,
+                        columnName,
+                        destDataType);
+                    var cmd = new VerticaCommand(sql);
+                    SqlNonQuery(cmd);
+                    if (ShallRefreshViews(t, dbName, columnName, action: "ModifyColumn", columnShallExist: true, dataType: destDataType)) {
+                        RefreshViews(dbName, t.Name);
+                    }
+                }
+            }
         }
 
         public void AddColumn(TableConf t, string dbName, string columnName, DataType dataType, string historyDB) {
@@ -342,8 +466,9 @@ namespace TeslaSQL.DataUtils {
                     destDataType);
                 var cmd = new VerticaCommand(sql);
                 SqlNonQuery(cmd);
-
-                RefreshViews(dbName, t.Name);
+                if (ShallRefreshViews(t, dbName, columnName, action: "AddColumn", columnShallExist: true)) {
+                    RefreshViews(dbName, t.Name);
+                }
             }
         }
 
@@ -359,8 +484,9 @@ namespace TeslaSQL.DataUtils {
                     columnName);
                 var cmd = new VerticaCommand(sql);
                 SqlNonQuery(cmd);
-
-                RefreshViews(dbName, t.Name);
+                if (ShallRefreshViews(t, dbName, columnName, action: "DropColumn", columnShallExist: false)) {
+                    RefreshViews(dbName, t.Name);
+                }
             }
         }
 
@@ -377,6 +503,42 @@ namespace TeslaSQL.DataUtils {
                 SqlNonQuery(cmd);
             } catch (Exception) {
                 throw new Exception("Please check any pending schema changes to be applied on Vertica before refreshing the view::" + dbName + ".." + refresh.ViewName);
+            }
+        }
+
+        /// <summary>
+        /// Check if the datatype of the column [column] in [dbName].[table] in Vertica DB
+        /// matches the given data type
+        /// We treat dbName as the schema in Vertica
+        /// </summary>
+        /// <param name="dbName">Database name</param>
+        /// <param name="schema">Schema name</param>
+        /// <param name="table">Table name</param>
+        /// <param name="column">Column name</param>
+        /// <param name="dataType">Data type to match</param>
+        /// <returns>Boolean representing whether the column exists</returns>
+        private bool ColumnDatatypeMatches(string dbName, string schema, string table, string column, string dataType) {
+            // NOTE: for our scenario (MSSQL relay, Vertica slave)
+            // MSSQL database name becomes Vertica schema name
+            // and MSSQL schema name is ignored
+            // NOTE: not sure why this same method is public in NetezzaDataUtils class
+            // where the method is not used anywhere outside the class. We are keeping
+            // this method private here, as is the case in MSSQLDataUtils and MySQLDataUtils
+            string sql = string.Format(
+                @"SELECT data_type FROM v_catalog.columns 
+                WHERE UPPER(table_schema) = UPPER('{0}')
+                    AND UPPER(table_name) = UPPER('{1}')
+                    AND UPPER(column_name) = UPPER('{2}')",
+                dbName,
+                table,
+                column);
+            var cmd = new VerticaCommand(sql);
+            try {
+                string dataTypeString = SqlQueryToScalar<string>(cmd);
+                return dataTypeString.Equals(dataType, StringComparison.OrdinalIgnoreCase);
+            } catch (Exception e) {
+                logger.Log("Exception while matching data type for column [" + dbName + "].[" + table + "].[" + column + "]. " + e.Message, LogLevel.Debug);
+                return false;
             }
         }
 
